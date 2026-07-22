@@ -4,27 +4,29 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const Module = require("node:module");
 const { addTask, createEmptyData } = require("../src/core");
-const { parseTaskMarkdown, updateMarkdownDocument } = require("../src/markdown-store");
+const {
+	findBoardCodeBlocks,
+	readBoardFromDocument,
+	renderBoardCodeBlock,
+} = require("../src/board-store");
+const { updateMarkdownDocument } = require("../src/markdown-store");
 
 class Component {}
 class Plugin extends Component {}
-class ItemView extends Component {}
-class Modal extends Component {}
-class Notice {
-	constructor() {}
+class MarkdownRenderChild extends Component {
+	constructor(containerEl) {
+		super();
+		this.containerEl = containerEl;
+	}
 }
+class MarkdownView {}
+class Modal extends Component {}
+class Notice { constructor() {} }
 class Menu {}
-class PluginSettingTab {}
 class TFile {
 	constructor(path) {
 		this.path = path;
 	}
-}
-class Setting {
-	setName() { return this; }
-	setDesc() { return this; }
-	addText() { return this; }
-	addButton() { return this; }
 }
 
 function normalizePath(path) {
@@ -37,12 +39,11 @@ function loadBuiltPlugin() {
 		if (request === "obsidian") {
 			return {
 				Plugin,
-				ItemView,
+				MarkdownRenderChild,
+				MarkdownView,
 				Modal,
 				Notice,
 				Menu,
-				PluginSettingTab,
-				Setting,
 				TFile,
 				normalizePath,
 				setIcon() {},
@@ -58,22 +59,16 @@ function loadBuiltPlugin() {
 	}
 }
 
-function createMarkdownHarness(PluginClass, initialContent) {
-	const file = new TFile("Quadrant Tasks.md");
+function createPluginHarness(PluginClass, initialContent) {
+	const file = new TFile("Projects.md");
 	let content = initialContent;
 	let failProcess = false;
 	const plugin = new PluginClass();
-	plugin.data = createEmptyData();
-	plugin.settings = { taskFilePath: file.path, migration: null };
-	plugin.storageMode = "markdown";
-	plugin.storageReady = true;
-	plugin.saveQueue = Promise.resolve();
-	plugin.renderViews = () => {};
+	plugin.boardRenderers = new Set();
+	plugin.fileQueues = new Map();
 	plugin.app = {
 		vault: {
-			getAbstractFileByPath(path) {
-				return path === file.path ? file : null;
-			},
+			getAbstractFileByPath(path) { return path === file.path ? file : null; },
 			async process(target, callback) {
 				assert.equal(target, file);
 				if (failProcess) throw new Error("disk full");
@@ -86,6 +81,7 @@ function createMarkdownHarness(PluginClass, initialContent) {
 		},
 	};
 	return {
+		file,
 		plugin,
 		getContent: () => content,
 		setContent: (value) => { content = value; },
@@ -93,176 +89,145 @@ function createMarkdownHarness(PluginClass, initialContent) {
 	};
 }
 
-test("plugin startup defers storage initialization until the workspace layout is ready", async () => {
-	const PluginClass = loadBuiltPlugin();
-	const plugin = new PluginClass();
-	let layoutReadyCallback = null;
-	let initializationCalls = 0;
-	plugin.app = {
-		workspace: {
-			onLayoutReady(callback) { layoutReadyCallback = callback; },
-		},
-	};
-	plugin.registerView = () => {};
-	plugin.addRibbonIcon = () => {};
-	plugin.addCommand = () => {};
-	plugin.addSettingTab = () => {};
-	plugin.finishStorageInitialization = async () => { initializationCalls += 1; };
-
-	await plugin.onload();
-	assert.equal(initializationCalls, 0);
-	assert.equal(typeof layoutReadyCallback, "function");
-	layoutReadyCallback();
-	assert.equal(initializationCalls, 1);
-});
-
-test("built plugin bundle loads and rolls back a failed Markdown write", async () => {
+test("plugin registers an inline processor and insert command without a global view", async () => {
 	const PluginClass = loadBuiltPlugin();
 	assert.equal(Object.getPrototypeOf(PluginClass.prototype), Plugin.prototype);
-	const harness = createMarkdownHarness(
-		PluginClass,
-		updateMarkdownDocument("", createEmptyData()),
+	const plugin = new PluginClass();
+	let processorLanguage = null;
+	let command = null;
+	let layoutReadyCallback = null;
+	let registerViewCalls = 0;
+	plugin.app = {
+		workspace: { onLayoutReady(callback) { layoutReadyCallback = callback; } },
+		vault: { on() { return {}; } },
+	};
+	plugin.registerMarkdownCodeBlockProcessor = (language) => { processorLanguage = language; };
+	plugin.addCommand = (value) => { command = value; };
+	plugin.addRibbonIcon = () => {};
+	plugin.registerEvent = () => {};
+	plugin.registerView = () => { registerViewCalls += 1; };
+	await plugin.onload();
+
+	assert.equal(processorLanguage, "quadrant-tasks");
+	assert.equal(command.id, "insert-quadrant-board");
+	assert.equal(typeof layoutReadyCallback, "function");
+	assert.equal(registerViewCalls, 0);
+});
+
+test("insert command writes a complete independent board at the cursor", () => {
+	const PluginClass = loadBuiltPlugin();
+	const plugin = new PluginClass();
+	let inserted = null;
+	const editor = {
+		getCursor: () => ({ line: 0, ch: 0 }),
+		getLine: () => "",
+		replaceRange: (text, cursor) => { inserted = { text, cursor }; },
+	};
+	plugin.insertBoard(editor);
+	assert.equal(inserted.cursor.line, 0);
+	assert.equal(findBoardCodeBlocks(inserted.text).length, 1);
+	assert.deepEqual(findBoardCodeBlocks(inserted.text)[0].data.tasks, []);
+});
+
+test("a local mutation rebases on the latest note and only changes its board", async () => {
+	const PluginClass = loadBuiltPlugin();
+	const boardA = createEmptyData();
+	addTask(boardA, "External", "schedule", { idFactory: () => "external" });
+	const document = `${renderBoardCodeBlock("board-alpha", boardA)}\n\n${renderBoardCodeBlock("board-beta", createEmptyData())}`;
+	const harness = createPluginHarness(PluginClass, document);
+	harness.setContent(`# externally added heading\n\n${document}`);
+
+	const outcome = await harness.plugin.mutateBoard("Projects.md", "board-beta", (data) =>
+		addTask(data, "Local", "do", { idFactory: () => "local" }),
 	);
+	assert.equal(outcome.result.id, "local");
+	assert.ok(harness.getContent().startsWith("# externally added heading\n\n"));
+	assert.deepEqual(readBoardFromDocument(harness.getContent(), "board-alpha").data.tasks.map((task) => task.id), ["external"]);
+	assert.deepEqual(readBoardFromDocument(harness.getContent(), "board-beta").data.tasks.map((task) => task.id), ["local"]);
+});
+
+test("a failed local write leaves the note unchanged", async () => {
+	const PluginClass = loadBuiltPlugin();
+	const original = renderBoardCodeBlock("board-alpha", createEmptyData());
+	const harness = createPluginHarness(PluginClass, original);
 	harness.setFailProcess(true);
 	const originalConsoleError = console.error;
 	console.error = () => {};
 	try {
-		const result = await harness.plugin.mutate((data) => addTask(data, "Unsaved task", "do"));
-		assert.equal(result, null);
-		assert.deepEqual(harness.plugin.data.tasks, []);
+		const outcome = await harness.plugin.mutateBoard("Projects.md", "board-alpha", (data) => addTask(data, "Unsaved", "do"));
+		assert.equal(outcome, null);
+		assert.equal(harness.getContent(), original);
 	} finally {
 		console.error = originalConsoleError;
 	}
 });
 
-test("a mutation rebases on the latest externally edited Markdown", async () => {
-	const PluginClass = loadBuiltPlugin();
-	const external = createEmptyData();
-	addTask(external, "External task", "schedule", { idFactory: () => "external" });
-	const harness = createMarkdownHarness(PluginClass, updateMarkdownDocument("", external));
-
-	const result = await harness.plugin.mutate((data) =>
-		addTask(data, "Local task", "do", { idFactory: () => "local" }),
-	);
-	assert.equal(result.id, "local");
-	assert.deepEqual(
-		parseTaskMarkdown(harness.getContent()).data.tasks.map((task) => task.id).sort(),
-		["external", "local"],
-	);
-});
-
-test("legacy JSON migration creates a backup and verifies Markdown task ids", async () => {
+test("1.1 global Markdown migrates in place to one local board", async () => {
 	const PluginClass = loadBuiltPlugin();
 	const legacy = createEmptyData();
-	addTask(legacy, "Private legacy task", "delegate", { idFactory: () => "legacy-id" });
-	let file = null;
-	let content = null;
+	addTask(legacy, "Migrated", "delegate", { idFactory: () => "legacy-task" });
+	const file = new TFile("Quadrant Tasks.md");
+	let content = `Preface\n\n${updateMarkdownDocument("", legacy)}\nTail`;
+	let settings = null;
 	let backup = null;
-	let savedSettings = null;
 	const plugin = new PluginClass();
 	plugin.manifest = { dir: ".obsidian/plugins/quadrant-tasks" };
-	plugin.loadData = async () => legacy;
-	plugin.saveData = async (value) => { savedSettings = value; };
+	plugin.loadData = async () => ({ settingsVersion: 1, taskFilePath: file.path });
+	plugin.saveData = async (value) => { settings = value; };
 	plugin.app = {
 		vault: {
 			adapter: {
 				exists: async () => false,
 				write: async (path, value) => { backup = { path, value }; },
 			},
-			getAbstractFileByPath(path) {
-				return file?.path === path ? file : null;
+			getAbstractFileByPath: () => file,
+			read: async () => content,
+			process: async (target, callback) => { content = callback(content); },
+		},
+	};
+	await plugin.migrateLegacyStorage();
+
+	assert.equal(settings.settingsVersion, 2);
+	assert.match(backup.path, /global-note-backup-1\.1\.0\.md$/);
+	assert.ok(content.startsWith("Preface\n\n# Quadrant Tasks\n\n```quadrant-tasks"));
+	assert.ok(content.endsWith("\nTail"));
+	assert.equal(readBoardFromDocument(content, "board-migrated-global").data.tasks[0].id, "legacy-task");
+	const migratedOnce = content;
+	await plugin.migrateLegacyStorage();
+	assert.equal(content, migratedOnce);
+});
+
+test("1.0 JSON migrates directly to a local board with a backup", async () => {
+	const PluginClass = loadBuiltPlugin();
+	const legacy = createEmptyData();
+	addTask(legacy, "JSON task", "eliminate", { idFactory: () => "json-task" });
+	let file = null;
+	let content = null;
+	let settings = null;
+	let backup = null;
+	const plugin = new PluginClass();
+	plugin.manifest = { dir: ".obsidian/plugins/quadrant-tasks" };
+	plugin.loadData = async () => legacy;
+	plugin.saveData = async (value) => { settings = value; };
+	plugin.app = {
+		vault: {
+			adapter: {
+				exists: async () => false,
+				write: async (path, value) => { backup = { path, value }; },
 			},
-			async create(path, value) {
+			getAbstractFileByPath: () => file,
+			create: async (path, value) => {
 				file = new TFile(path);
 				content = value;
 				return file;
 			},
-			async process(target, callback) {
-				assert.equal(target, file);
-				content = callback(content);
-			},
-			async read(target) {
-				assert.equal(target, file);
-				return content;
-			},
+			read: async () => content,
 		},
 	};
-	await plugin.initializeStorage();
+	await plugin.migrateLegacyStorage();
 
+	assert.equal(settings.settingsVersion, 2);
 	assert.match(backup.path, /data-backup-1\.0\.0\.json$/);
-	assert.match(backup.value, /legacy-id/);
-	assert.equal(savedSettings.settingsVersion, 1);
-	assert.equal(savedSettings.tasks, undefined);
-	assert.equal(parseTaskMarkdown(content).data.tasks[0].id, "legacy-id");
-});
-
-test("legacy migration refuses same-id content conflicts", async () => {
-	const PluginClass = loadBuiltPlugin();
-	const markdownData = createEmptyData();
-	addTask(markdownData, "Markdown version", "do", { idFactory: () => "same-id" });
-	const legacyData = createEmptyData();
-	addTask(legacyData, "Legacy version", "schedule", { idFactory: () => "same-id" });
-	const originalContent = updateMarkdownDocument("", markdownData);
-	const harness = createMarkdownHarness(PluginClass, originalContent);
-
-	await assert.rejects(
-		harness.plugin.migrateLegacyData(legacyData),
-		/迁移冲突/,
-	);
-	assert.equal(harness.getContent(), originalContent);
-});
-
-test("an unavailable external task file rerenders into an error state", async () => {
-	const PluginClass = loadBuiltPlugin();
-	const harness = createMarkdownHarness(PluginClass, updateMarkdownDocument("", createEmptyData()));
-	let renderCount = 0;
-	harness.plugin.renderViews = () => { renderCount += 1; };
-	harness.setContent("<!-- quadrant-tasks:start -->\nmissing end marker");
-	const originalConsoleError = console.error;
-	console.error = () => {};
-	try {
-		await harness.plugin.reloadFromTaskFile();
-	} finally {
-		console.error = originalConsoleError;
-	}
-	assert.ok(harness.plugin.storageIssue instanceof Error);
-	assert.equal(renderCount, 1);
-});
-
-test("an invalid external rename is handled without an unhandled rejection", async () => {
-	const PluginClass = loadBuiltPlugin();
-	const harness = createMarkdownHarness(PluginClass, updateMarkdownDocument("", createEmptyData()));
-	let renderCount = 0;
-	harness.plugin.renderViews = () => { renderCount += 1; };
-	const originalConsoleError = console.error;
-	console.error = () => {};
-	try {
-		assert.equal(await harness.plugin.followRenamedTaskFile("Quadrant Tasks.txt"), false);
-	} finally {
-		console.error = originalConsoleError;
-	}
-	assert.ok(harness.plugin.storageIssue instanceof Error);
-	assert.equal(renderCount, 1);
-});
-
-test("a missing post-migration Markdown file remains unavailable", async () => {
-	const PluginClass = loadBuiltPlugin();
-	let createCalls = 0;
-	const plugin = new PluginClass();
-	plugin.loadData = async () => ({ settingsVersion: 1, taskFilePath: "Quadrant Tasks.md" });
-	plugin.app = {
-		vault: {
-			getAbstractFileByPath: () => null,
-			create: async () => { createCalls += 1; },
-		},
-	};
-	const originalConsoleError = console.error;
-	console.error = () => {};
-	try {
-		await plugin.initializeStorage();
-	} finally {
-		console.error = originalConsoleError;
-	}
-	assert.equal(createCalls, 0);
-	assert.ok(plugin.storageIssue instanceof Error);
+	assert.match(backup.value, /json-task/);
+	assert.equal(readBoardFromDocument(content, "board-migrated-global").data.tasks[0].id, "json-task");
 });

@@ -4,9 +4,8 @@
 	--qt-delegate: var(--color-yellow);
 	--qt-eliminate: var(--text-muted);
 	box-sizing: border-box;
-	height: 100%;
-	overflow-y: auto;
-	padding: 24px;
+	width: 100%;
+	padding: 12px 0;
 	color: var(--text-normal);
 }
 
@@ -22,15 +21,15 @@
 	margin: 0 auto 16px;
 }
 
-.qt-title-group h2,
+.qt-title-group h3,
 .qt-completed-header h3,
 .qt-quadrant-heading h3 {
 	margin: 0;
 	letter-spacing: 0;
 }
 
-.qt-title-group h2 {
-	font-size: 1.5rem;
+.qt-title-group h3 {
+	font-size: 1.15rem;
 	line-height: 1.3;
 }
 
@@ -434,7 +433,7 @@
 
 @media (max-width: 720px) {
 	.qt-root {
-		padding: 14px 10px 28px;
+		padding: 10px 0 20px;
 	}
 
 	.qt-matrix {

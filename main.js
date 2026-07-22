@@ -10,7 +10,7 @@ var require_core = __commonJS({
     "use strict";
     var DATA_VERSION = 1;
     var QUADRANTS2 = ["do", "schedule", "delegate", "eliminate"];
-    function createEmptyData() {
+    function createEmptyData2() {
       return { version: DATA_VERSION, tasks: [] };
     }
     function isQuadrant(value) {
@@ -20,7 +20,7 @@ var require_core = __commonJS({
       return typeof value === "string" && !Number.isNaN(Date.parse(value));
     }
     function normalizeData2(raw) {
-      if (!raw || !Array.isArray(raw.tasks)) return createEmptyData();
+      if (!raw || !Array.isArray(raw.tasks)) return createEmptyData2();
       const ids = /* @__PURE__ */ new Set();
       const tasks = [];
       for (const candidate of raw.tasks) {
@@ -166,7 +166,7 @@ var require_core = __commonJS({
       addTask: addTask2,
       completeTask: completeTask2,
       completionBounds: completionBounds2,
-      createEmptyData,
+      createEmptyData: createEmptyData2,
       deleteTask: deleteTask2,
       editTask: editTask2,
       getActiveTasks: getActiveTasks2,
@@ -184,7 +184,7 @@ var require_core = __commonJS({
 var require_markdown_store = __commonJS({
   "src/markdown-store.js"(exports2, module2) {
     "use strict";
-    var { createEmptyData, isQuadrant, normalizeData: normalizeData2 } = require_core();
+    var { createEmptyData: createEmptyData2, isQuadrant, normalizeData: normalizeData2 } = require_core();
     var START_MARKER = "<!-- quadrant-tasks:start -->";
     var END_MARKER = "<!-- quadrant-tasks:end -->";
     var META_PREFIX = "<!-- quadrant-task ";
@@ -284,14 +284,14 @@ var require_markdown_store = __commonJS({
       const endCount = countOccurrences(content, END_MARKER);
       if (startCount !== endCount || startCount > 1) {
         return {
-          data: createEmptyData(),
+          data: createEmptyData2(),
           issues: ["\u4EFB\u52A1\u7BA1\u7406\u533A\u6807\u8BB0\u7F3A\u5931\u6216\u91CD\u590D"],
           hasManagedBlock: false
         };
       }
       const range = findManagedRange(content);
       if (!range) {
-        return { data: createEmptyData(), issues: [], hasManagedBlock: false };
+        return { data: createEmptyData2(), issues: [], hasManagedBlock: false };
       }
       const managed = content.slice(range.start + START_MARKER.length, range.end - END_MARKER.length);
       const lines = managed.split(/\r?\n/);
@@ -393,7 +393,7 @@ var require_markdown_store = __commonJS({
       lines.push("", END_MARKER);
       return lines.join(newline);
     }
-    function updateMarkdownDocument2(content, data) {
+    function updateMarkdownDocument(content, data) {
       const newline = detectNewline(content);
       const block = renderManagedBlock(data, newline);
       const range = findManagedRange(content);
@@ -402,7 +402,7 @@ var require_markdown_store = __commonJS({
       const separator = content.endsWith(newline) ? newline : `${newline}${newline}`;
       return `${content}${separator}${block}${newline}`;
     }
-    function mergeTaskData2(primary, additional) {
+    function mergeTaskData(primary, additional) {
       const merged = normalizeData2(primary);
       const ids = new Set(merged.tasks.map((task) => task.id));
       for (const task of normalizeData2(additional).tasks) {
@@ -417,23 +417,228 @@ var require_markdown_store = __commonJS({
       START_MARKER,
       detectNewline,
       findManagedRange,
-      mergeTaskData: mergeTaskData2,
+      mergeTaskData,
       parseTaskMarkdown: parseTaskMarkdown2,
       renderManagedBlock,
-      updateMarkdownDocument: updateMarkdownDocument2
+      updateMarkdownDocument
+    };
+  }
+});
+
+// src/board-store.js
+var require_board_store = __commonJS({
+  "src/board-store.js"(exports2, module2) {
+    "use strict";
+    var { normalizeData: normalizeData2 } = require_core();
+    var {
+      END_MARKER,
+      START_MARKER,
+      detectNewline,
+      findManagedRange,
+      parseTaskMarkdown: parseTaskMarkdown2,
+      renderManagedBlock
+    } = require_markdown_store();
+    var BOARD_LANGUAGE2 = "quadrant-tasks";
+    var BOARD_META_PREFIX = "<!-- quadrant-board ";
+    var BOARD_META_SUFFIX = " -->";
+    var BOARD_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{2,127}$/;
+    function createBoardId2() {
+      if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
+        return `board-${globalThis.crypto.randomUUID()}`;
+      }
+      return `board-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
+    }
+    function cloneData2(data) {
+      return normalizeData2(JSON.parse(JSON.stringify(data)));
+    }
+    function parseBoardSource2(source, options = {}) {
+      const newline = detectNewline(source);
+      const lines = source.split(/\r?\n/);
+      const firstContentIndex = lines.findIndex((line) => line.trim());
+      const issues = [];
+      let boardId = null;
+      let bodyStart = 0;
+      if (firstContentIndex < 0) {
+        issues.push("\u4EE3\u7801\u5757\u7F3A\u5C11\u56DB\u8C61\u9650\u5143\u6570\u636E");
+      } else {
+        const metadataLine = lines[firstContentIndex].trim();
+        if (metadataLine.startsWith(BOARD_META_PREFIX) && metadataLine.endsWith(BOARD_META_SUFFIX)) {
+          try {
+            const metadata = JSON.parse(metadataLine.slice(BOARD_META_PREFIX.length, -BOARD_META_SUFFIX.length));
+            if ((metadata == null ? void 0 : metadata.version) === 2 && BOARD_ID_PATTERN.test(metadata.id || "")) boardId = metadata.id;
+          } catch (e) {
+          }
+        }
+        if (!boardId) {
+          issues.push("\u56DB\u8C61\u9650\u5143\u6570\u636E\u7F3A\u5931\u6216\u683C\u5F0F\u65E0\u6548");
+        } else {
+          bodyStart = firstContentIndex + 1;
+        }
+      }
+      const body = lines.slice(bodyStart).join(newline).replace(/^(?:\r?\n)+/, "");
+      const wrapped = `${START_MARKER}${newline}${body}${newline}${END_MARKER}`;
+      const parsed = parseTaskMarkdown2(wrapped, options);
+      issues.push(...parsed.issues);
+      return {
+        boardId,
+        data: parsed.data,
+        issues,
+        newline
+      };
+    }
+    function renderBoardSource(boardId, data, newline = "\n") {
+      if (!BOARD_ID_PATTERN.test(boardId || "")) throw new Error("board-id \u683C\u5F0F\u65E0\u6548");
+      const managed = renderManagedBlock(data, newline);
+      const body = managed.slice(START_MARKER.length, managed.length - END_MARKER.length).replace(/(?:\r?\n)+$/, "");
+      return `${BOARD_META_PREFIX}${JSON.stringify({ id: boardId, version: 2 })}${BOARD_META_SUFFIX}${body}`;
+    }
+    function renderBoardCodeBlock2(boardId, data, newline = "\n") {
+      return `\`\`\`${BOARD_LANGUAGE2}${newline}${renderBoardSource(boardId, data, newline)}${newline}\`\`\``;
+    }
+    function lineRecords(content) {
+      const records = [];
+      const pattern = /.*?(?:\r\n|\n|$)/g;
+      let match;
+      let offset = 0;
+      while ((match = pattern.exec(content)) && match[0]) {
+        const full = match[0];
+        const newlineMatch = full.match(/\r\n|\n$/);
+        const newline = newlineMatch ? newlineMatch[0] : "";
+        const text = newline ? full.slice(0, -newline.length) : full;
+        records.push({ text, newline, start: offset, end: offset + full.length });
+        offset += full.length;
+      }
+      return records;
+    }
+    function findBoardCodeBlocks2(content) {
+      const lines = lineRecords(content);
+      const blocks = [];
+      for (let index = 0; index < lines.length; index += 1) {
+        const opener = lines[index].text.match(/^ {0,3}((`{3,})|(~{3,}))(.*)$/);
+        if (!opener || !lines[index].newline) continue;
+        const fenceChar = opener[1][0];
+        const fenceLength = opener[1].length;
+        const language = opener[4].trim();
+        const closingPattern = new RegExp(`^ {0,3}${fenceChar === "`" ? "`" : "~"}{${fenceLength},}[ \\t]*$`);
+        let foundClosingFence = false;
+        for (let closeIndex = index + 1; closeIndex < lines.length; closeIndex += 1) {
+          if (!closingPattern.test(lines[closeIndex].text)) continue;
+          foundClosingFence = true;
+          if (language !== BOARD_LANGUAGE2) {
+            index = closeIndex;
+            break;
+          }
+          const sourceStart = lines[index].end;
+          const sourceEnd = lines[closeIndex].start;
+          let source = content.slice(sourceStart, sourceEnd);
+          if (source.endsWith("\r\n")) source = source.slice(0, -2);
+          else if (source.endsWith("\n")) source = source.slice(0, -1);
+          const parsed = parseBoardSource2(source);
+          blocks.push({
+            boardId: parsed.boardId,
+            data: parsed.data,
+            issues: parsed.issues,
+            newline: lines[index].newline || detectNewline(content),
+            source,
+            sourceStart,
+            sourceEnd,
+            start: lines[index].start,
+            end: lines[closeIndex].start + lines[closeIndex].text.length
+          });
+          index = closeIndex;
+          break;
+        }
+        if (!foundClosingFence) break;
+      }
+      return blocks;
+    }
+    function findUniqueBoard(content, boardId) {
+      const matches = findBoardCodeBlocks2(content).filter((block) => block.boardId === boardId);
+      if (matches.length === 0) throw new Error(`\u627E\u4E0D\u5230\u56DB\u8C61\u9650\u8868\uFF1A${boardId}`);
+      if (matches.length > 1) throw new Error(`\u540C\u4E00\u6587\u4EF6\u4E2D\u5B58\u5728\u91CD\u590D\u7684 board-id\uFF1A${boardId}`);
+      const board = matches[0];
+      if (board.issues.length) throw new Error(`\u56DB\u8C61\u9650\u4EE3\u7801\u5757\u5185\u5BB9\u5F02\u5E38\uFF1A${board.issues.join("\uFF1B")}`);
+      return board;
+    }
+    function readBoardFromDocument2(content, boardId) {
+      const board = findUniqueBoard(content, boardId);
+      return { boardId, data: board.data };
+    }
+    function mutateBoardDocument2(content, boardId, mutator) {
+      const board = findUniqueBoard(content, boardId);
+      const draft = cloneData2(board.data);
+      const result = mutator(draft);
+      if (!result) return { content, data: board.data, result };
+      const source = renderBoardSource(boardId, draft, board.newline);
+      return {
+        content: `${content.slice(0, board.sourceStart)}${source}${board.newline}${content.slice(board.sourceEnd)}`,
+        data: draft,
+        result
+      };
+    }
+    function replaceLegacyManagedBlock2(content, boardId, additionalData = null) {
+      if (findBoardCodeBlocks2(content).some((board) => board.boardId === boardId)) {
+        throw new Error(`\u8FC1\u79FB\u76EE\u6807 board-id \u5DF2\u5B58\u5728\uFF1A${boardId}`);
+      }
+      const parsed = parseTaskMarkdown2(content);
+      if (parsed.issues.length) throw new Error(`\u65E7\u4EFB\u52A1\u7BA1\u7406\u533A\u5185\u5BB9\u5F02\u5E38\uFF1A${parsed.issues.join("\uFF1B")}`);
+      if (!parsed.hasManagedBlock) throw new Error("\u627E\u4E0D\u5230\u65E7\u4EFB\u52A1\u7BA1\u7406\u533A");
+      const data = additionalData ? mergeWithoutConflicts2(parsed.data, additionalData) : parsed.data;
+      const range = findManagedRange(content);
+      const newline = detectNewline(content);
+      const block = renderBoardCodeBlock2(boardId, data, newline);
+      return {
+        content: `${content.slice(0, range.start)}${block}${content.slice(range.end)}`,
+        data
+      };
+    }
+    function appendBoardCodeBlock2(content, boardId, data) {
+      const newline = detectNewline(content);
+      const block = renderBoardCodeBlock2(boardId, data, newline);
+      if (!content) return `${block}${newline}`;
+      const separator = content.endsWith(newline) ? newline : `${newline}${newline}`;
+      return `${content}${separator}${block}${newline}`;
+    }
+    function mergeWithoutConflicts2(primary, additional) {
+      const merged = cloneData2(primary);
+      const byId = new Map(merged.tasks.map((task) => [task.id, task]));
+      for (const task of normalizeData2(additional).tasks) {
+        const existing = byId.get(task.id);
+        if (existing && JSON.stringify(existing) !== JSON.stringify(task)) {
+          throw new Error(`\u4EFB\u52A1 ${task.id} \u5728\u4E24\u4EFD\u6570\u636E\u4E2D\u7684\u5185\u5BB9\u4E0D\u540C`);
+        }
+        if (!existing) {
+          const copy = { ...task };
+          merged.tasks.push(copy);
+          byId.set(copy.id, copy);
+        }
+      }
+      return merged;
+    }
+    module2.exports = {
+      BOARD_LANGUAGE: BOARD_LANGUAGE2,
+      appendBoardCodeBlock: appendBoardCodeBlock2,
+      createBoardId: createBoardId2,
+      findBoardCodeBlocks: findBoardCodeBlocks2,
+      mergeWithoutConflicts: mergeWithoutConflicts2,
+      mutateBoardDocument: mutateBoardDocument2,
+      parseBoardSource: parseBoardSource2,
+      readBoardFromDocument: readBoardFromDocument2,
+      renderBoardCodeBlock: renderBoardCodeBlock2,
+      renderBoardSource,
+      replaceLegacyManagedBlock: replaceLegacyManagedBlock2
     };
   }
 });
 
 // src/main.js
 var {
-  ItemView,
+  MarkdownRenderChild,
+  MarkdownView,
   Menu,
   Modal,
   Notice,
   Plugin,
-  PluginSettingTab,
-  Setting,
   TFile,
   normalizePath,
   setIcon
@@ -443,6 +648,7 @@ var {
   addTask,
   completeTask,
   completionBounds,
+  createEmptyData,
   deleteTask,
   editTask,
   getActiveTasks,
@@ -453,35 +659,29 @@ var {
   restoreTask
 } = require_core();
 var {
-  mergeTaskData,
-  parseTaskMarkdown,
-  updateMarkdownDocument
-} = require_markdown_store();
-var VIEW_TYPE = "quadrant-tasks-view";
-var DEFAULT_TASK_FILE_PATH = "Quadrant Tasks.md";
-var SETTINGS_VERSION = 1;
-var LEGACY_BACKUP_NAME = "data-backup-1.0.0.json";
+  BOARD_LANGUAGE,
+  appendBoardCodeBlock,
+  createBoardId,
+  findBoardCodeBlocks,
+  mergeWithoutConflicts,
+  mutateBoardDocument,
+  parseBoardSource,
+  readBoardFromDocument,
+  renderBoardCodeBlock,
+  replaceLegacyManagedBlock
+} = require_board_store();
+var { parseTaskMarkdown } = require_markdown_store();
+var SETTINGS_VERSION = 2;
+var DEFAULT_MIGRATION_PATH = "Quadrant Tasks.md";
+var LEGACY_BOARD_ID = "board-migrated-global";
+var LEGACY_JSON_BACKUP = "data-backup-1.0.0.json";
+var LEGACY_NOTE_BACKUP = "global-note-backup-1.1.0.md";
+var LEGACY_VIEW_TYPE = "quadrant-tasks-view";
 var QUADRANT_META = {
-  do: {
-    action: "\u7ACB\u5373\u505A",
-    description: "\u91CD\u8981\u4E14\u7D27\u6025",
-    icon: "zap"
-  },
-  schedule: {
-    action: "\u5B89\u6392",
-    description: "\u91CD\u8981\u4E0D\u7D27\u6025",
-    icon: "calendar-clock"
-  },
-  delegate: {
-    action: "\u59D4\u6D3E",
-    description: "\u7D27\u6025\u4E0D\u91CD\u8981",
-    icon: "users"
-  },
-  eliminate: {
-    action: "\u820D\u5F03",
-    description: "\u4E0D\u91CD\u8981\u4E0D\u7D27\u6025",
-    icon: "archive"
-  }
+  do: { action: "\u7ACB\u5373\u505A", description: "\u91CD\u8981\u4E14\u7D27\u6025", icon: "zap" },
+  schedule: { action: "\u5B89\u6392", description: "\u91CD\u8981\u4E0D\u7D27\u6025", icon: "calendar-clock" },
+  delegate: { action: "\u59D4\u6D3E", description: "\u7D27\u6025\u4E0D\u91CD\u8981", icon: "users" },
+  eliminate: { action: "\u820D\u5F03", description: "\u4E0D\u91CD\u8981\u4E0D\u7D27\u6025", icon: "archive" }
 };
 var PERIODS = [
   { id: "all", label: "\u5168\u90E8" },
@@ -490,6 +690,9 @@ var PERIODS = [
   { id: "30d", label: "\u8FD1 30 \u5929" },
   { id: "custom", label: "\u81EA\u5B9A\u4E49" }
 ];
+function cloneData(data) {
+  return normalizeData(JSON.parse(JSON.stringify(data)));
+}
 function createIconButton(parent, icon, label, onClick, className = "") {
   const button = parent.createEl("button", {
     cls: `clickable-icon qt-icon-button ${className}`.trim(),
@@ -500,14 +703,13 @@ function createIconButton(parent, icon, label, onClick, className = "") {
   return button;
 }
 function formatCompletedAt(value) {
-  const date = new Date(value);
   return new Intl.DateTimeFormat(void 0, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit"
-  }).format(date);
+  }).format(new Date(value));
 }
 var TaskTitleModal = class extends Modal {
   constructor(app, title, onSave) {
@@ -548,48 +750,51 @@ var TaskTitleModal = class extends Modal {
     this.contentEl.empty();
   }
 };
-var QuadrantTasksView = class extends ItemView {
-  constructor(leaf, plugin) {
-    super(leaf);
+var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
+  constructor(containerEl, plugin, sourcePath, source) {
+    super(containerEl);
     this.plugin = plugin;
-    this.filters = {
-      quadrant: "all",
-      period: "all",
-      startDate: "",
-      endDate: ""
-    };
+    this.sourcePath = sourcePath;
+    const parsed = parseBoardSource(source);
+    this.boardId = parsed.boardId;
+    this.data = parsed.data;
+    this.issues = parsed.issues;
+    this.filters = { quadrant: "all", period: "all", startDate: "", endDate: "" };
     this.draggedTaskId = null;
   }
-  getViewType() {
-    return VIEW_TYPE;
-  }
-  getDisplayText() {
-    return "\u56DB\u8C61\u9650\u4EFB\u52A1";
-  }
-  getIcon() {
-    return "layout-grid";
-  }
-  async onOpen() {
+  onload() {
+    this.plugin.boardRenderers.add(this);
     this.render();
   }
-  async onClose() {
+  onunload() {
+    this.plugin.boardRenderers.delete(this);
+  }
+  setBoardData(data) {
+    this.data = cloneData(data);
+    this.issues = [];
+    this.render();
+  }
+  setBoardError(error) {
+    this.issues = [error.message || String(error)];
+    this.render();
+  }
+  async mutate(mutator) {
+    if (!this.boardId || this.issues.length) return null;
+    const outcome = await this.plugin.mutateBoard(this.sourcePath, this.boardId, mutator);
+    return (outcome == null ? void 0 : outcome.result) || null;
   }
   render() {
-    const container = this.contentEl;
+    const container = this.containerEl;
     container.empty();
-    container.addClass("qt-root");
-    this.renderHeader(container);
-    if (!this.plugin.storageReady) {
-      container.createDiv({ cls: "qt-storage-loading", text: "\u6B63\u5728\u52A0\u8F7D\u4EFB\u52A1 Markdown \u6587\u4EF6\u2026" });
-      return;
-    }
-    if (this.plugin.storageMode === "markdown" && this.plugin.storageIssue) {
+    container.addClass("qt-root", "qt-embed");
+    if (!this.boardId || this.issues.length) {
       container.createDiv({
         cls: "qt-storage-error",
-        text: "\u4EFB\u52A1 Markdown \u6587\u4EF6\u4E0D\u53EF\u7528\u3002\u8BF7\u6062\u590D\u6587\u4EF6\u6216\u4FEE\u6B63\u63D2\u4EF6\u7BA1\u7406\u533A\u540E\u518D\u7EE7\u7EED\u64CD\u4F5C\u3002"
+        text: this.issues.join("\uFF1B") || "\u56DB\u8C61\u9650\u4EE3\u7801\u5757\u7F3A\u5C11 board-id"
       });
       return;
     }
+    this.renderHeader(container);
     const matrix = container.createDiv({ cls: "qt-matrix" });
     for (const quadrant of QUADRANTS) this.renderQuadrant(matrix, quadrant);
     this.renderCompleted(container);
@@ -597,24 +802,14 @@ var QuadrantTasksView = class extends ItemView {
   renderHeader(container) {
     const header = container.createEl("header", { cls: "qt-page-header" });
     const titleGroup = header.createDiv({ cls: "qt-title-group" });
-    titleGroup.createEl("h2", { text: "\u56DB\u8C61\u9650\u4EFB\u52A1" });
+    titleGroup.createEl("h3", { text: "\u56DB\u8C61\u9650\u4EFB\u52A1" });
     const stats = titleGroup.createDiv({ cls: "qt-stats", attr: { "aria-live": "polite" } });
-    if (!this.plugin.storageReady) {
-      stats.createSpan({ text: "\u6B63\u5728\u52A0\u8F7D" });
-      return;
-    }
-    if (this.plugin.storageMode === "markdown" && this.plugin.storageIssue) {
-      stats.createSpan({ text: "\u6570\u636E\u6E90\u4E0D\u53EF\u7528" });
-      return;
-    }
-    const activeCount = getActiveTasks(this.plugin.data).length;
-    const completedCount = getCompletedTasks(this.plugin.data).length;
-    stats.createSpan({ text: `${activeCount} \u9879\u8FDB\u884C\u4E2D` });
-    stats.createSpan({ text: `${completedCount} \u9879\u5DF2\u5B8C\u6210` });
+    stats.createSpan({ text: `${getActiveTasks(this.data).length} \u9879\u8FDB\u884C\u4E2D` });
+    stats.createSpan({ text: `${getCompletedTasks(this.data).length} \u9879\u5DF2\u5B8C\u6210` });
   }
   renderQuadrant(matrix, quadrant) {
     const meta = QUADRANT_META[quadrant];
-    const tasks = getActiveTasks(this.plugin.data, quadrant);
+    const tasks = getActiveTasks(this.data, quadrant);
     const section = matrix.createEl("section", {
       cls: `qt-quadrant qt-quadrant-${quadrant}`,
       attr: { "data-quadrant": quadrant, "aria-label": `${meta.action}\uFF0C${meta.description}` }
@@ -637,20 +832,17 @@ var QuadrantTasksView = class extends ItemView {
         input.addClass("qt-input-error");
         return;
       }
-      const task = await this.plugin.mutate((data) => addTask(data, titleText, quadrant));
+      const task = await this.mutate((data) => addTask(data, titleText, quadrant));
       if (task) input.value = "";
     };
     input.addEventListener("input", () => input.removeClass("qt-input-error"));
     input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.isComposing) submit();
+      if (event.key === "Enter" && !event.isComposing) void submit();
     });
     createIconButton(quickAdd, "plus", `\u6DFB\u52A0\u5230${meta.action}`, () => void submit(), "qt-add-button");
     const list = section.createEl("ul", { cls: "qt-task-list" });
-    if (tasks.length === 0) {
-      list.createEl("li", { text: "\u6682\u65E0\u4EFB\u52A1", cls: "qt-empty" });
-    } else {
-      for (const task of tasks) this.renderActiveTask(list, task);
-    }
+    if (tasks.length === 0) list.createEl("li", { text: "\u6682\u65E0\u4EFB\u52A1", cls: "qt-empty" });
+    else for (const task of tasks) this.renderActiveTask(list, task);
     section.addEventListener("dragover", (event) => {
       if (!this.draggedTaskId) return;
       event.preventDefault();
@@ -665,7 +857,7 @@ var QuadrantTasksView = class extends ItemView {
       section.removeClass("qt-drop-target");
       const taskId = ((_a = event.dataTransfer) == null ? void 0 : _a.getData("text/plain")) || this.draggedTaskId;
       this.draggedTaskId = null;
-      if (taskId) void this.plugin.mutate((data) => moveTask(data, taskId, quadrant));
+      if (taskId) void this.mutate((data) => moveTask(data, taskId, quadrant));
     });
   }
   renderActiveTask(list, task) {
@@ -694,12 +886,12 @@ var QuadrantTasksView = class extends ItemView {
     row.addEventListener("dragend", () => {
       this.draggedTaskId = null;
       row.removeClass("qt-dragging");
-      this.contentEl.querySelectorAll(".qt-drop-target").forEach((element) => element.removeClass("qt-drop-target"));
+      this.containerEl.querySelectorAll(".qt-drop-target").forEach((element) => element.removeClass("qt-drop-target"));
     });
   }
   openEditor(task) {
-    new TaskTitleModal(this.app, task.title, (title) => {
-      void this.plugin.mutate((data) => editTask(data, task.id, title));
+    new TaskTitleModal(this.plugin.app, task.title, (title) => {
+      void this.mutate((data) => editTask(data, task.id, title));
     }).open();
   }
   openTaskMenu(event, task) {
@@ -709,9 +901,7 @@ var QuadrantTasksView = class extends ItemView {
       const meta = QUADRANT_META[quadrant];
       menu.addItem((item) => {
         item.setTitle(`\u79FB\u81F3\uFF1A${meta.action}`).setIcon(meta.icon).setDisabled(task.quadrant === quadrant);
-        item.onClick(() => {
-          void this.plugin.mutate((data) => moveTask(data, task.id, quadrant));
-        });
+        item.onClick(() => void this.mutate((data) => moveTask(data, task.id, quadrant)));
       });
     }
     menu.addSeparator();
@@ -721,34 +911,28 @@ var QuadrantTasksView = class extends ItemView {
     menu.showAtMouseEvent(event);
   }
   async complete(taskId) {
-    const task = await this.plugin.mutate((data) => completeTask(data, taskId));
+    const task = await this.mutate((data) => completeTask(data, taskId));
     if (!task) return;
-    this.plugin.showUndo("\u4EFB\u52A1\u5DF2\u5B8C\u6210", async () => {
-      return this.plugin.mutate((data) => restoreTask(data, taskId));
-    });
+    this.plugin.showUndo("\u4EFB\u52A1\u5DF2\u5B8C\u6210", () => this.mutate((data) => restoreTask(data, taskId)));
   }
   async restore(taskId) {
-    const task = await this.plugin.mutate((data) => restoreTask(data, taskId));
+    const task = await this.mutate((data) => restoreTask(data, taskId));
     if (!task) return;
-    this.plugin.showUndo("\u4EFB\u52A1\u5DF2\u6062\u590D", async () => {
-      return this.plugin.mutate((data) => completeTask(data, taskId));
-    });
+    this.plugin.showUndo("\u4EFB\u52A1\u5DF2\u6062\u590D", () => this.mutate((data) => completeTask(data, taskId)));
   }
   async remove(taskId) {
-    const deleted = await this.plugin.mutate((data) => deleteTask(data, taskId));
+    const deleted = await this.mutate((data) => deleteTask(data, taskId));
     if (!deleted) return;
-    this.plugin.showUndo("\u4EFB\u52A1\u5DF2\u5220\u9664", async () => {
-      return this.plugin.mutate((data) => restoreDeletedTask(data, deleted));
-    });
+    this.plugin.showUndo("\u4EFB\u52A1\u5DF2\u5220\u9664", () => this.mutate((data) => restoreDeletedTask(data, deleted)));
   }
   renderCompleted(container) {
     const section = container.createEl("section", { cls: "qt-completed-section" });
     const header = section.createEl("header", { cls: "qt-completed-header" });
     const titleGroup = header.createDiv();
     titleGroup.createEl("h3", { text: "\u5DF2\u5B8C\u6210" });
-    const allCompleted = getCompletedTasks(this.plugin.data);
+    const allCompleted = getCompletedTasks(this.data);
     const bounds = completionBounds(this.filters);
-    const tasks = getCompletedTasks(this.plugin.data, this.filters);
+    const tasks = getCompletedTasks(this.data, this.filters);
     titleGroup.createSpan({
       text: `${tasks.length} / ${allCompleted.length}`,
       cls: "qt-completed-count",
@@ -792,14 +976,10 @@ var QuadrantTasksView = class extends ItemView {
   }
   renderCustomRange(controls) {
     const range = controls.createDiv({ cls: "qt-custom-range" });
-    const start = range.createEl("input", {
-      attr: { type: "date", "aria-label": "\u5B8C\u6210\u65F6\u95F4\u8D77\u59CB\u65E5\u671F" }
-    });
+    const start = range.createEl("input", { attr: { type: "date", "aria-label": "\u5B8C\u6210\u65F6\u95F4\u8D77\u59CB\u65E5\u671F" } });
     start.value = this.filters.startDate;
     range.createSpan({ text: "\u81F3" });
-    const end = range.createEl("input", {
-      attr: { type: "date", "aria-label": "\u5B8C\u6210\u65F6\u95F4\u7ED3\u675F\u65E5\u671F" }
-    });
+    const end = range.createEl("input", { attr: { type: "date", "aria-label": "\u5B8C\u6210\u65F6\u95F4\u7ED3\u675F\u65E5\u671F" } });
     end.value = this.filters.endDate;
     start.addEventListener("change", () => {
       this.filters.startDate = start.value;
@@ -811,7 +991,6 @@ var QuadrantTasksView = class extends ItemView {
     });
   }
   renderCompletedTask(list, task) {
-    const meta = QUADRANT_META[task.quadrant];
     const row = list.createEl("li", { cls: "qt-completed-row" });
     const checkbox = row.createEl("input", {
       cls: "qt-task-checkbox",
@@ -822,407 +1001,239 @@ var QuadrantTasksView = class extends ItemView {
     const content = row.createDiv({ cls: "qt-completed-content" });
     content.createDiv({ text: task.title, cls: "qt-completed-title" });
     const metadata = content.createDiv({ cls: "qt-completed-meta" });
-    metadata.createSpan({ text: meta.action, cls: `qt-badge qt-badge-${task.quadrant}` });
+    metadata.createSpan({ text: QUADRANT_META[task.quadrant].action, cls: `qt-badge qt-badge-${task.quadrant}` });
     metadata.createEl("time", { text: formatCompletedAt(task.completedAt), attr: { datetime: task.completedAt } });
     createIconButton(row, "trash-2", "\u5220\u9664\u4EFB\u52A1", () => void this.remove(task.id));
   }
 };
-function cloneData(data) {
-  return normalizeData(JSON.parse(JSON.stringify(data)));
-}
-function isLegacyData(raw) {
-  return Boolean(raw && Array.isArray(raw.tasks));
-}
-function normalizeTaskFilePath(value) {
-  const raw = typeof value === "string" ? value.trim() : "";
-  if (raw && (/^[\\/]/.test(raw) || /^[a-z]:/i.test(raw) || raw.split(/[\\/]/).includes(".."))) {
-    throw new Error("\u4EFB\u52A1\u6587\u4EF6\u8DEF\u5F84\u5FC5\u987B\u662F\u7B14\u8BB0\u5E93\u5185\u7684\u76F8\u5BF9\u8DEF\u5F84");
-  }
-  const path = normalizePath(raw || DEFAULT_TASK_FILE_PATH);
-  if (!path || !path.toLowerCase().endsWith(".md")) throw new Error("\u4EFB\u52A1\u6587\u4EF6\u8DEF\u5F84\u5FC5\u987B\u4EE5 .md \u7ED3\u5C3E");
-  if (path === ".obsidian" || path.startsWith(".obsidian/")) {
-    throw new Error("\u4EFB\u52A1\u6587\u4EF6\u5FC5\u987B\u4F4D\u4E8E\u7B14\u8BB0\u5E93\u4E2D\uFF0C\u4E0D\u80FD\u653E\u5728 .obsidian \u76EE\u5F55");
-  }
-  return path;
-}
-function storageSettings(raw) {
-  let taskFilePath = DEFAULT_TASK_FILE_PATH;
-  try {
-    taskFilePath = normalizeTaskFilePath(raw == null ? void 0 : raw.taskFilePath);
-  } catch (e) {
-    taskFilePath = DEFAULT_TASK_FILE_PATH;
-  }
-  return {
-    taskFilePath,
-    migration: (raw == null ? void 0 : raw.migration) && typeof raw.migration === "object" ? raw.migration : null
-  };
-}
-var QuadrantTasksSettingTab = class extends PluginSettingTab {
-  constructor(app, plugin) {
-    super(app, plugin);
-    this.plugin = plugin;
-    this.pendingPath = plugin.settings.taskFilePath;
-  }
-  display() {
-    const { containerEl } = this;
-    containerEl.empty();
-    containerEl.createEl("h2", { text: "\u56DB\u8C61\u9650\u4EFB\u52A1" });
-    new Setting(containerEl).setName("\u4EFB\u52A1 Markdown \u6587\u4EF6").setDesc("\u56DB\u8C61\u9650\u548C\u5DF2\u5B8C\u6210\u4EFB\u52A1\u90FD\u4FDD\u5B58\u5728\u8FD9\u4E2A\u666E\u901A Markdown \u6587\u4EF6\u4E2D\u3002\u79FB\u52A8\u6587\u4EF6\u540E\uFF0C\u63D2\u4EF6\u4F1A\u7EE7\u7EED\u8DDF\u968F\u5B83\u3002").addText(
-      (text) => text.setPlaceholder(DEFAULT_TASK_FILE_PATH).setValue(this.plugin.settings.taskFilePath).onChange((value) => {
-        this.pendingPath = value;
-      })
-    ).addButton(
-      (button) => button.setButtonText("\u79FB\u52A8\u5E76\u4F7F\u7528").setCta().onClick(async () => {
-        if (await this.plugin.moveTaskFile(this.pendingPath)) this.display();
-      })
-    );
-    new Setting(containerEl).setName("\u6253\u5F00\u4EFB\u52A1\u6587\u4EF6").setDesc("\u76F4\u63A5\u67E5\u770B\u6216\u624B\u52A8\u7F16\u8F91\u63D2\u4EF6\u7BA1\u7406\u7684 Markdown \u4EFB\u52A1\u5217\u8868\u3002").addButton((button) => button.setButtonText("\u6253\u5F00").onClick(() => void this.plugin.openTaskFile()));
-  }
-};
 var QuadrantTasksPlugin = class extends Plugin {
   async onload() {
-    this.data = normalizeData(null);
-    this.settings = storageSettings(null);
-    this.saveQueue = Promise.resolve();
-    this.storageMode = "markdown";
-    this.storageIssue = null;
-    this.storageReady = false;
-    this.movingTaskFile = false;
-    this.settingsDirty = false;
-    this.registerView(VIEW_TYPE, (leaf) => new QuadrantTasksView(leaf, this));
-    this.addRibbonIcon("layout-grid", "\u6253\u5F00\u56DB\u8C61\u9650\u4EFB\u52A1", () => void this.activateView());
-    this.addCommand({
-      id: "open-quadrant-tasks",
-      name: "\u6253\u5F00\u56DB\u8C61\u9650\u4EFB\u52A1",
-      callback: () => void this.activateView()
+    this.boardRenderers = /* @__PURE__ */ new Set();
+    this.fileQueues = /* @__PURE__ */ new Map();
+    this.refreshTimers = /* @__PURE__ */ new Map();
+    this.registerMarkdownCodeBlockProcessor(BOARD_LANGUAGE, (source, element, context) => {
+      context.addChild(new QuadrantBoardRenderChild(element, this, context.sourcePath, source));
     });
     this.addCommand({
-      id: "open-quadrant-task-file",
-      name: "\u6253\u5F00\u4EFB\u52A1 Markdown \u6587\u4EF6",
-      callback: () => void this.openTaskFile()
+      id: "insert-quadrant-board",
+      name: "\u5728\u5F53\u524D\u5149\u6807\u5904\u63D2\u5165\u56DB\u8C61\u9650",
+      editorCallback: (editor) => this.insertBoard(editor)
     });
-    this.addSettingTab(new QuadrantTasksSettingTab(this.app, this));
-    this.app.workspace.onLayoutReady(() => void this.finishStorageInitialization());
+    this.addRibbonIcon("layout-grid", "\u63D2\u5165\u56DB\u8C61\u9650", () => this.insertBoardIntoActiveNote());
+    this.registerVaultEvents();
+    this.app.workspace.onLayoutReady(() => {
+      this.app.workspace.detachLeavesOfType(LEGACY_VIEW_TYPE);
+      void this.migrateLegacyStorage();
+    });
   }
   onunload() {
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE);
+    for (const timer of this.refreshTimers.values()) window.clearTimeout(timer);
+    this.refreshTimers.clear();
   }
-  async finishStorageInitialization() {
+  insertBoard(editor) {
+    const boardId = createBoardId();
+    const block = renderBoardCodeBlock(boardId, createEmptyData());
+    const cursor = editor.getCursor("to");
+    const line = editor.getLine(cursor.line);
+    const prefix = cursor.ch === 0 && !line ? "" : "\n\n";
+    const suffix = line.slice(cursor.ch).trim() ? "\n\n" : "\n";
+    const inserted = `${prefix}${block}${suffix}`;
+    editor.replaceRange(inserted, cursor);
+    if (typeof editor.setCursor === "function") {
+      const insertedLines = inserted.split("\n");
+      editor.setCursor({
+        line: cursor.line + insertedLines.length - 1,
+        ch: insertedLines[insertedLines.length - 1].length
+      });
+    }
+    new Notice("\u5DF2\u63D2\u5165\u72EC\u7ACB\u56DB\u8C61\u9650");
+  }
+  insertBoardIntoActiveNote() {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!(view == null ? void 0 : view.editor)) {
+      new Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u53EF\u7F16\u8F91\u7684 Markdown \u6587\u4EF6");
+      return;
+    }
+    this.insertBoard(view.editor);
+  }
+  async mutateBoard(sourcePath, boardId, mutator) {
+    const file = this.app.vault.getAbstractFileByPath(sourcePath);
+    if (!(file instanceof TFile)) {
+      new Notice("\u627E\u4E0D\u5230\u8FD9\u5F20\u56DB\u8C61\u9650\u6240\u5728\u7684 Markdown \u6587\u4EF6");
+      return null;
+    }
+    let outcome = null;
+    const previous = this.fileQueues.get(file) || Promise.resolve();
+    const pending = previous.catch(() => void 0).then(
+      () => this.app.vault.process(file, (content) => {
+        outcome = mutateBoardDocument(content, boardId, mutator);
+        return outcome.content;
+      })
+    );
+    this.fileQueues.set(file, pending);
     try {
-      await this.initializeStorage();
-      this.registerTaskFileEvents();
+      await pending;
+      if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
+      if (outcome) this.refreshBoardRenderers(sourcePath, boardId, outcome.data);
+      return outcome;
     } catch (error) {
-      this.storageIssue = error;
-      console.error("Quadrant Tasks storage initialization failed", error);
-      new Notice("\u56DB\u8C61\u9650\u4EFB\u52A1\u5B58\u50A8\u521D\u59CB\u5316\u5931\u8D25\uFF0C\u8BF7\u67E5\u770B\u63A7\u5236\u53F0\u3002", 1e4);
-    } finally {
-      this.storageReady = true;
-      this.renderViews();
+      if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
+      console.error("Quadrant Tasks failed to update a local board", error);
+      new Notice(`\u56DB\u8C61\u9650\u4FDD\u5B58\u5931\u8D25\uFF1A${error.message}`, 1e4);
+      await this.refreshFileRenderers(sourcePath);
+      return null;
     }
   }
-  async initializeStorage() {
-    const raw = await this.loadData();
-    this.settings = storageSettings(raw);
-    if (isLegacyData(raw)) {
-      try {
-        const backupFile = await this.backupLegacyData(raw);
-        await this.migrateLegacyData(normalizeData(raw));
-        this.settings.migration = {
-          fromVersion: "1.0.0",
-          completedAt: (/* @__PURE__ */ new Date()).toISOString(),
-          backupFile
-        };
-        await this.saveStorageSettings();
-        return;
-      } catch (error) {
-        this.storageMode = "legacy";
-        this.data = normalizeData(raw);
-        this.storageIssue = error;
-        console.error("Quadrant Tasks could not migrate legacy data", error);
-        new Notice("\u4EFB\u52A1\u8FC1\u79FB\u5230 Markdown \u5931\u8D25\uFF0C\u63D2\u4EF6\u5DF2\u7EE7\u7EED\u4F7F\u7528\u539F\u6709\u6570\u636E\u3002\u8BF7\u67E5\u770B\u63A7\u5236\u53F0\u3002", 1e4);
-        return;
-      }
+  refreshBoardRenderers(sourcePath, boardId, data) {
+    for (const renderer of this.boardRenderers) {
+      if (renderer.sourcePath === sourcePath && renderer.boardId === boardId) renderer.setBoardData(data);
     }
-    const firstRun = !raw || raw.settingsVersion !== SETTINGS_VERSION;
+  }
+  async refreshFileRenderers(sourcePath) {
+    const renderers = [...this.boardRenderers].filter((renderer) => renderer.sourcePath === sourcePath);
+    if (!renderers.length) return;
+    const file = this.app.vault.getAbstractFileByPath(sourcePath);
+    if (!(file instanceof TFile)) {
+      for (const renderer of renderers) renderer.setBoardError(new Error("\u6240\u5728\u7684 Markdown \u6587\u4EF6\u4E0D\u53EF\u7528"));
+      return;
+    }
+    await (this.fileQueues.get(file) || Promise.resolve()).catch(() => void 0);
     try {
-      if (firstRun) await this.ensureTaskFile();
-      this.data = await this.readTaskData();
-      if (firstRun) await this.saveStorageSettings();
-    } catch (error) {
-      this.storageIssue = error;
-      console.error("Quadrant Tasks could not load its Markdown file", error);
-      new Notice("\u4EFB\u52A1 Markdown \u6587\u4EF6\u6682\u65F6\u4E0D\u53EF\u7528\u3002\u63D2\u4EF6\u4E0D\u4F1A\u8986\u76D6\u6216\u91CD\u5EFA\u5DF2\u6709\u6570\u636E\u3002", 1e4);
-    }
-  }
-  async backupLegacyData(raw) {
-    if (!this.manifest.dir) throw new Error("\u63D2\u4EF6\u76EE\u5F55\u4E0D\u53EF\u7528\uFF0C\u65E0\u6CD5\u5907\u4EFD\u65E7\u6570\u636E");
-    const adapter = this.app.vault.adapter;
-    let backupFile = LEGACY_BACKUP_NAME;
-    let backupPath = normalizePath(`${this.manifest.dir}/${backupFile}`);
-    if (await adapter.exists(backupPath)) {
-      try {
-        const previous = JSON.parse(await adapter.read(backupPath));
-        if (JSON.stringify(normalizeData(previous)) === JSON.stringify(normalizeData(raw))) return backupFile;
-      } catch (e) {
-      }
-      backupFile = `data-backup-1.0.0-${Date.now()}.json`;
-      backupPath = normalizePath(`${this.manifest.dir}/${backupFile}`);
-    }
-    await adapter.write(backupPath, `${JSON.stringify(raw, null, 2)}
-`);
-    return backupFile;
-  }
-  async migrateLegacyData(legacyData) {
-    await this.ensureTaskFile();
-    const file = this.getTaskFile();
-    let expectedData = null;
-    await this.app.vault.process(file, (content) => {
-      const parsed = parseTaskMarkdown(content);
-      if (parsed.issues.length) throw new Error(`\u4EFB\u52A1 Markdown \u5185\u5BB9\u5F02\u5E38\uFF1A${parsed.issues.join("\uFF1B")}`);
-      const existingById = new Map(parsed.data.tasks.map((task) => [task.id, task]));
-      for (const legacyTask of legacyData.tasks) {
-        const existing = existingById.get(legacyTask.id);
-        if (existing && JSON.stringify(existing) !== JSON.stringify(legacyTask)) {
-          throw new Error(`\u8FC1\u79FB\u51B2\u7A81\uFF1A\u4EFB\u52A1 ${legacyTask.id} \u5728 Markdown \u4E0E\u65E7\u6570\u636E\u4E2D\u7684\u5185\u5BB9\u4E0D\u540C`);
+      const content = await this.app.vault.read(file);
+      for (const renderer of renderers) {
+        try {
+          renderer.setBoardData(readBoardFromDocument(content, renderer.boardId).data);
+        } catch (error) {
+          renderer.setBoardError(error);
         }
       }
-      expectedData = mergeTaskData(parsed.data, legacyData);
-      return updateMarkdownDocument(content, expectedData);
-    });
-    const migrated = await this.readTaskData();
-    const migratedById = new Map(migrated.tasks.map((task) => [task.id, task]));
-    if (migrated.tasks.length !== expectedData.tasks.length || expectedData.tasks.some((task) => JSON.stringify(migratedById.get(task.id)) !== JSON.stringify(task))) {
-      throw new Error("\u8FC1\u79FB\u6821\u9A8C\u5931\u8D25\uFF1AMarkdown \u4E0E\u9884\u671F\u4EFB\u52A1\u5185\u5BB9\u4E0D\u4E00\u81F4");
-    }
-    this.data = migrated;
-  }
-  async ensureTaskFile() {
-    const existing = this.app.vault.getAbstractFileByPath(this.settings.taskFilePath);
-    if (existing instanceof TFile) return existing;
-    if (existing) throw new Error("\u4EFB\u52A1\u6587\u4EF6\u8DEF\u5F84\u5DF2\u88AB\u6587\u4EF6\u5939\u5360\u7528");
-    await this.ensureParentFolder(this.settings.taskFilePath);
-    try {
-      return await this.app.vault.create(
-        this.settings.taskFilePath,
-        updateMarkdownDocument("", normalizeData(null))
-      );
     } catch (error) {
-      const createdElsewhere = this.app.vault.getAbstractFileByPath(this.settings.taskFilePath);
-      if (createdElsewhere instanceof TFile) return createdElsewhere;
-      throw error;
+      for (const renderer of renderers) renderer.setBoardError(error);
     }
   }
-  async ensureParentFolder(path) {
-    const slash = path.lastIndexOf("/");
-    if (slash < 0) return;
-    const segments = path.slice(0, slash).split("/");
-    let current = "";
-    for (const segment of segments) {
-      current = current ? `${current}/${segment}` : segment;
-      if (!this.app.vault.getAbstractFileByPath(current)) await this.app.vault.createFolder(current);
-    }
+  scheduleFileRefresh(sourcePath) {
+    if (![...this.boardRenderers].some((renderer) => renderer.sourcePath === sourcePath)) return;
+    const existing = this.refreshTimers.get(sourcePath);
+    if (existing) window.clearTimeout(existing);
+    const timer = window.setTimeout(() => {
+      this.refreshTimers.delete(sourcePath);
+      void this.refreshFileRenderers(sourcePath);
+    }, 120);
+    this.refreshTimers.set(sourcePath, timer);
   }
-  getTaskFile() {
-    const file = this.app.vault.getAbstractFileByPath(this.settings.taskFilePath);
-    if (!(file instanceof TFile)) throw new Error(`\u627E\u4E0D\u5230\u4EFB\u52A1\u6587\u4EF6\uFF1A${this.settings.taskFilePath}`);
-    return file;
-  }
-  async readTaskData() {
-    const content = await this.app.vault.read(this.getTaskFile());
-    const parsed = parseTaskMarkdown(content);
-    if (parsed.issues.length) throw new Error(`\u4EFB\u52A1 Markdown \u5185\u5BB9\u5F02\u5E38\uFF1A${parsed.issues.join("\uFF1B")}`);
-    if (!parsed.hasManagedBlock) throw new Error("\u4EFB\u52A1 Markdown \u4E2D\u7F3A\u5C11\u63D2\u4EF6\u7BA1\u7406\u533A");
-    return parsed.data;
-  }
-  async saveStorageSettings() {
-    await this.saveData({
-      settingsVersion: SETTINGS_VERSION,
-      taskFilePath: this.settings.taskFilePath,
-      migration: this.settings.migration
-    });
-  }
-  async mutate(mutator) {
-    if (!this.storageReady) {
-      new Notice("\u4EFB\u52A1\u6587\u4EF6\u4ECD\u5728\u52A0\u8F7D\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5\u3002");
-      return null;
-    }
-    let mutationResult = null;
-    let committedData = null;
-    const pendingSave = this.saveQueue.catch(() => void 0).then(async () => {
-      if (this.storageMode === "legacy") {
-        const draft = cloneData(this.data);
-        mutationResult = mutator(draft);
-        if (!mutationResult) return;
-        await this.saveData(draft);
-        committedData = draft;
-        return;
-      }
-      const file = this.getTaskFile();
-      await this.app.vault.process(file, (content) => {
-        const parsed = parseTaskMarkdown(content);
-        if (parsed.issues.length) throw new Error(`\u4EFB\u52A1 Markdown \u5185\u5BB9\u5F02\u5E38\uFF1A${parsed.issues.join("\uFF1B")}`);
-        if (!parsed.hasManagedBlock) throw new Error("\u4EFB\u52A1 Markdown \u4E2D\u7F3A\u5C11\u63D2\u4EF6\u7BA1\u7406\u533A");
-        const draft = cloneData(parsed.data);
-        mutationResult = mutator(draft);
-        if (!mutationResult) return content;
-        committedData = draft;
-        return updateMarkdownDocument(content, draft);
-      });
-    });
-    this.saveQueue = pendingSave;
-    try {
-      await pendingSave;
-      if (committedData) this.data = committedData;
-      this.storageIssue = null;
-      this.renderViews();
-      return mutationResult;
-    } catch (error) {
-      if (this.saveQueue !== pendingSave) await this.saveQueue.catch(() => void 0);
-      await this.reloadAfterFailure();
-      console.error("Quadrant Tasks failed to save task data", error);
-      new Notice("\u4EFB\u52A1\u4FDD\u5B58\u5931\u8D25\uFF0C\u78C1\u76D8\u5185\u5BB9\u672A\u88AB\u8986\u76D6\u3002\u8BF7\u68C0\u67E5\u4EFB\u52A1 Markdown \u6587\u4EF6\u3002", 1e4);
-      return null;
-    }
-  }
-  async reloadAfterFailure() {
-    try {
-      this.data = this.storageMode === "legacy" ? normalizeData(await this.loadData()) : await this.readTaskData();
-      this.storageIssue = null;
-    } catch (error) {
-      this.storageIssue = error;
-    }
-    this.renderViews();
-  }
-  registerTaskFileEvents() {
-    this.registerEvent(this.app.vault.on("modify", (file) => {
-      if (file.path === this.settings.taskFilePath) void this.reloadFromTaskFile();
-    }));
-    this.registerEvent(this.app.vault.on("create", (file) => {
-      if (file.path === this.settings.taskFilePath) void this.reloadFromTaskFile();
-    }));
-    this.registerEvent(this.app.vault.on("delete", (file) => {
-      if (file.path === this.settings.taskFilePath) void this.reloadFromTaskFile(true);
-    }));
+  registerVaultEvents() {
+    this.registerEvent(this.app.vault.on("modify", (file) => this.scheduleFileRefresh(file.path)));
+    this.registerEvent(this.app.vault.on("delete", (file) => this.scheduleFileRefresh(file.path)));
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
-      if (this.movingTaskFile || !(file instanceof TFile)) return;
-      if (oldPath === this.settings.taskFilePath) {
-        void this.followRenamedTaskFile(file.path);
-      } else if (file.path === this.settings.taskFilePath) {
-        void this.reloadFromTaskFile();
+      for (const renderer of this.boardRenderers) {
+        if (renderer.sourcePath === oldPath) renderer.sourcePath = file.path;
       }
+      this.scheduleFileRefresh(file.path);
     }));
   }
-  async reloadFromTaskFile(notifyOnFailure = false) {
-    if (this.storageMode !== "markdown") return;
-    await this.saveQueue.catch(() => void 0);
-    try {
-      this.data = await this.readTaskData();
-      this.storageIssue = null;
-      this.renderViews();
-    } catch (error) {
-      this.storageIssue = error;
-      console.error("Quadrant Tasks could not reload its Markdown file", error);
-      if (notifyOnFailure) new Notice("\u4EFB\u52A1 Markdown \u6587\u4EF6\u5DF2\u88AB\u5220\u9664\u6216\u6682\u65F6\u4E0D\u53EF\u7528\uFF0C\u5199\u5165\u5DF2\u6682\u505C\u3002", 1e4);
-      this.renderViews();
+  async migrateLegacyStorage() {
+    var _a;
+    const raw = await this.loadData();
+    if ((raw == null ? void 0 : raw.settingsVersion) === SETTINGS_VERSION) return;
+    if (!raw) {
+      await this.saveData({ settingsVersion: SETTINGS_VERSION });
+      return;
     }
-  }
-  async followRenamedTaskFile(newPath) {
     try {
-      await this.saveQueue.catch(() => void 0);
-      this.settings.taskFilePath = normalizeTaskFilePath(newPath);
-      try {
-        await this.saveStorageSettings();
-        this.settingsDirty = false;
-      } catch (error) {
-        this.settingsDirty = true;
-        console.error("Quadrant Tasks could not save the renamed task path", error);
-        new Notice("\u4EFB\u52A1\u6587\u4EF6\u5DF2\u91CD\u547D\u540D\uFF0C\u4F46\u65B0\u8DEF\u5F84\u6682\u65F6\u65E0\u6CD5\u4FDD\u5B58\u5230\u63D2\u4EF6\u8BBE\u7F6E\u3002", 1e4);
+      const legacyJson = Array.isArray(raw.tasks) ? normalizeData(raw) : null;
+      let expectedData = legacyJson;
+      const sourcePath = normalizePath(raw.taskFilePath || DEFAULT_MIGRATION_PATH);
+      let jsonBackup = ((_a = raw.migration) == null ? void 0 : _a.backupFile) || null;
+      if (legacyJson) jsonBackup = await this.backupLegacyJson(raw);
+      let file = this.app.vault.getAbstractFileByPath(sourcePath);
+      if (!(file instanceof TFile)) {
+        if (!legacyJson) throw new Error(`\u627E\u4E0D\u5230\u65E7\u4EFB\u52A1\u6587\u4EF6\uFF1A${sourcePath}`);
+        file = await this.app.vault.create(
+          sourcePath,
+          `# Quadrant Tasks
+
+${renderBoardCodeBlock(LEGACY_BOARD_ID, legacyJson)}
+`
+        );
+      } else {
+        const before = await this.app.vault.read(file);
+        const legacyParsed = parseTaskMarkdown(before);
+        if (legacyParsed.hasManagedBlock) await this.backupLegacyNote(before);
+        await this.app.vault.process(file, (content) => {
+          const parsed = parseTaskMarkdown(content);
+          if (parsed.issues.length) throw new Error(`\u65E7\u4EFB\u52A1\u5185\u5BB9\u5F02\u5E38\uFF1A${parsed.issues.join("\uFF1B")}`);
+          if (parsed.hasManagedBlock) {
+            const replaced = replaceLegacyManagedBlock(content, LEGACY_BOARD_ID, legacyJson);
+            expectedData = replaced.data;
+            return replaced.content;
+          }
+          const existing = findBoardCodeBlocks(content).filter((board) => board.boardId === LEGACY_BOARD_ID);
+          if (existing.length === 1) {
+            if (!legacyJson) {
+              expectedData = readBoardFromDocument(content, LEGACY_BOARD_ID).data;
+              return content;
+            }
+            return mutateBoardDocument(content, LEGACY_BOARD_ID, (draft) => {
+              const merged = mergeWithoutConflicts(draft, legacyJson);
+              draft.tasks = merged.tasks;
+              expectedData = merged;
+              return true;
+            }).content;
+          }
+          if (existing.length > 1) throw new Error(`\u540C\u4E00\u6587\u4EF6\u4E2D\u5B58\u5728\u91CD\u590D\u7684 board-id\uFF1A${LEGACY_BOARD_ID}`);
+          if (legacyJson) {
+            expectedData = legacyJson;
+            return appendBoardCodeBlock(content, LEGACY_BOARD_ID, legacyJson);
+          }
+          if (findBoardCodeBlocks(content).length) return content;
+          throw new Error("\u65E7\u4EFB\u52A1\u6587\u4EF6\u4E2D\u6CA1\u6709\u53EF\u8FC1\u79FB\u7684\u6570\u636E");
+        });
       }
-      await this.reloadFromTaskFile();
-      return true;
-    } catch (error) {
-      this.storageIssue = error;
-      console.error("Quadrant Tasks could not follow its renamed Markdown file", error);
-      new Notice(`\u65E0\u6CD5\u7EE7\u7EED\u8DDF\u968F\u91CD\u547D\u540D\u540E\u7684\u4EFB\u52A1\u6587\u4EF6\uFF1A${error.message}`, 1e4);
-      this.renderViews();
-      return false;
-    }
-  }
-  async moveTaskFile(value) {
-    if (!this.storageReady) {
-      new Notice("\u4EFB\u52A1\u6587\u4EF6\u4ECD\u5728\u52A0\u8F7D\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5\u3002");
-      return false;
-    }
-    if (this.storageMode !== "markdown") {
-      new Notice("\u65E7\u6570\u636E\u8FC1\u79FB\u5C1A\u672A\u5B8C\u6210\uFF0C\u5F53\u524D\u4E0D\u80FD\u79FB\u52A8\u4EFB\u52A1 Markdown \u6587\u4EF6\u3002", 1e4);
-      return false;
-    }
-    let newPath;
-    try {
-      newPath = normalizeTaskFilePath(value);
-    } catch (error) {
-      new Notice(error.message);
-      return false;
-    }
-    const oldPath = this.settings.taskFilePath;
-    if (newPath === oldPath) {
-      if (!this.settingsDirty) return true;
-      try {
-        await this.saveStorageSettings();
-        this.settingsDirty = false;
-        return true;
-      } catch (error) {
-        new Notice(`\u65E0\u6CD5\u4FDD\u5B58\u4EFB\u52A1\u6587\u4EF6\u8DEF\u5F84\uFF1A${error.message}`, 1e4);
-        return false;
+      const verifiedContent = await this.app.vault.read(file);
+      const migrated = readBoardFromDocument(verifiedContent, LEGACY_BOARD_ID).data;
+      if (!expectedData) throw new Error("\u8FC1\u79FB\u6821\u9A8C\u5931\u8D25\uFF1A\u7F3A\u5C11\u9884\u671F\u4EFB\u52A1\u6570\u636E");
+      if (expectedData.tasks.length !== migrated.tasks.length) throw new Error("\u8FC1\u79FB\u6821\u9A8C\u5931\u8D25\uFF1A\u4EFB\u52A1\u6570\u91CF\u4E0D\u4E00\u81F4");
+      const migratedById = new Map(migrated.tasks.map((task) => [task.id, task]));
+      if (expectedData.tasks.some((task) => JSON.stringify(migratedById.get(task.id)) !== JSON.stringify(task))) {
+        throw new Error("\u8FC1\u79FB\u6821\u9A8C\u5931\u8D25\uFF1A\u4EFB\u52A1\u5185\u5BB9\u4E0D\u4E00\u81F4");
       }
-    }
-    await this.saveQueue.catch(() => void 0);
-    try {
-      const file = this.getTaskFile();
-      if (this.app.vault.getAbstractFileByPath(newPath)) throw new Error("\u76EE\u6807\u8DEF\u5F84\u5DF2\u7ECF\u5B58\u5728\u6587\u4EF6\u6216\u6587\u4EF6\u5939");
-      await this.ensureParentFolder(newPath);
-      this.movingTaskFile = true;
-      await this.app.vault.rename(file, newPath);
-      this.settings.taskFilePath = newPath;
-      try {
-        await this.saveStorageSettings();
-      } catch (error) {
-        await this.app.vault.rename(file, oldPath);
-        this.settings.taskFilePath = oldPath;
-        throw error;
-      }
-      this.storageIssue = null;
-      new Notice(`\u4EFB\u52A1\u6587\u4EF6\u5DF2\u79FB\u52A8\u5230 ${newPath}`);
-      return true;
+      await this.saveData({
+        settingsVersion: SETTINGS_VERSION,
+        migration: {
+          fromVersion: Array.isArray(raw.tasks) ? "1.0.0" : "1.1.0",
+          completedAt: (/* @__PURE__ */ new Date()).toISOString(),
+          sourcePath,
+          boardId: LEGACY_BOARD_ID,
+          jsonBackup
+        }
+      });
+      new Notice("\u65E7\u7684\u5168\u5C40\u4EFB\u52A1\u5DF2\u8FC1\u79FB\u4E3A Markdown \u6587\u4EF6\u4E2D\u7684\u72EC\u7ACB\u56DB\u8C61\u9650", 1e4);
     } catch (error) {
-      console.error("Quadrant Tasks could not move its Markdown file", error);
-      new Notice(`\u65E0\u6CD5\u79FB\u52A8\u4EFB\u52A1\u6587\u4EF6\uFF1A${error.message}`, 1e4);
-      return false;
-    } finally {
-      this.movingTaskFile = false;
+      console.error("Quadrant Tasks could not migrate global storage", error);
+      new Notice(`\u65E7\u4EFB\u52A1\u8FC1\u79FB\u5931\u8D25\uFF1A${error.message}`, 12e3);
     }
   }
-  async activateView() {
-    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0];
-    const leaf = existing || this.app.workspace.getLeaf(true);
-    if (!existing) await leaf.setViewState({ type: VIEW_TYPE, active: true });
-    await this.app.workspace.revealLeaf(leaf);
+  async backupLegacyJson(raw) {
+    if (!this.manifest.dir) throw new Error("\u63D2\u4EF6\u76EE\u5F55\u4E0D\u53EF\u7528\uFF0C\u65E0\u6CD5\u5907\u4EFD\u65E7\u6570\u636E");
+    return this.writeVersionedBackup(LEGACY_JSON_BACKUP, `${JSON.stringify(raw, null, 2)}
+`);
   }
-  async openTaskFile() {
-    try {
-      if (!this.storageReady) throw new Error("\u4EFB\u52A1\u6587\u4EF6\u4ECD\u5728\u52A0\u8F7D\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5");
-      if (this.storageMode !== "markdown") throw new Error("\u65E7\u6570\u636E\u8FC1\u79FB\u5C1A\u672A\u5B8C\u6210\uFF0C\u4EFB\u52A1 Markdown \u6587\u4EF6\u6682\u4E0D\u53EF\u7528");
-      const leaf = this.app.workspace.getLeaf(false);
-      await leaf.openFile(this.getTaskFile());
-      await this.app.workspace.revealLeaf(leaf);
-    } catch (error) {
-      new Notice(error.message);
-    }
+  async backupLegacyNote(content) {
+    if (!this.manifest.dir) throw new Error("\u63D2\u4EF6\u76EE\u5F55\u4E0D\u53EF\u7528\uFF0C\u65E0\u6CD5\u5907\u4EFD\u65E7\u4EFB\u52A1\u6587\u4EF6");
+    return this.writeVersionedBackup(LEGACY_NOTE_BACKUP, content);
   }
-  renderViews() {
-    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
-      if (leaf.view instanceof QuadrantTasksView) leaf.view.render();
+  async writeVersionedBackup(fileName, content) {
+    const adapter = this.app.vault.adapter;
+    let candidate = fileName;
+    let path = normalizePath(`${this.manifest.dir}/${candidate}`);
+    if (await adapter.exists(path)) {
+      if (await adapter.read(path) === content) return candidate;
+      const extensionIndex = fileName.lastIndexOf(".");
+      candidate = `${fileName.slice(0, extensionIndex)}-${Date.now()}${fileName.slice(extensionIndex)}`;
+      path = normalizePath(`${this.manifest.dir}/${candidate}`);
     }
+    await adapter.write(path, content);
+    return candidate;
   }
   showUndo(message, onUndo) {
     const fragment = document.createDocumentFragment();

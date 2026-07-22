@@ -1,5 +1,6 @@
 node_modules/
 data.json
 data-backup-*.json
+global-note-backup-*.md
 .DS_Store
 *.log

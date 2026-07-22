@@ -4,21 +4,21 @@
 [![GitHub release](https://img.shields.io/github/v/release/AngusK97/obsidian-quadrant-tasks?sort=semver)](https://github.com/AngusK97/obsidian-quadrant-tasks/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A focused Eisenhower Matrix task board for Obsidian. Add tasks directly to four quadrants, check them off into one completion history, and filter that history by source quadrant and completion date.
+Insert independent Eisenhower Matrix task boards directly into Markdown notes. Every board owns its tasks and completed history; there is no global task database or dedicated plugin view.
 
 ## Features
 
-- Four clear quadrants: Do, Schedule, Delegate, and Eliminate.
-- Persistent quick-add input in every quadrant.
-- Complete tasks with a checkbox and restore them from the completion history.
-- Filter completed tasks by quadrant, today, the last 7 days, the last 30 days, or a custom date range.
-- Edit, delete, and move tasks from an action menu; drag tasks between quadrants on desktop.
-- Undo completion, restoration, and deletion.
-- Store every task in a normal Markdown note that works with Obsidian Sync, Remotely Save, and Git.
-- Re-read the latest Markdown before each write and reload after external file changes.
-- Preserve content outside the plugin-managed block, including frontmatter, callouts, and notes.
-- Responsive 2x2 desktop layout and single-column mobile layout.
-- No network requests or telemetry.
+- Insert a complete four-quadrant board at the current editor cursor.
+- Keep every board's data inside its own readable `quadrant-tasks` code block.
+- Add multiple independent boards to one note or different notes.
+- Add, edit, delete, complete, restore, and move tasks without leaving the note.
+- Drag active tasks between quadrants on desktop.
+- Filter each board's completed history independently by quadrant and completion date.
+- Preserve stable task IDs, exact completion timestamps, and ordering in hidden Markdown comments.
+- Re-read the latest note and atomically replace only the selected board on every operation.
+- Preserve sibling boards, frontmatter, callouts, prose, code, and all content outside the selected block.
+- Work with Obsidian Sync, Remotely Save, and Git as ordinary Markdown content.
+- Make no network requests and collect no telemetry.
 
 ## Installation
 
@@ -36,27 +36,46 @@ A focused Eisenhower Matrix task board for Obsidian. Add tasks directly to four 
 3. Copy the three files into that folder.
 4. Reload Obsidian and enable **Quadrant Tasks**.
 
-Open the board from the grid icon in the left ribbon, or run **Quadrant Tasks: 打开四象限任务** from the command palette. Run **Quadrant Tasks: 打开任务 Markdown 文件** to inspect the underlying note.
+## Usage
 
-## Markdown storage and sync
+1. Open a Markdown note in editing mode.
+2. Place the cursor where the board should appear.
+3. Click the grid icon in the left ribbon, or run **Quadrant Tasks: 在当前光标处插入四象限** from the command palette.
+4. Use Live Preview or Reading view to interact with the rendered board.
 
-Tasks are stored in `Quadrant Tasks.md` at the Vault root by default. You can move it from **Settings -> Quadrant Tasks -> Task Markdown file**, or move it in Obsidian's file explorer; the plugin follows the rename.
+The inserted source remains part of the note:
 
-The note contains a block delimited by these comments:
+````markdown
+```quadrant-tasks
+<!-- quadrant-board {"id":"board-example","version":2} -->
 
-```markdown
-<!-- quadrant-tasks:start -->
-...
-<!-- quadrant-tasks:end -->
+## 立即做
+- [ ] 示例任务 #quadrant/do
+
+## 安排
+
+## 委派
+
+## 舍弃
+
+## 已完成
 ```
+````
 
-The four active sections and the completed list remain readable as standard Markdown tasks. Hidden comments preserve stable IDs, the source quadrant, exact completion time, and ordering. Content outside the managed block is preserved byte for byte. If the managed block is malformed, the plugin refuses to write instead of replacing uncertain content.
+Use the insertion command instead of manually creating metadata. Each command invocation generates a new board ID. Duplicate board IDs inside the same note are treated as an ambiguity and blocked from writing; IDs may repeat safely in different notes because each note is an independent storage boundary.
 
-Because this is a normal Vault note, it is included by Obsidian Sync, Remotely Save, and Git whenever those tools include its path. The plugin uses the latest local file content for every task operation. Simultaneous offline changes can still produce the sync provider's normal last-write-wins behavior or a Git conflict; the plugin does not attempt distributed conflict resolution.
+## Storage and sync
 
-`data.json` now stores only the Markdown path and migration metadata. When upgrading from 1.0.0, the plugin first creates `.obsidian/plugins/quadrant-tasks/data-backup-1.0.0.json`, migrates the legacy tasks, and verifies their IDs before switching to Markdown. If migration fails, the plugin keeps using the legacy JSON data for that session.
+There is no global task file in 2.0. A board's source text is its complete data store. Deleting the code block deletes that board; copying it to another note copies the board. Use the insertion command when creating another independent board in the same note so it receives a unique ID.
 
-Task notes and plugin `data.json` are local Vault data. They are not copied into this source repository and are never included in GitHub release assets.
+Every local operation uses Obsidian's atomic Vault API against the latest note content. Simultaneous offline edits can still produce the sync provider's normal last-write-wins behavior or a Git conflict; the plugin does not attempt distributed conflict resolution.
+
+## Upgrading
+
+- From 1.1: the managed block in the configured `Quadrant Tasks.md` is replaced in place by one independent `quadrant-tasks` code block. Other note content is preserved.
+- From 1.0: legacy JSON tasks are inserted into `Quadrant Tasks.md` as one independent code block.
+- Private backups remain under `.obsidian/plugins/quadrant-tasks/` and are never included in release assets.
+- The old dedicated global view and global task-file setting are removed.
 
 ## Development
 
@@ -65,19 +84,19 @@ npm ci
 npm run verify
 ```
 
-`npm run verify` checks the source, rebuilds `main.js`, runs the data and Markdown storage tests, and loads the bundle against a mocked Obsidian runtime.
+`npm run verify` checks the source, rebuilds `main.js`, runs the task, legacy Markdown, local-board, migration, and bundle smoke tests.
 
 ## 中文说明
 
-Quadrant Tasks 是一个专注的四象限任务插件：
+Quadrant Tasks 现在是可插入 Markdown 的局部四象限组件：
 
-- 每个象限都可以直接输入并添加任务。
-- 勾选后，任务会进入统一的已完成列表，同时保留来源象限和精确完成时间。
-- 已完成任务可以按象限、今天、近 7 天、近 30 天或自定义日期范围筛选。
-- 支持编辑、删除、跨象限移动、恢复任务和撤销操作。
-- 任务默认保存在笔记库根目录的 `Quadrant Tasks.md`，因此能像普通笔记一样通过 Obsidian Sync、Remotely Save 或 Git 同步。
-- 插件仍提供完整的四象限图形界面；Markdown 只是可读、可同步的数据源。
-- 插件只管理两个注释标记之间的区域，不会改写区域外的笔记内容。
+- 每次插入都会创建一张完全独立的四象限表。
+- 表内任务和已完成列表直接保存在所在 Markdown 的代码块中。
+- 同一笔记可以插入多张表，不同笔记中的表也互不影响。
+- 勾选、恢复、编辑、删除、拖动和完成时间筛选都只影响当前表。
+- 不再提供全局任务数据库、独立全局页签或全局任务文件设置。
+- 通过命令面板运行“在当前光标处插入四象限”，或点击左侧网格图标即可插入。
+- 代码块会随普通笔记一起被 Obsidian Sync、Remotely Save 或 Git 同步。
 
 ## License
 
