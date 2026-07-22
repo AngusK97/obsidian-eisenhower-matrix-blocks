@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0 - 2026-07-22
+
+- Rename the plugin and repository to Eisenhower Matrix Blocks.
+- Use `eisenhower-matrix-blocks` as the plugin ID and the language for newly inserted Markdown blocks.
+- Continue rendering and editing legacy `quadrant-tasks` blocks without rewriting their fences.
+
 ## 2.1.0 - 2026-07-22
 
 - Add an Obsidian settings tab with Chinese and English interface language options.

@@ -9,6 +9,8 @@ const {
 	restoreTask,
 } = require("../src/core");
 const {
+	BOARD_LANGUAGE,
+	LEGACY_BOARD_LANGUAGE,
 	appendBoardCodeBlock,
 	findBoardCodeBlocks,
 	mutateBoardDocument,
@@ -39,6 +41,25 @@ test("board source serializes deterministically and round trips", () => {
 	assert.equal(parsed.boardId, "board-alpha");
 	assert.equal(parsed.title, "Matrix");
 	assert.deepEqual(parsed.data, data);
+});
+
+test("new blocks use the renamed language while legacy blocks remain editable", () => {
+	const current = renderBoardCodeBlock("board-compatible", createEmptyData());
+	assert.ok(current.startsWith(`\`\`\`${BOARD_LANGUAGE}\n`));
+
+	const legacy = current.replace(
+		`\`\`\`${BOARD_LANGUAGE}`,
+		`\`\`\`${LEGACY_BOARD_LANGUAGE}`,
+	);
+	const parsed = findBoardCodeBlocks(legacy);
+	assert.equal(parsed.length, 1);
+	assert.equal(parsed[0].language, LEGACY_BOARD_LANGUAGE);
+
+	const updated = mutateBoardDocument(legacy, "board-compatible", (data) =>
+		addTask(data, "Compatible", "do", { idFactory: () => "legacy-compatible" }),
+	).content;
+	assert.ok(updated.startsWith(`\`\`\`${LEGACY_BOARD_LANGUAGE}\n`));
+	assert.equal(readBoardFromDocument(updated, "board-compatible").data.tasks[0].id, "legacy-compatible");
 });
 
 test("custom board titles round trip and survive task mutations", () => {
@@ -146,7 +167,7 @@ test("a 1.1 managed block migrates in place and preserves surrounding content", 
 	const legacy = boardData("legacy-task", "Legacy task", "eliminate");
 	const document = `# Before\n\n${updateMarkdownDocument("", legacy)}\nAfter`;
 	const migrated = replaceLegacyManagedBlock(document, "board-migrated");
-	assert.ok(migrated.content.startsWith("# Before\n\n# Quadrant Tasks\n\n```quadrant-tasks"));
+	assert.ok(migrated.content.startsWith("# Before\n\n# Quadrant Tasks\n\n```eisenhower-matrix-blocks"));
 	assert.ok(migrated.content.endsWith("\nAfter"));
 	assert.equal(readBoardFromDocument(migrated.content, "board-migrated").data.tasks[0].id, "legacy-task");
 });

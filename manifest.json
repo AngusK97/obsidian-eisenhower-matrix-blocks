@@ -1,7 +1,7 @@
 {
-	"id": "quadrant-tasks",
-	"name": "Quadrant Tasks",
-	"version": "2.1.0",
+	"id": "eisenhower-matrix-blocks",
+	"name": "Eisenhower Matrix Blocks",
+	"version": "2.2.0",
 	"minAppVersion": "1.5.0",
 	"description": "Embed independent, editable Eisenhower Matrix task boards in Markdown notes, with Chinese and English interfaces.",
 	"author": "AngusKung",

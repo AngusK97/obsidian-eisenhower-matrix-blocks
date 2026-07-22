@@ -438,7 +438,9 @@ var require_board_store = __commonJS({
       parseTaskMarkdown: parseTaskMarkdown2,
       renderManagedBlock
     } = require_markdown_store();
-    var BOARD_LANGUAGE2 = "quadrant-tasks";
+    var BOARD_LANGUAGE = "eisenhower-matrix-blocks";
+    var LEGACY_BOARD_LANGUAGE = "quadrant-tasks";
+    var BOARD_LANGUAGES2 = Object.freeze([BOARD_LANGUAGE, LEGACY_BOARD_LANGUAGE]);
     var DEFAULT_BOARD_TITLE2 = "Matrix";
     var BOARD_META_PREFIX = "<!-- quadrant-board ";
     var BOARD_META_SUFFIX = " -->";
@@ -513,7 +515,7 @@ var require_board_store = __commonJS({
       return `${BOARD_META_PREFIX}${JSON.stringify(metadata)}${BOARD_META_SUFFIX}${body}`;
     }
     function renderBoardCodeBlock2(boardId, data, newline = "\n", title = DEFAULT_BOARD_TITLE2) {
-      return `\`\`\`${BOARD_LANGUAGE2}${newline}${renderBoardSource(boardId, data, newline, title)}${newline}\`\`\``;
+      return `\`\`\`${BOARD_LANGUAGE}${newline}${renderBoardSource(boardId, data, newline, title)}${newline}\`\`\``;
     }
     function lineRecords(content) {
       const records = [];
@@ -544,7 +546,7 @@ var require_board_store = __commonJS({
         for (let closeIndex = index + 1; closeIndex < lines.length; closeIndex += 1) {
           if (!closingPattern.test(lines[closeIndex].text)) continue;
           foundClosingFence = true;
-          if (language !== BOARD_LANGUAGE2) {
+          if (!BOARD_LANGUAGES2.includes(language)) {
             index = closeIndex;
             break;
           }
@@ -555,6 +557,7 @@ var require_board_store = __commonJS({
           else if (source.endsWith("\n")) source = source.slice(0, -1);
           const parsed = parseBoardSource2(source);
           blocks.push({
+            language,
             boardId: parsed.boardId,
             title: parsed.title,
             data: parsed.data,
@@ -653,8 +656,10 @@ var require_board_store = __commonJS({
       return merged;
     }
     module2.exports = {
-      BOARD_LANGUAGE: BOARD_LANGUAGE2,
+      BOARD_LANGUAGE,
+      BOARD_LANGUAGES: BOARD_LANGUAGES2,
       DEFAULT_BOARD_TITLE: DEFAULT_BOARD_TITLE2,
+      LEGACY_BOARD_LANGUAGE,
       appendBoardCodeBlock: appendBoardCodeBlock2,
       createBoardId: createBoardId2,
       findBoardCodeBlocks: findBoardCodeBlocks2,
@@ -850,7 +855,7 @@ var {
   restoreTask
 } = require_core();
 var {
-  BOARD_LANGUAGE,
+  BOARD_LANGUAGES,
   DEFAULT_BOARD_TITLE,
   appendBoardCodeBlock,
   createBoardId,
@@ -943,7 +948,7 @@ var TextInputModal = class extends Modal {
     this.contentEl.empty();
   }
 };
-var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
+var MatrixBoardRenderChild = class extends MarkdownRenderChild {
   constructor(containerEl, plugin, sourcePath, source) {
     super(containerEl);
     this.plugin = plugin;
@@ -1222,7 +1227,7 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
     createIconButton(row, "trash-2", this.plugin.t("completed.delete"), () => void this.remove(task.id));
   }
 };
-var QuadrantTasksSettingTab = class extends PluginSettingTab {
+var EisenhowerMatrixBlocksSettingTab = class extends PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -1238,22 +1243,24 @@ var QuadrantTasksSettingTab = class extends PluginSettingTab {
     );
   }
 };
-var QuadrantTasksPlugin = class extends Plugin {
+var EisenhowerMatrixBlocksPlugin = class extends Plugin {
   async onload() {
     await this.loadPluginSettings();
     this.boardRenderers = /* @__PURE__ */ new Set();
     this.fileQueues = /* @__PURE__ */ new Map();
     this.refreshTimers = /* @__PURE__ */ new Map();
-    this.registerMarkdownCodeBlockProcessor(BOARD_LANGUAGE, (source, element, context) => {
-      context.addChild(new QuadrantBoardRenderChild(element, this, context.sourcePath, source));
-    });
+    for (const language of BOARD_LANGUAGES) {
+      this.registerMarkdownCodeBlockProcessor(language, (source, element, context) => {
+        context.addChild(new MatrixBoardRenderChild(element, this, context.sourcePath, source));
+      });
+    }
     this.insertCommand = this.addCommand({
       id: "insert-quadrant-board",
       name: this.t("command.insert"),
       editorCallback: (editor) => this.insertBoard(editor)
     });
     this.ribbonEl = this.addRibbonIcon("layout-grid", this.t("ribbon.insert"), () => this.insertBoardIntoActiveNote());
-    this.addSettingTab(new QuadrantTasksSettingTab(this.app, this));
+    this.addSettingTab(new EisenhowerMatrixBlocksSettingTab(this.app, this));
     this.registerVaultEvents();
     this.app.workspace.onLayoutReady(() => {
       this.app.workspace.detachLeavesOfType(LEGACY_VIEW_TYPE);
@@ -1343,7 +1350,7 @@ var QuadrantTasksPlugin = class extends Plugin {
       return outcome;
     } catch (error) {
       if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
-      console.error("Quadrant Tasks failed to update a local board", error);
+      console.error("Eisenhower Matrix Blocks failed to update a local board", error);
       new Notice(this.t("notice.saveFailed"), 1e4);
       await this.refreshFileRenderers(sourcePath);
       return null;
@@ -1430,7 +1437,7 @@ var QuadrantTasksPlugin = class extends Plugin {
         if (!legacyJson) throw new Error(`\u627E\u4E0D\u5230\u65E7\u4EFB\u52A1\u6587\u4EF6\uFF1A${sourcePath}`);
         file = await this.app.vault.create(
           sourcePath,
-          `# Quadrant Tasks
+          `# Eisenhower Matrix Blocks
 
 ${renderBoardCodeBlock(LEGACY_BOARD_ID, legacyJson)}
 `
@@ -1490,7 +1497,7 @@ ${renderBoardCodeBlock(LEGACY_BOARD_ID, legacyJson)}
       });
       new Notice(this.t("notice.migrationComplete"), 1e4);
     } catch (error) {
-      console.error("Quadrant Tasks could not migrate global storage", error);
+      console.error("Eisenhower Matrix Blocks could not migrate global storage", error);
       new Notice(this.t("notice.migrationFailed"), 12e3);
     }
   }
@@ -1529,4 +1536,4 @@ ${renderBoardCodeBlock(LEGACY_BOARD_ID, legacyJson)}
     });
   }
 };
-module.exports = QuadrantTasksPlugin;
+module.exports = EisenhowerMatrixBlocksPlugin;

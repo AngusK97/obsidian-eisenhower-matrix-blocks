@@ -1,12 +1,12 @@
 {
-	"name": "obsidian-quadrant-tasks",
-	"version": "2.1.0",
+	"name": "obsidian-eisenhower-matrix-blocks",
+	"version": "2.2.0",
 	"description": "Independent Eisenhower Matrix task boards with Chinese and English interfaces for Obsidian Markdown notes.",
 	"private": true,
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/AngusK97/obsidian-quadrant-tasks.git"
+		"url": "git+https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks.git"
 	},
 	"scripts": {
 		"build": "esbuild src/main.js --bundle --external:obsidian --platform=node --format=cjs --target=es2018 --outfile=main.js",

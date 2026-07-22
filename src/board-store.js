@@ -10,7 +10,9 @@ const {
 	renderManagedBlock,
 } = require("./markdown-store");
 
-const BOARD_LANGUAGE = "quadrant-tasks";
+const BOARD_LANGUAGE = "eisenhower-matrix-blocks";
+const LEGACY_BOARD_LANGUAGE = "quadrant-tasks";
+const BOARD_LANGUAGES = Object.freeze([BOARD_LANGUAGE, LEGACY_BOARD_LANGUAGE]);
 const DEFAULT_BOARD_TITLE = "Matrix";
 const BOARD_META_PREFIX = "<!-- quadrant-board ";
 const BOARD_META_SUFFIX = " -->";
@@ -128,7 +130,7 @@ function findBoardCodeBlocks(content) {
 		for (let closeIndex = index + 1; closeIndex < lines.length; closeIndex += 1) {
 			if (!closingPattern.test(lines[closeIndex].text)) continue;
 			foundClosingFence = true;
-			if (language !== BOARD_LANGUAGE) {
+			if (!BOARD_LANGUAGES.includes(language)) {
 				index = closeIndex;
 				break;
 			}
@@ -139,6 +141,7 @@ function findBoardCodeBlocks(content) {
 			else if (source.endsWith("\n")) source = source.slice(0, -1);
 			const parsed = parseBoardSource(source);
 			blocks.push({
+				language,
 				boardId: parsed.boardId,
 				title: parsed.title,
 				data: parsed.data,
@@ -246,7 +249,9 @@ function mergeWithoutConflicts(primary, additional) {
 
 module.exports = {
 	BOARD_LANGUAGE,
+	BOARD_LANGUAGES,
 	DEFAULT_BOARD_TITLE,
+	LEGACY_BOARD_LANGUAGE,
 	appendBoardCodeBlock,
 	createBoardId,
 	findBoardCodeBlocks,

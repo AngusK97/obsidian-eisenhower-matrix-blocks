@@ -1,7 +1,7 @@
-# Quadrant Tasks for Obsidian
+# Eisenhower Matrix Blocks for Obsidian
 
-[![CI](https://github.com/AngusK97/obsidian-quadrant-tasks/actions/workflows/ci.yml/badge.svg)](https://github.com/AngusK97/obsidian-quadrant-tasks/actions/workflows/ci.yml)
-[![GitHub release](https://img.shields.io/github/v/release/AngusK97/obsidian-quadrant-tasks?sort=semver)](https://github.com/AngusK97/obsidian-quadrant-tasks/releases)
+[![CI](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/actions/workflows/ci.yml/badge.svg)](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/AngusK97/obsidian-eisenhower-matrix-blocks?sort=semver)](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Insert independent Eisenhower Matrix task boards directly into Markdown notes. Every board owns its tasks and completed history; there is no global task database or dedicated plugin view.
@@ -9,7 +9,7 @@ Insert independent Eisenhower Matrix task boards directly into Markdown notes. E
 ## Features
 
 - Insert a complete four-quadrant board at the current editor cursor.
-- Keep every board's data inside its own readable `quadrant-tasks` code block.
+- Keep every board's data inside its own readable `eisenhower-matrix-blocks` code block.
 - Add multiple independent boards to one note or different notes.
 - Rename each board from the pencil button beside its title; the custom title syncs inside the Markdown block.
 - Switch the complete plugin interface between Chinese and English from Obsidian's plugin settings.
@@ -28,29 +28,29 @@ Insert independent Eisenhower Matrix task boards directly into Markdown notes. E
 
 1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) community plugin.
 2. Choose **Add beta plugin**.
-3. Enter `AngusK97/obsidian-quadrant-tasks`.
-4. Enable **Quadrant Tasks** in Obsidian's community plugin settings.
+3. Enter `AngusK97/obsidian-eisenhower-matrix-blocks`.
+4. Enable **Eisenhower Matrix Blocks** in Obsidian's community plugin settings.
 
 ### Manual installation
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/AngusK97/obsidian-quadrant-tasks/releases/latest).
-2. Create `<Vault>/.obsidian/plugins/quadrant-tasks/`.
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/latest).
+2. Create `<Vault>/.obsidian/plugins/eisenhower-matrix-blocks/`.
 3. Copy the three files into that folder.
-4. Reload Obsidian and enable **Quadrant Tasks**.
+4. Reload Obsidian and enable **Eisenhower Matrix Blocks**.
 
 ## Usage
 
 1. Open a Markdown note in editing mode.
 2. Place the cursor where the board should appear.
-3. Click the grid icon in the left ribbon, or run **Quadrant Tasks: 在当前光标处插入四象限** from the command palette.
+3. Click the grid icon in the left ribbon, or run **Eisenhower Matrix Blocks: 在当前光标处插入四象限** from the command palette.
 4. Use Live Preview or Reading view to interact with the rendered board.
 
-To change the interface language, open **Settings → Quadrant Tasks → Interface language** and choose **中文** or **English**. The change applies immediately and does not rewrite any Markdown board data.
+To change the interface language, open **Settings → Eisenhower Matrix Blocks → Interface language** and choose **中文** or **English**. The change applies immediately and does not rewrite any Markdown board data.
 
 The inserted source remains part of the note:
 
 ````markdown
-```quadrant-tasks
+```eisenhower-matrix-blocks
 <!-- quadrant-board {"id":"board-example","version":2} -->
 
 ## 立即做
@@ -76,9 +76,10 @@ Every local operation uses Obsidian's atomic Vault API against the latest note c
 
 ## Upgrading
 
-- From 1.1: the managed block in the configured `Quadrant Tasks.md` is replaced in place by one independent `quadrant-tasks` code block. Other note content is preserved.
-- From 1.0: legacy JSON tasks are inserted into `Quadrant Tasks.md` as one independent code block.
-- Private backups remain under `.obsidian/plugins/quadrant-tasks/` and are never included in release assets.
+- Existing `quadrant-tasks` code blocks remain fully supported and are not rewritten merely because the plugin was renamed.
+- From 1.1: the managed block in the legacy `Quadrant Tasks.md` file is replaced in place by one independent matrix block. Other note content is preserved.
+- From 1.0: legacy JSON tasks are inserted into the legacy `Quadrant Tasks.md` file as one independent code block.
+- Private backups remain under the active plugin directory and are never included in release assets.
 - The old dedicated global view and global task-file setting are removed.
 
 ## Development
@@ -92,7 +93,7 @@ npm run verify
 
 ## 中文说明
 
-Quadrant Tasks 现在是可插入 Markdown 的局部四象限组件：
+Eisenhower Matrix Blocks 现在是可插入 Markdown 的局部四象限组件：
 
 - 每次插入都会创建一张完全独立的四象限表。
 - 表内任务和已完成列表直接保存在所在 Markdown 的代码块中。

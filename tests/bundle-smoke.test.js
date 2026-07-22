@@ -3,6 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const Module = require("node:module");
+const manifest = require("../manifest.json");
 const { addTask, createEmptyData } = require("../src/core");
 const {
 	findBoardCodeBlocks,
@@ -104,7 +105,7 @@ test("plugin registers an inline processor and insert command without a global v
 	const PluginClass = loadBuiltPlugin();
 	assert.equal(Object.getPrototypeOf(PluginClass.prototype), Plugin.prototype);
 	const plugin = new PluginClass();
-	let processorLanguage = null;
+	const processorLanguages = [];
 	let command = null;
 	let layoutReadyCallback = null;
 	let registerViewCalls = 0;
@@ -114,7 +115,7 @@ test("plugin registers an inline processor and insert command without a global v
 		vault: { on() { return {}; } },
 	};
 	plugin.loadData = async () => ({ settingsVersion: 2, language: "zh" });
-	plugin.registerMarkdownCodeBlockProcessor = (language) => { processorLanguage = language; };
+	plugin.registerMarkdownCodeBlockProcessor = (language) => { processorLanguages.push(language); };
 	plugin.addCommand = (value) => { command = value; return value; };
 	plugin.addRibbonIcon = () => ({ setAttribute() {} });
 	plugin.addSettingTab = (value) => { settingTab = value; };
@@ -122,7 +123,9 @@ test("plugin registers an inline processor and insert command without a global v
 	plugin.registerView = () => { registerViewCalls += 1; };
 	await plugin.onload();
 
-	assert.equal(processorLanguage, "quadrant-tasks");
+	assert.deepEqual(processorLanguages, ["eisenhower-matrix-blocks", "quadrant-tasks"]);
+	assert.equal(manifest.id, "eisenhower-matrix-blocks");
+	assert.equal(manifest.name, "Eisenhower Matrix Blocks");
 	assert.equal(command.id, "insert-quadrant-board");
 	assert.equal(command.name, "在当前光标处插入四象限");
 	assert.ok(settingTab instanceof PluginSettingTab);
@@ -238,7 +241,7 @@ test("1.1 global Markdown migrates in place to one local board", async () => {
 	let settings = null;
 	let backup = null;
 	const plugin = new PluginClass();
-	plugin.manifest = { dir: ".obsidian/plugins/quadrant-tasks" };
+	plugin.manifest = { dir: ".obsidian/plugins/eisenhower-matrix-blocks" };
 	plugin.loadData = async () => ({ settingsVersion: 1, taskFilePath: file.path });
 	plugin.saveData = async (value) => { settings = value; };
 	plugin.app = {
@@ -256,7 +259,7 @@ test("1.1 global Markdown migrates in place to one local board", async () => {
 
 	assert.equal(settings.settingsVersion, 2);
 	assert.match(backup.path, /global-note-backup-1\.1\.0\.md$/);
-	assert.ok(content.startsWith("Preface\n\n# Quadrant Tasks\n\n```quadrant-tasks"));
+	assert.ok(content.startsWith("Preface\n\n# Quadrant Tasks\n\n```eisenhower-matrix-blocks"));
 	assert.ok(content.endsWith("\nTail"));
 	assert.equal(readBoardFromDocument(content, "board-migrated-global").data.tasks[0].id, "legacy-task");
 	const migratedOnce = content;
@@ -273,7 +276,7 @@ test("1.0 JSON migrates directly to a local board with a backup", async () => {
 	let settings = null;
 	let backup = null;
 	const plugin = new PluginClass();
-	plugin.manifest = { dir: ".obsidian/plugins/quadrant-tasks" };
+	plugin.manifest = { dir: ".obsidian/plugins/eisenhower-matrix-blocks" };
 	plugin.loadData = async () => legacy;
 	plugin.saveData = async (value) => { settings = value; };
 	plugin.app = {

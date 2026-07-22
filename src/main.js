@@ -29,7 +29,7 @@ const {
 	restoreTask,
 } = require("./core");
 const {
-	BOARD_LANGUAGE,
+	BOARD_LANGUAGES,
 	DEFAULT_BOARD_TITLE,
 	appendBoardCodeBlock,
 	createBoardId,
@@ -132,7 +132,7 @@ class TextInputModal extends Modal {
 	}
 }
 
-class QuadrantBoardRenderChild extends MarkdownRenderChild {
+class MatrixBoardRenderChild extends MarkdownRenderChild {
 	constructor(containerEl, plugin, sourcePath, source) {
 		super(containerEl);
 		this.plugin = plugin;
@@ -435,7 +435,7 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 	}
 }
 
-class QuadrantTasksSettingTab extends PluginSettingTab {
+class EisenhowerMatrixBlocksSettingTab extends PluginSettingTab {
 	constructor(app, plugin) {
 		super(app, plugin);
 		this.plugin = plugin;
@@ -460,23 +460,25 @@ class QuadrantTasksSettingTab extends PluginSettingTab {
 	}
 }
 
-class QuadrantTasksPlugin extends Plugin {
+class EisenhowerMatrixBlocksPlugin extends Plugin {
 	async onload() {
 		await this.loadPluginSettings();
 		this.boardRenderers = new Set();
 		this.fileQueues = new Map();
 		this.refreshTimers = new Map();
 
-		this.registerMarkdownCodeBlockProcessor(BOARD_LANGUAGE, (source, element, context) => {
-			context.addChild(new QuadrantBoardRenderChild(element, this, context.sourcePath, source));
-		});
+		for (const language of BOARD_LANGUAGES) {
+			this.registerMarkdownCodeBlockProcessor(language, (source, element, context) => {
+				context.addChild(new MatrixBoardRenderChild(element, this, context.sourcePath, source));
+			});
+		}
 		this.insertCommand = this.addCommand({
 			id: "insert-quadrant-board",
 			name: this.t("command.insert"),
 			editorCallback: (editor) => this.insertBoard(editor),
 		});
 		this.ribbonEl = this.addRibbonIcon("layout-grid", this.t("ribbon.insert"), () => this.insertBoardIntoActiveNote());
-		this.addSettingTab(new QuadrantTasksSettingTab(this.app, this));
+		this.addSettingTab(new EisenhowerMatrixBlocksSettingTab(this.app, this));
 		this.registerVaultEvents();
 		this.app.workspace.onLayoutReady(() => {
 			this.app.workspace.detachLeavesOfType(LEGACY_VIEW_TYPE);
@@ -575,7 +577,7 @@ class QuadrantTasksPlugin extends Plugin {
 			return outcome;
 		} catch (error) {
 			if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
-			console.error("Quadrant Tasks failed to update a local board", error);
+			console.error("Eisenhower Matrix Blocks failed to update a local board", error);
 			new Notice(this.t("notice.saveFailed"), 10000);
 			await this.refreshFileRenderers(sourcePath);
 			return null;
@@ -665,7 +667,7 @@ class QuadrantTasksPlugin extends Plugin {
 				if (!legacyJson) throw new Error(`找不到旧任务文件：${sourcePath}`);
 				file = await this.app.vault.create(
 					sourcePath,
-					`# Quadrant Tasks\n\n${renderBoardCodeBlock(LEGACY_BOARD_ID, legacyJson)}\n`,
+					`# Eisenhower Matrix Blocks\n\n${renderBoardCodeBlock(LEGACY_BOARD_ID, legacyJson)}\n`,
 				);
 			} else {
 				const before = await this.app.vault.read(file);
@@ -723,7 +725,7 @@ class QuadrantTasksPlugin extends Plugin {
 			});
 			new Notice(this.t("notice.migrationComplete"), 10000);
 		} catch (error) {
-			console.error("Quadrant Tasks could not migrate global storage", error);
+			console.error("Eisenhower Matrix Blocks could not migrate global storage", error);
 			new Notice(this.t("notice.migrationFailed"), 12000);
 		}
 	}
@@ -766,4 +768,4 @@ class QuadrantTasksPlugin extends Plugin {
 	}
 }
 
-module.exports = QuadrantTasksPlugin;
+module.exports = EisenhowerMatrixBlocksPlugin;
