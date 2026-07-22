@@ -1,0 +1,481 @@
+.qt-root {
+	--qt-do: var(--color-red);
+	--qt-schedule: var(--color-blue);
+	--qt-delegate: var(--color-yellow);
+	--qt-eliminate: var(--text-muted);
+	box-sizing: border-box;
+	height: 100%;
+	overflow-y: auto;
+	padding: 24px;
+	color: var(--text-normal);
+}
+
+.qt-root * {
+	box-sizing: border-box;
+}
+
+.qt-page-header {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	max-width: 1400px;
+	margin: 0 auto 16px;
+}
+
+.qt-title-group h2,
+.qt-completed-header h3,
+.qt-quadrant-heading h3 {
+	margin: 0;
+	letter-spacing: 0;
+}
+
+.qt-title-group h2 {
+	font-size: 1.5rem;
+	line-height: 1.3;
+}
+
+.qt-stats {
+	display: flex;
+	gap: 12px;
+	margin-top: 6px;
+	color: var(--text-muted);
+	font-size: var(--font-smallest);
+}
+
+.qt-matrix {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+	max-width: 1400px;
+	margin: 0 auto;
+}
+
+.qt-quadrant {
+	--qt-quadrant-color: var(--text-muted);
+	display: flex;
+	min-width: 0;
+	min-height: 260px;
+	flex-direction: column;
+	border: 1px solid var(--background-modifier-border);
+	border-top: 3px solid var(--qt-quadrant-color);
+	border-radius: 8px;
+	background: var(--background-secondary);
+	transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.qt-quadrant-do {
+	--qt-quadrant-color: var(--qt-do);
+}
+
+.qt-quadrant-schedule {
+	--qt-quadrant-color: var(--qt-schedule);
+}
+
+.qt-quadrant-delegate {
+	--qt-quadrant-color: var(--qt-delegate);
+}
+
+.qt-quadrant-eliminate {
+	--qt-quadrant-color: var(--qt-eliminate);
+}
+
+.qt-quadrant.qt-drop-target {
+	border-color: var(--qt-quadrant-color);
+	background: color-mix(in srgb, var(--qt-quadrant-color) 8%, var(--background-secondary));
+}
+
+.qt-quadrant-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 14px 14px 10px;
+}
+
+.qt-quadrant-heading {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	gap: 9px;
+}
+
+.qt-quadrant-icon {
+	display: grid;
+	width: 30px;
+	height: 30px;
+	flex: 0 0 30px;
+	place-items: center;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--qt-quadrant-color) 14%, transparent);
+	color: var(--qt-quadrant-color);
+}
+
+.qt-quadrant-icon svg {
+	width: 17px;
+	height: 17px;
+}
+
+.qt-quadrant-heading h3 {
+	font-size: var(--font-ui-medium);
+	line-height: 1.25;
+}
+
+.qt-count {
+	display: inline-grid;
+	min-width: 20px;
+	height: 20px;
+	margin-left: 7px;
+	place-items: center;
+	border-radius: 10px;
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+	font-size: var(--font-smallest);
+	font-weight: var(--font-normal);
+}
+
+.qt-quadrant-description {
+	margin-top: 2px;
+	color: var(--text-muted);
+	font-size: var(--font-smallest);
+}
+
+.qt-quick-add {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 36px;
+	gap: 6px;
+	padding: 0 12px 10px;
+}
+
+.qt-quick-add input,
+.qt-modal-input,
+.qt-filters select,
+.qt-custom-range input {
+	width: 100%;
+	height: 36px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.qt-quick-add input:focus,
+.qt-modal-input:focus,
+.qt-filters select:focus,
+.qt-custom-range input:focus,
+.qt-root button:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.qt-quick-add input.qt-input-error,
+.qt-modal-input.qt-input-error {
+	border-color: var(--text-error);
+}
+
+.qt-icon-button {
+	display: inline-grid;
+	width: 36px;
+	height: 36px;
+	min-width: 36px;
+	padding: 0;
+	place-items: center;
+}
+
+.qt-add-button {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.qt-add-button:hover {
+	background: var(--interactive-accent-hover);
+	color: var(--text-on-accent);
+}
+
+.qt-task-list,
+.qt-completed-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.qt-task-list {
+	min-height: 92px;
+	max-height: 330px;
+	overflow-y: auto;
+	padding: 0 12px 12px;
+}
+
+.qt-task-row,
+.qt-completed-row {
+	display: flex;
+	min-height: 44px;
+	align-items: center;
+	gap: 9px;
+	border-bottom: 1px solid var(--background-modifier-border-hover);
+}
+
+.qt-task-row:last-child,
+.qt-completed-row:last-child {
+	border-bottom: 0;
+}
+
+.qt-task-row.qt-dragging {
+	opacity: 0.45;
+}
+
+.qt-task-checkbox {
+	width: 18px;
+	height: 18px;
+	min-width: 18px;
+	margin: 0;
+	cursor: pointer;
+}
+
+.qt-task-title {
+	min-width: 0;
+	flex: 1;
+	padding: 8px 2px;
+	overflow-wrap: anywhere;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-normal);
+	text-align: left;
+	cursor: text;
+}
+
+.qt-task-title:hover {
+	background: transparent;
+	color: var(--text-normal);
+}
+
+.qt-task-row .qt-icon-button,
+.qt-completed-row .qt-icon-button {
+	opacity: 0;
+}
+
+.qt-task-row:hover .qt-icon-button,
+.qt-task-row:focus-within .qt-icon-button,
+.qt-completed-row:hover .qt-icon-button,
+.qt-completed-row:focus-within .qt-icon-button {
+	opacity: 1;
+}
+
+.qt-empty {
+	display: grid;
+	min-height: 72px;
+	place-items: center;
+	padding: 18px;
+	color: var(--text-faint);
+	font-size: var(--font-ui-small);
+	text-align: center;
+}
+
+.qt-completed-section {
+	max-width: 1400px;
+	margin: 24px auto 40px;
+	padding-top: 18px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.qt-completed-header {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	margin-bottom: 12px;
+}
+
+.qt-completed-header h3 {
+	display: inline;
+	font-size: 1.1rem;
+}
+
+.qt-completed-count {
+	margin-left: 8px;
+	color: var(--text-muted);
+	font-size: var(--font-smallest);
+}
+
+.qt-filters {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-bottom: 10px;
+}
+
+.qt-filters select {
+	width: auto;
+	min-width: 112px;
+}
+
+.qt-periods {
+	display: inline-flex;
+	overflow: hidden;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+}
+
+.qt-periods button {
+	height: 34px;
+	padding: 0 12px;
+	border: 0;
+	border-right: 1px solid var(--background-modifier-border);
+	border-radius: 0;
+	background: var(--background-primary);
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.qt-periods button:last-child {
+	border-right: 0;
+}
+
+.qt-periods button.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.qt-custom-range {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--text-muted);
+}
+
+.qt-custom-range input {
+	width: 142px;
+}
+
+.qt-completed-list {
+	border-top: 1px solid var(--background-modifier-border-hover);
+}
+
+.qt-completed-row {
+	padding: 5px 2px;
+}
+
+.qt-completed-content {
+	min-width: 0;
+	flex: 1;
+}
+
+.qt-completed-title {
+	overflow-wrap: anywhere;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	text-decoration: line-through;
+}
+
+.qt-completed-meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 3px;
+	color: var(--text-faint);
+	font-size: var(--font-smallest);
+}
+
+.qt-badge {
+	display: inline-flex;
+	align-items: center;
+	height: 20px;
+	padding: 0 7px;
+	border: 1px solid currentColor;
+	border-radius: 10px;
+}
+
+.qt-badge-do {
+	color: var(--qt-do);
+}
+
+.qt-badge-schedule {
+	color: var(--qt-schedule);
+}
+
+.qt-badge-delegate {
+	color: var(--qt-delegate);
+}
+
+.qt-badge-eliminate {
+	color: var(--qt-eliminate);
+}
+
+.qt-filter-error {
+	color: var(--text-error);
+}
+
+.qt-undo-button {
+	margin-left: 4px;
+	padding: 2px 7px;
+	color: var(--interactive-accent);
+	font-weight: var(--font-semibold);
+}
+
+@media (max-width: 720px) {
+	.qt-root {
+		padding: 14px 10px 28px;
+	}
+
+	.qt-matrix {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.qt-quadrant {
+		min-height: 220px;
+	}
+
+	.qt-task-list {
+		max-height: 280px;
+	}
+
+	.qt-task-row .qt-icon-button,
+	.qt-completed-row .qt-icon-button {
+		opacity: 1;
+	}
+
+	.qt-icon-button,
+	.qt-add-button {
+		width: 44px;
+		height: 44px;
+		min-width: 44px;
+	}
+
+	.qt-quick-add {
+		grid-template-columns: minmax(0, 1fr) 44px;
+	}
+
+	.qt-quick-add input,
+	.qt-filters select,
+	.qt-custom-range input {
+		height: 44px;
+	}
+
+	.qt-periods {
+		width: 100%;
+		overflow-x: auto;
+	}
+
+	.qt-periods button {
+		min-width: max-content;
+		height: 42px;
+		flex: 1;
+	}
+
+	.qt-custom-range {
+		width: 100%;
+	}
+
+	.qt-custom-range input {
+		min-width: 0;
+		flex: 1;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.qt-quadrant {
+		transition: none;
+	}
+}
