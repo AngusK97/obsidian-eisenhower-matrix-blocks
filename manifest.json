@@ -1,9 +1,9 @@
 {
 	"id": "quadrant-tasks",
 	"name": "Quadrant Tasks",
-	"version": "2.0.1",
+	"version": "2.1.0",
 	"minAppVersion": "1.5.0",
-	"description": "Insert independent four-quadrant task boards directly into Markdown notes.",
+	"description": "Embed independent, editable Eisenhower Matrix task boards in Markdown notes, with Chinese and English interfaces.",
 	"author": "AngusKung",
 	"authorUrl": "https://github.com/AngusK97",
 	"isDesktopOnly": false

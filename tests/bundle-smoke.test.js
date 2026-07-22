@@ -23,6 +23,15 @@ class MarkdownView {}
 class Modal extends Component {}
 class Notice { constructor() {} }
 class Menu {}
+class PluginSettingTab extends Component {
+	constructor(app, plugin) {
+		super();
+		this.app = app;
+		this.plugin = plugin;
+		this.containerEl = { empty() {} };
+	}
+}
+class Setting {}
 class TFile {
 	constructor(path) {
 		this.path = path;
@@ -44,6 +53,8 @@ function loadBuiltPlugin() {
 				Modal,
 				Notice,
 				Menu,
+				PluginSettingTab,
+				Setting,
 				TFile,
 				normalizePath,
 				setIcon() {},
@@ -97,21 +108,57 @@ test("plugin registers an inline processor and insert command without a global v
 	let command = null;
 	let layoutReadyCallback = null;
 	let registerViewCalls = 0;
+	let settingTab = null;
 	plugin.app = {
 		workspace: { onLayoutReady(callback) { layoutReadyCallback = callback; } },
 		vault: { on() { return {}; } },
 	};
+	plugin.loadData = async () => ({ settingsVersion: 2, language: "zh" });
 	plugin.registerMarkdownCodeBlockProcessor = (language) => { processorLanguage = language; };
-	plugin.addCommand = (value) => { command = value; };
-	plugin.addRibbonIcon = () => {};
+	plugin.addCommand = (value) => { command = value; return value; };
+	plugin.addRibbonIcon = () => ({ setAttribute() {} });
+	plugin.addSettingTab = (value) => { settingTab = value; };
 	plugin.registerEvent = () => {};
 	plugin.registerView = () => { registerViewCalls += 1; };
 	await plugin.onload();
 
 	assert.equal(processorLanguage, "quadrant-tasks");
 	assert.equal(command.id, "insert-quadrant-board");
+	assert.equal(command.name, "在当前光标处插入四象限");
+	assert.ok(settingTab instanceof PluginSettingTab);
 	assert.equal(typeof layoutReadyCallback, "function");
 	assert.equal(registerViewCalls, 0);
+});
+
+test("English settings localize commands and persist without dropping plugin data", async () => {
+	const PluginClass = loadBuiltPlugin();
+	const plugin = new PluginClass();
+	let command = null;
+	let saved = null;
+	let renderCount = 0;
+	const ribbonAttributes = {};
+	plugin.app = {
+		workspace: { onLayoutReady() {} },
+		vault: { on() { return {}; } },
+	};
+	plugin.loadData = async () => ({ settingsVersion: 2, language: "en", migration: { fromVersion: "1.1.0" } });
+	plugin.saveData = async (value) => { saved = value; };
+	plugin.registerMarkdownCodeBlockProcessor = () => {};
+	plugin.addCommand = (value) => { command = value; return value; };
+	plugin.addRibbonIcon = () => ({ setAttribute(name, value) { ribbonAttributes[name] = value; } });
+	plugin.addSettingTab = () => {};
+	plugin.registerEvent = () => {};
+	await plugin.onload();
+
+	assert.equal(command.name, "Insert matrix at cursor");
+	assert.equal(plugin.getQuadrantMeta("do").description, "Important and urgent");
+	plugin.boardRenderers.add({ render() { renderCount += 1; } });
+	await plugin.setLanguage("zh");
+	assert.equal(saved.language, "zh");
+	assert.deepEqual(saved.migration, { fromVersion: "1.1.0" });
+	assert.equal(command.name, "在当前光标处插入四象限");
+	assert.equal(ribbonAttributes["aria-label"], "插入四象限");
+	assert.equal(renderCount, 1);
 });
 
 test("insert command writes a complete independent board at the cursor", () => {

@@ -7,6 +7,8 @@ const {
 	Modal,
 	Notice,
 	Plugin,
+	PluginSettingTab,
+	Setting,
 	TFile,
 	normalizePath,
 	setIcon,
@@ -40,6 +42,7 @@ const {
 	renderBoardCodeBlock,
 	replaceLegacyManagedBlock,
 } = require("./board-store");
+const { normalizeLanguage, translate } = require("./i18n");
 const { parseTaskMarkdown } = require("./markdown-store");
 
 const SETTINGS_VERSION = 2;
@@ -50,19 +53,13 @@ const LEGACY_NOTE_BACKUP = "global-note-backup-1.1.0.md";
 const LEGACY_VIEW_TYPE = "quadrant-tasks-view";
 
 const QUADRANT_META = {
-	do: { action: "立即做", description: "重要且紧急", icon: "zap" },
-	schedule: { action: "安排", description: "重要不紧急", icon: "calendar-clock" },
-	delegate: { action: "委派", description: "紧急不重要", icon: "users" },
-	eliminate: { action: "舍弃", description: "不重要不紧急", icon: "archive" },
+	do: { icon: "zap" },
+	schedule: { icon: "calendar-clock" },
+	delegate: { icon: "users" },
+	eliminate: { icon: "archive" },
 };
 
-const PERIODS = [
-	{ id: "all", label: "全部" },
-	{ id: "today", label: "今天" },
-	{ id: "7d", label: "近 7 天" },
-	{ id: "30d", label: "近 30 天" },
-	{ id: "custom", label: "自定义" },
-];
+const PERIODS = ["all", "today", "7d", "30d", "custom"];
 
 function cloneData(data) {
 	return normalizeData(JSON.parse(JSON.stringify(data)));
@@ -78,8 +75,8 @@ function createIconButton(parent, icon, label, onClick, className = "") {
 	return button;
 }
 
-function formatCompletedAt(value) {
-	return new Intl.DateTimeFormat(undefined, {
+function formatCompletedAt(value, language) {
+	return new Intl.DateTimeFormat(language === "en" ? "en-US" : "zh-CN", {
 		year: "numeric",
 		month: "2-digit",
 		day: "2-digit",
@@ -89,25 +86,26 @@ function formatCompletedAt(value) {
 }
 
 class TextInputModal extends Modal {
-	constructor(app, title, onSave, options = {}) {
-		super(app);
+	constructor(plugin, title, onSave, options = {}) {
+		super(plugin.app);
+		this.plugin = plugin;
 		this.title = title;
 		this.onSave = onSave;
-		this.modalTitle = options.modalTitle || "编辑任务";
-		this.inputLabel = options.inputLabel || "任务内容";
+		this.modalTitleKey = options.modalTitleKey || "modal.editTask";
+		this.inputLabelKey = options.inputLabelKey || "modal.taskContent";
 		this.maxLength = options.maxLength || null;
 	}
 
 	onOpen() {
-		this.setTitle(this.modalTitle);
+		this.setTitle(this.plugin.t(this.modalTitleKey));
 		const input = this.contentEl.createEl("input", {
 			cls: "qt-modal-input",
-			attr: { type: "text", value: this.title, "aria-label": this.inputLabel },
+			attr: { type: "text", value: this.title, "aria-label": this.plugin.t(this.inputLabelKey) },
 		});
 		if (this.maxLength) input.maxLength = this.maxLength;
 		const actions = this.contentEl.createDiv({ cls: "modal-button-container" });
-		const cancel = actions.createEl("button", { text: "取消" });
-		const save = actions.createEl("button", { text: "保存", cls: "mod-cta" });
+		const cancel = actions.createEl("button", { text: this.plugin.t("common.cancel") });
+		const save = actions.createEl("button", { text: this.plugin.t("common.save"), cls: "mod-cta" });
 		const submit = () => {
 			const value = input.value.trim();
 			if (!value) {
@@ -182,7 +180,7 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 		if (!this.boardId || this.issues.length) {
 			container.createDiv({
 				cls: "qt-storage-error",
-				text: this.issues.join("；") || "四象限代码块缺少 board-id",
+				text: this.plugin.t("board.invalid"),
 			});
 			return;
 		}
@@ -198,14 +196,14 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 		const titleGroup = header.createDiv({ cls: "qt-title-group" });
 		const titleRow = titleGroup.createDiv({ cls: "qt-title-row" });
 		titleRow.createEl("h3", { text: this.boardTitle });
-		createIconButton(titleRow, "pencil", "编辑四象限标题", () => this.openBoardTitleEditor(), "qt-title-edit");
+		createIconButton(titleRow, "pencil", this.plugin.t("board.editTitle"), () => this.openBoardTitleEditor(), "qt-title-edit");
 		const stats = titleGroup.createDiv({ cls: "qt-stats", attr: { "aria-live": "polite" } });
-		stats.createSpan({ text: `${getActiveTasks(this.data).length} 项进行中` });
-		stats.createSpan({ text: `${getCompletedTasks(this.data).length} 项已完成` });
+		stats.createSpan({ text: this.plugin.t("stats.active", { count: getActiveTasks(this.data).length }) });
+		stats.createSpan({ text: this.plugin.t("stats.completed", { count: getCompletedTasks(this.data).length }) });
 	}
 
 	renderQuadrant(matrix, quadrant) {
-		const meta = QUADRANT_META[quadrant];
+		const meta = this.plugin.getQuadrantMeta(quadrant);
 		const tasks = getActiveTasks(this.data, quadrant);
 		const section = matrix.createEl("section", {
 			cls: `qt-quadrant qt-quadrant-${quadrant}`,
@@ -222,7 +220,11 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 
 		const quickAdd = section.createDiv({ cls: "qt-quick-add" });
 		const input = quickAdd.createEl("input", {
-			attr: { type: "text", placeholder: "添加任务", "aria-label": `添加到${meta.action}` },
+			attr: {
+				type: "text",
+				placeholder: this.plugin.t("task.add"),
+				"aria-label": this.plugin.t("task.addTo", { quadrant: meta.action }),
+			},
 		});
 		const submit = async () => {
 			const titleText = input.value.trim();
@@ -237,10 +239,16 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 		input.addEventListener("keydown", (event) => {
 			if (event.key === "Enter" && !event.isComposing) void submit();
 		});
-		createIconButton(quickAdd, "plus", `添加到${meta.action}`, () => void submit(), "qt-add-button");
+		createIconButton(
+			quickAdd,
+			"plus",
+			this.plugin.t("task.addTo", { quadrant: meta.action }),
+			() => void submit(),
+			"qt-add-button",
+		);
 
 		const list = section.createEl("ul", { cls: "qt-task-list" });
-		if (tasks.length === 0) list.createEl("li", { text: "暂无任务", cls: "qt-empty" });
+		if (tasks.length === 0) list.createEl("li", { text: this.plugin.t("task.empty"), cls: "qt-empty" });
 		else for (const task of tasks) this.renderActiveTask(list, task);
 
 		section.addEventListener("dragover", (event) => {
@@ -267,16 +275,16 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 		});
 		const checkbox = row.createEl("input", {
 			cls: "qt-task-checkbox",
-			attr: { type: "checkbox", "aria-label": `完成任务：${task.title}` },
+			attr: { type: "checkbox", "aria-label": this.plugin.t("task.complete", { title: task.title }) },
 		});
 		checkbox.addEventListener("change", () => void this.complete(task.id));
 		const title = row.createEl("button", {
 			text: task.title,
 			cls: "qt-task-title",
-			attr: { type: "button", title: "编辑任务" },
+			attr: { type: "button", title: this.plugin.t("task.edit") },
 		});
 		title.addEventListener("click", () => this.openEditor(task));
-		createIconButton(row, "more-horizontal", "更多操作", (event) => this.openTaskMenu(event, task));
+		createIconButton(row, "more-horizontal", this.plugin.t("task.more"), (event) => this.openTaskMenu(event, task));
 		row.addEventListener("dragstart", (event) => {
 			this.draggedTaskId = task.id;
 			row.addClass("qt-dragging");
@@ -290,34 +298,34 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 	}
 
 	openEditor(task) {
-		new TextInputModal(this.plugin.app, task.title, (title) => {
+		new TextInputModal(this.plugin, task.title, (title) => {
 			void this.mutate((data) => editTask(data, task.id, title));
 		}).open();
 	}
 
 	openBoardTitleEditor() {
-		new TextInputModal(this.plugin.app, this.boardTitle, (title) => {
+		new TextInputModal(this.plugin, this.boardTitle, (title) => {
 			void this.plugin.renameBoard(this.sourcePath, this.boardId, title);
 		}, {
-			modalTitle: "编辑四象限标题",
-			inputLabel: "四象限标题",
+			modalTitleKey: "modal.editTitle",
+			inputLabelKey: "modal.matrixTitle",
 			maxLength: 120,
 		}).open();
 	}
 
 	openTaskMenu(event, task) {
 		const menu = new Menu();
-		menu.addItem((item) => item.setTitle("编辑").setIcon("pencil").onClick(() => this.openEditor(task)));
+		menu.addItem((item) => item.setTitle(this.plugin.t("task.menuEdit")).setIcon("pencil").onClick(() => this.openEditor(task)));
 		for (const quadrant of QUADRANTS) {
-			const meta = QUADRANT_META[quadrant];
+			const meta = this.plugin.getQuadrantMeta(quadrant);
 			menu.addItem((item) => {
-				item.setTitle(`移至：${meta.action}`).setIcon(meta.icon).setDisabled(task.quadrant === quadrant);
+				item.setTitle(this.plugin.t("task.moveTo", { quadrant: meta.action })).setIcon(meta.icon).setDisabled(task.quadrant === quadrant);
 				item.onClick(() => void this.mutate((data) => moveTask(data, task.id, quadrant)));
 			});
 		}
 		menu.addSeparator();
 		menu.addItem((item) =>
-			item.setTitle("删除").setIcon("trash-2").setWarning(true).onClick(() => void this.remove(task.id)),
+			item.setTitle(this.plugin.t("task.delete")).setIcon("trash-2").setWarning(true).onClick(() => void this.remove(task.id)),
 		);
 		menu.showAtMouseEvent(event);
 	}
@@ -325,26 +333,26 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 	async complete(taskId) {
 		const task = await this.mutate((data) => completeTask(data, taskId));
 		if (!task) return;
-		this.plugin.showUndo("任务已完成", () => this.mutate((data) => restoreTask(data, taskId)));
+		this.plugin.showUndo(this.plugin.t("task.completedNotice"), () => this.mutate((data) => restoreTask(data, taskId)));
 	}
 
 	async restore(taskId) {
 		const task = await this.mutate((data) => restoreTask(data, taskId));
 		if (!task) return;
-		this.plugin.showUndo("任务已恢复", () => this.mutate((data) => completeTask(data, taskId)));
+		this.plugin.showUndo(this.plugin.t("task.restoredNotice"), () => this.mutate((data) => completeTask(data, taskId)));
 	}
 
 	async remove(taskId) {
 		const deleted = await this.mutate((data) => deleteTask(data, taskId));
 		if (!deleted) return;
-		this.plugin.showUndo("任务已删除", () => this.mutate((data) => restoreDeletedTask(data, deleted)));
+		this.plugin.showUndo(this.plugin.t("task.deletedNotice"), () => this.mutate((data) => restoreDeletedTask(data, deleted)));
 	}
 
 	renderCompleted(container) {
 		const section = container.createEl("section", { cls: "qt-completed-section" });
 		const header = section.createEl("header", { cls: "qt-completed-header" });
 		const titleGroup = header.createDiv();
-		titleGroup.createEl("h3", { text: "已完成" });
+		titleGroup.createEl("h3", { text: this.plugin.t("completed.title") });
 		const allCompleted = getCompletedTasks(this.data);
 		const bounds = completionBounds(this.filters);
 		const tasks = getCompletedTasks(this.data, this.filters);
@@ -355,10 +363,10 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 		});
 
 		const controls = section.createDiv({ cls: "qt-filters" });
-		const quadrantSelect = controls.createEl("select", { attr: { "aria-label": "按来源象限筛选" } });
-		quadrantSelect.createEl("option", { text: "全部象限", value: "all" });
+		const quadrantSelect = controls.createEl("select", { attr: { "aria-label": this.plugin.t("completed.filterQuadrant") } });
+		quadrantSelect.createEl("option", { text: this.plugin.t("completed.allQuadrants"), value: "all" });
 		for (const quadrant of QUADRANTS) {
-			quadrantSelect.createEl("option", { text: QUADRANT_META[quadrant].action, value: quadrant });
+			quadrantSelect.createEl("option", { text: this.plugin.getQuadrantMeta(quadrant).action, value: quadrant });
 		}
 		quadrantSelect.value = this.filters.quadrant;
 		quadrantSelect.addEventListener("change", () => {
@@ -366,15 +374,15 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 			this.render();
 		});
 
-		const periods = controls.createDiv({ cls: "qt-periods", attr: { role: "group", "aria-label": "完成时间" } });
-		for (const period of PERIODS) {
+		const periods = controls.createDiv({ cls: "qt-periods", attr: { role: "group", "aria-label": this.plugin.t("completed.timeFilter") } });
+		for (const periodId of PERIODS) {
 			const button = periods.createEl("button", {
-				text: period.label,
-				cls: this.filters.period === period.id ? "is-active" : "",
-				attr: { type: "button", "aria-pressed": String(this.filters.period === period.id) },
+				text: this.plugin.t(`period.${periodId}`),
+				cls: this.filters.period === periodId ? "is-active" : "",
+				attr: { type: "button", "aria-pressed": String(this.filters.period === periodId) },
 			});
 			button.addEventListener("click", () => {
-				this.filters.period = period.id;
+				this.filters.period = periodId;
 				this.render();
 			});
 		}
@@ -382,10 +390,10 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 
 		const list = section.createEl("ul", { cls: "qt-completed-list" });
 		if (!bounds.valid) {
-			list.createEl("li", { text: "开始日期不能晚于结束日期", cls: "qt-empty qt-filter-error" });
+			list.createEl("li", { text: this.plugin.t("completed.invalidRange"), cls: "qt-empty qt-filter-error" });
 		} else if (tasks.length === 0) {
 			list.createEl("li", {
-				text: allCompleted.length === 0 ? "还没有已完成的任务" : "没有符合筛选条件的任务",
+				text: allCompleted.length === 0 ? this.plugin.t("completed.none") : this.plugin.t("completed.noMatches"),
 				cls: "qt-empty",
 			});
 		} else {
@@ -395,10 +403,10 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 
 	renderCustomRange(controls) {
 		const range = controls.createDiv({ cls: "qt-custom-range" });
-		const start = range.createEl("input", { attr: { type: "date", "aria-label": "完成时间起始日期" } });
+		const start = range.createEl("input", { attr: { type: "date", "aria-label": this.plugin.t("completed.startDate") } });
 		start.value = this.filters.startDate;
-		range.createSpan({ text: "至" });
-		const end = range.createEl("input", { attr: { type: "date", "aria-label": "完成时间结束日期" } });
+		range.createSpan({ text: this.plugin.t("completed.to") });
+		const end = range.createEl("input", { attr: { type: "date", "aria-label": this.plugin.t("completed.endDate") } });
 		end.value = this.filters.endDate;
 		start.addEventListener("change", () => {
 			this.filters.startDate = start.value;
@@ -414,21 +422,47 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 		const row = list.createEl("li", { cls: "qt-completed-row" });
 		const checkbox = row.createEl("input", {
 			cls: "qt-task-checkbox",
-			attr: { type: "checkbox", "aria-label": `恢复任务：${task.title}` },
+			attr: { type: "checkbox", "aria-label": this.plugin.t("completed.restore", { title: task.title }) },
 		});
 		checkbox.checked = true;
 		checkbox.addEventListener("change", () => void this.restore(task.id));
 		const content = row.createDiv({ cls: "qt-completed-content" });
 		content.createDiv({ text: task.title, cls: "qt-completed-title" });
 		const metadata = content.createDiv({ cls: "qt-completed-meta" });
-		metadata.createSpan({ text: QUADRANT_META[task.quadrant].action, cls: `qt-badge qt-badge-${task.quadrant}` });
-		metadata.createEl("time", { text: formatCompletedAt(task.completedAt), attr: { datetime: task.completedAt } });
-		createIconButton(row, "trash-2", "删除任务", () => void this.remove(task.id));
+		metadata.createSpan({ text: this.plugin.getQuadrantMeta(task.quadrant).action, cls: `qt-badge qt-badge-${task.quadrant}` });
+		metadata.createEl("time", { text: formatCompletedAt(task.completedAt, this.plugin.language), attr: { datetime: task.completedAt } });
+		createIconButton(row, "trash-2", this.plugin.t("completed.delete"), () => void this.remove(task.id));
+	}
+}
+
+class QuadrantTasksSettingTab extends PluginSettingTab {
+	constructor(app, plugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
+
+	display() {
+		const { containerEl } = this;
+		containerEl.empty();
+		new Setting(containerEl)
+			.setName(this.plugin.t("settings.language"))
+			.setDesc(this.plugin.t("settings.languageDescription"))
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption("zh", "中文")
+					.addOption("en", "English")
+					.setValue(this.plugin.language)
+					.onChange(async (value) => {
+						await this.plugin.setLanguage(value);
+						this.display();
+					}),
+			);
 	}
 }
 
 class QuadrantTasksPlugin extends Plugin {
 	async onload() {
+		await this.loadPluginSettings();
 		this.boardRenderers = new Set();
 		this.fileQueues = new Map();
 		this.refreshTimers = new Map();
@@ -436,12 +470,13 @@ class QuadrantTasksPlugin extends Plugin {
 		this.registerMarkdownCodeBlockProcessor(BOARD_LANGUAGE, (source, element, context) => {
 			context.addChild(new QuadrantBoardRenderChild(element, this, context.sourcePath, source));
 		});
-		this.addCommand({
+		this.insertCommand = this.addCommand({
 			id: "insert-quadrant-board",
-			name: "在当前光标处插入四象限",
+			name: this.t("command.insert"),
 			editorCallback: (editor) => this.insertBoard(editor),
 		});
-		this.addRibbonIcon("layout-grid", "插入四象限", () => this.insertBoardIntoActiveNote());
+		this.ribbonEl = this.addRibbonIcon("layout-grid", this.t("ribbon.insert"), () => this.insertBoardIntoActiveNote());
+		this.addSettingTab(new QuadrantTasksSettingTab(this.app, this));
 		this.registerVaultEvents();
 		this.app.workspace.onLayoutReady(() => {
 			this.app.workspace.detachLeavesOfType(LEGACY_VIEW_TYPE);
@@ -452,6 +487,41 @@ class QuadrantTasksPlugin extends Plugin {
 	onunload() {
 		for (const timer of this.refreshTimers.values()) window.clearTimeout(timer);
 		this.refreshTimers.clear();
+	}
+
+	get language() {
+		return normalizeLanguage(this.settings?.language);
+	}
+
+	t(key, variables) {
+		return translate(this.language, key, variables);
+	}
+
+	getQuadrantMeta(quadrant) {
+		return {
+			...QUADRANT_META[quadrant],
+			action: this.t(`quadrant.${quadrant}.action`),
+			description: this.t(`quadrant.${quadrant}.description`),
+		};
+	}
+
+	async loadPluginSettings() {
+		const raw = await this.loadData();
+		this.settings = { language: normalizeLanguage(raw?.language) };
+	}
+
+	async setLanguage(value) {
+		const language = normalizeLanguage(value);
+		if (language === this.language) return;
+		this.settings = { ...this.settings, language };
+		const raw = await this.loadData();
+		await this.saveData({ ...(raw || {}), language });
+		if (this.insertCommand) this.insertCommand.name = this.t("command.insert");
+		if (this.ribbonEl) {
+			this.ribbonEl.setAttribute("aria-label", this.t("ribbon.insert"));
+			this.ribbonEl.setAttribute("title", this.t("ribbon.insert"));
+		}
+		for (const renderer of this.boardRenderers) renderer.render();
 	}
 
 	insertBoard(editor) {
@@ -470,13 +540,13 @@ class QuadrantTasksPlugin extends Plugin {
 				ch: insertedLines[insertedLines.length - 1].length,
 			});
 		}
-		new Notice("已插入独立四象限");
+		new Notice(this.t("notice.inserted"));
 	}
 
 	insertBoardIntoActiveNote() {
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!view?.editor) {
-			new Notice("请先打开一个可编辑的 Markdown 文件");
+			new Notice(this.t("notice.openMarkdown"));
 			return;
 		}
 		this.insertBoard(view.editor);
@@ -485,7 +555,7 @@ class QuadrantTasksPlugin extends Plugin {
 	async updateBoard(sourcePath, boardId, updater) {
 		const file = this.app.vault.getAbstractFileByPath(sourcePath);
 		if (!(file instanceof TFile)) {
-			new Notice("找不到这张四象限所在的 Markdown 文件");
+			new Notice(this.t("notice.fileMissing"));
 			return null;
 		}
 
@@ -506,7 +576,7 @@ class QuadrantTasksPlugin extends Plugin {
 		} catch (error) {
 			if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
 			console.error("Quadrant Tasks failed to update a local board", error);
-			new Notice(`四象限保存失败：${error.message}`, 10000);
+			new Notice(this.t("notice.saveFailed"), 10000);
 			await this.refreshFileRenderers(sourcePath);
 			return null;
 		}
@@ -535,7 +605,7 @@ class QuadrantTasksPlugin extends Plugin {
 		if (!renderers.length) return;
 		const file = this.app.vault.getAbstractFileByPath(sourcePath);
 		if (!(file instanceof TFile)) {
-			for (const renderer of renderers) renderer.setBoardError(new Error("所在的 Markdown 文件不可用"));
+			for (const renderer of renderers) renderer.setBoardError(new Error(this.t("notice.fileUnavailable")));
 			return;
 		}
 		await (this.fileQueues.get(file) || Promise.resolve()).catch(() => undefined);
@@ -580,7 +650,7 @@ class QuadrantTasksPlugin extends Plugin {
 		const raw = await this.loadData();
 		if (raw?.settingsVersion === SETTINGS_VERSION) return;
 		if (!raw) {
-			await this.saveData({ settingsVersion: SETTINGS_VERSION });
+			await this.saveData({ settingsVersion: SETTINGS_VERSION, language: this.language });
 			return;
 		}
 
@@ -642,6 +712,7 @@ class QuadrantTasksPlugin extends Plugin {
 			}
 			await this.saveData({
 				settingsVersion: SETTINGS_VERSION,
+				language: normalizeLanguage(raw.language ?? this.language),
 				migration: {
 					fromVersion: Array.isArray(raw.tasks) ? "1.0.0" : "1.1.0",
 					completedAt: new Date().toISOString(),
@@ -650,10 +721,10 @@ class QuadrantTasksPlugin extends Plugin {
 					jsonBackup,
 				},
 			});
-			new Notice("旧的全局任务已迁移为 Markdown 文件中的独立四象限", 10000);
+			new Notice(this.t("notice.migrationComplete"), 10000);
 		} catch (error) {
 			console.error("Quadrant Tasks could not migrate global storage", error);
-			new Notice(`旧任务迁移失败：${error.message}`, 12000);
+			new Notice(this.t("notice.migrationFailed"), 12000);
 		}
 	}
 
@@ -686,7 +757,7 @@ class QuadrantTasksPlugin extends Plugin {
 		fragment.append(document.createTextNode(`${message} `));
 		const button = document.createElement("button");
 		button.className = "qt-undo-button";
-		button.textContent = "撤销";
+		button.textContent = this.t("common.undo");
 		fragment.append(button);
 		const notice = new Notice(fragment, 6000);
 		button.addEventListener("click", async () => {

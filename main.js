@@ -670,6 +670,156 @@ var require_board_store = __commonJS({
   }
 });
 
+// src/i18n.js
+var require_i18n = __commonJS({
+  "src/i18n.js"(exports2, module2) {
+    "use strict";
+    var DEFAULT_LANGUAGE = "zh";
+    var SUPPORTED_LANGUAGES = /* @__PURE__ */ new Set(["zh", "en"]);
+    var TRANSLATIONS = {
+      zh: {
+        "quadrant.do.action": "\u7ACB\u5373\u505A",
+        "quadrant.do.description": "\u91CD\u8981\u4E14\u7D27\u6025",
+        "quadrant.schedule.action": "\u5B89\u6392",
+        "quadrant.schedule.description": "\u91CD\u8981\u4E0D\u7D27\u6025",
+        "quadrant.delegate.action": "\u59D4\u6D3E",
+        "quadrant.delegate.description": "\u7D27\u6025\u4E0D\u91CD\u8981",
+        "quadrant.eliminate.action": "\u820D\u5F03",
+        "quadrant.eliminate.description": "\u4E0D\u91CD\u8981\u4E0D\u7D27\u6025",
+        "period.all": "\u5168\u90E8",
+        "period.today": "\u4ECA\u5929",
+        "period.7d": "\u8FD1 7 \u5929",
+        "period.30d": "\u8FD1 30 \u5929",
+        "period.custom": "\u81EA\u5B9A\u4E49",
+        "common.cancel": "\u53D6\u6D88",
+        "common.save": "\u4FDD\u5B58",
+        "common.undo": "\u64A4\u9500",
+        "modal.editTask": "\u7F16\u8F91\u4EFB\u52A1",
+        "modal.taskContent": "\u4EFB\u52A1\u5185\u5BB9",
+        "modal.editTitle": "\u7F16\u8F91\u56DB\u8C61\u9650\u6807\u9898",
+        "modal.matrixTitle": "\u56DB\u8C61\u9650\u6807\u9898",
+        "board.invalid": "\u56DB\u8C61\u9650\u4EE3\u7801\u5757\u5185\u5BB9\u65E0\u6548\uFF0C\u8BF7\u5148\u4FEE\u590D\u6E90\u6587\u672C\u3002",
+        "board.editTitle": "\u7F16\u8F91\u56DB\u8C61\u9650\u6807\u9898",
+        "stats.active": "{count} \u9879\u8FDB\u884C\u4E2D",
+        "stats.completed": "{count} \u9879\u5DF2\u5B8C\u6210",
+        "task.add": "\u6DFB\u52A0\u4EFB\u52A1",
+        "task.addTo": "\u6DFB\u52A0\u5230{quadrant}",
+        "task.empty": "\u6682\u65E0\u4EFB\u52A1",
+        "task.complete": "\u5B8C\u6210\u4EFB\u52A1\uFF1A{title}",
+        "task.edit": "\u7F16\u8F91\u4EFB\u52A1",
+        "task.more": "\u66F4\u591A\u64CD\u4F5C",
+        "task.menuEdit": "\u7F16\u8F91",
+        "task.moveTo": "\u79FB\u81F3\uFF1A{quadrant}",
+        "task.delete": "\u5220\u9664",
+        "task.completedNotice": "\u4EFB\u52A1\u5DF2\u5B8C\u6210",
+        "task.restoredNotice": "\u4EFB\u52A1\u5DF2\u6062\u590D",
+        "task.deletedNotice": "\u4EFB\u52A1\u5DF2\u5220\u9664",
+        "completed.title": "\u5DF2\u5B8C\u6210",
+        "completed.filterQuadrant": "\u6309\u6765\u6E90\u8C61\u9650\u7B5B\u9009",
+        "completed.allQuadrants": "\u5168\u90E8\u8C61\u9650",
+        "completed.timeFilter": "\u5B8C\u6210\u65F6\u95F4",
+        "completed.invalidRange": "\u5F00\u59CB\u65E5\u671F\u4E0D\u80FD\u665A\u4E8E\u7ED3\u675F\u65E5\u671F",
+        "completed.none": "\u8FD8\u6CA1\u6709\u5DF2\u5B8C\u6210\u7684\u4EFB\u52A1",
+        "completed.noMatches": "\u6CA1\u6709\u7B26\u5408\u7B5B\u9009\u6761\u4EF6\u7684\u4EFB\u52A1",
+        "completed.startDate": "\u5B8C\u6210\u65F6\u95F4\u8D77\u59CB\u65E5\u671F",
+        "completed.to": "\u81F3",
+        "completed.endDate": "\u5B8C\u6210\u65F6\u95F4\u7ED3\u675F\u65E5\u671F",
+        "completed.restore": "\u6062\u590D\u4EFB\u52A1\uFF1A{title}",
+        "completed.delete": "\u5220\u9664\u4EFB\u52A1",
+        "command.insert": "\u5728\u5F53\u524D\u5149\u6807\u5904\u63D2\u5165\u56DB\u8C61\u9650",
+        "ribbon.insert": "\u63D2\u5165\u56DB\u8C61\u9650",
+        "notice.inserted": "\u5DF2\u63D2\u5165\u72EC\u7ACB\u56DB\u8C61\u9650",
+        "notice.openMarkdown": "\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u53EF\u7F16\u8F91\u7684 Markdown \u6587\u4EF6",
+        "notice.fileMissing": "\u627E\u4E0D\u5230\u8FD9\u5F20\u56DB\u8C61\u9650\u6240\u5728\u7684 Markdown \u6587\u4EF6",
+        "notice.saveFailed": "\u56DB\u8C61\u9650\u4FDD\u5B58\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u6E90\u6587\u672C\u6216\u6587\u4EF6\u72B6\u6001\u3002",
+        "notice.fileUnavailable": "\u6240\u5728\u7684 Markdown \u6587\u4EF6\u4E0D\u53EF\u7528",
+        "notice.migrationComplete": "\u65E7\u7684\u5168\u5C40\u4EFB\u52A1\u5DF2\u8FC1\u79FB\u4E3A Markdown \u6587\u4EF6\u4E2D\u7684\u72EC\u7ACB\u56DB\u8C61\u9650",
+        "notice.migrationFailed": "\u65E7\u4EFB\u52A1\u8FC1\u79FB\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u63A7\u5236\u53F0\u548C\u5907\u4EFD\u6587\u4EF6\u3002",
+        "settings.language": "\u754C\u9762\u8BED\u8A00",
+        "settings.languageDescription": "\u9009\u62E9\u56DB\u8C61\u9650\u63A7\u4EF6\u3001\u83DC\u5355\u548C\u63D0\u793A\u4FE1\u606F\u6240\u4F7F\u7528\u7684\u8BED\u8A00\u3002"
+      },
+      en: {
+        "quadrant.do.action": "Do now",
+        "quadrant.do.description": "Important and urgent",
+        "quadrant.schedule.action": "Schedule",
+        "quadrant.schedule.description": "Important, not urgent",
+        "quadrant.delegate.action": "Delegate",
+        "quadrant.delegate.description": "Urgent, not important",
+        "quadrant.eliminate.action": "Eliminate",
+        "quadrant.eliminate.description": "Neither important nor urgent",
+        "period.all": "All",
+        "period.today": "Today",
+        "period.7d": "Last 7 days",
+        "period.30d": "Last 30 days",
+        "period.custom": "Custom",
+        "common.cancel": "Cancel",
+        "common.save": "Save",
+        "common.undo": "Undo",
+        "modal.editTask": "Edit task",
+        "modal.taskContent": "Task content",
+        "modal.editTitle": "Edit matrix title",
+        "modal.matrixTitle": "Matrix title",
+        "board.invalid": "This matrix block contains invalid data. Fix the source before continuing.",
+        "board.editTitle": "Edit matrix title",
+        "stats.active": "{count} active",
+        "stats.completed": "{count} completed",
+        "task.add": "Add task",
+        "task.addTo": "Add to {quadrant}",
+        "task.empty": "No tasks",
+        "task.complete": "Complete task: {title}",
+        "task.edit": "Edit task",
+        "task.more": "More actions",
+        "task.menuEdit": "Edit",
+        "task.moveTo": "Move to: {quadrant}",
+        "task.delete": "Delete",
+        "task.completedNotice": "Task completed",
+        "task.restoredNotice": "Task restored",
+        "task.deletedNotice": "Task deleted",
+        "completed.title": "Completed",
+        "completed.filterQuadrant": "Filter by source quadrant",
+        "completed.allQuadrants": "All quadrants",
+        "completed.timeFilter": "Completion date",
+        "completed.invalidRange": "The start date must not be after the end date",
+        "completed.none": "No completed tasks yet",
+        "completed.noMatches": "No tasks match these filters",
+        "completed.startDate": "Completion start date",
+        "completed.to": "to",
+        "completed.endDate": "Completion end date",
+        "completed.restore": "Restore task: {title}",
+        "completed.delete": "Delete task",
+        "command.insert": "Insert matrix at cursor",
+        "ribbon.insert": "Insert matrix",
+        "notice.inserted": "Independent matrix inserted",
+        "notice.openMarkdown": "Open an editable Markdown file first",
+        "notice.fileMissing": "The Markdown file containing this matrix was not found",
+        "notice.saveFailed": "The matrix could not be saved. Check the source or file state.",
+        "notice.fileUnavailable": "The Markdown file containing this matrix is unavailable",
+        "notice.migrationComplete": "The global task board was migrated to an independent Markdown matrix",
+        "notice.migrationFailed": "Legacy task migration failed. Check the console and backup files.",
+        "settings.language": "Interface language",
+        "settings.languageDescription": "Choose the language used by matrix controls, menus, and messages."
+      }
+    };
+    function normalizeLanguage2(value) {
+      return SUPPORTED_LANGUAGES.has(value) ? value : DEFAULT_LANGUAGE;
+    }
+    function translate2(language, key, variables = {}) {
+      var _a, _b;
+      const normalized = normalizeLanguage2(language);
+      const template = (_b = (_a = TRANSLATIONS[normalized][key]) != null ? _a : TRANSLATIONS[DEFAULT_LANGUAGE][key]) != null ? _b : key;
+      return template.replace(
+        /\{([A-Za-z0-9_]+)\}/g,
+        (match, name) => Object.prototype.hasOwnProperty.call(variables, name) ? String(variables[name]) : match
+      );
+    }
+    module2.exports = {
+      DEFAULT_LANGUAGE,
+      normalizeLanguage: normalizeLanguage2,
+      translate: translate2
+    };
+  }
+});
+
 // src/main.js
 var {
   MarkdownRenderChild,
@@ -678,6 +828,8 @@ var {
   Modal,
   Notice,
   Plugin,
+  PluginSettingTab,
+  Setting,
   TFile,
   normalizePath,
   setIcon
@@ -711,6 +863,7 @@ var {
   renderBoardCodeBlock,
   replaceLegacyManagedBlock
 } = require_board_store();
+var { normalizeLanguage, translate } = require_i18n();
 var { parseTaskMarkdown } = require_markdown_store();
 var SETTINGS_VERSION = 2;
 var DEFAULT_MIGRATION_PATH = "Quadrant Tasks.md";
@@ -719,18 +872,12 @@ var LEGACY_JSON_BACKUP = "data-backup-1.0.0.json";
 var LEGACY_NOTE_BACKUP = "global-note-backup-1.1.0.md";
 var LEGACY_VIEW_TYPE = "quadrant-tasks-view";
 var QUADRANT_META = {
-  do: { action: "\u7ACB\u5373\u505A", description: "\u91CD\u8981\u4E14\u7D27\u6025", icon: "zap" },
-  schedule: { action: "\u5B89\u6392", description: "\u91CD\u8981\u4E0D\u7D27\u6025", icon: "calendar-clock" },
-  delegate: { action: "\u59D4\u6D3E", description: "\u7D27\u6025\u4E0D\u91CD\u8981", icon: "users" },
-  eliminate: { action: "\u820D\u5F03", description: "\u4E0D\u91CD\u8981\u4E0D\u7D27\u6025", icon: "archive" }
+  do: { icon: "zap" },
+  schedule: { icon: "calendar-clock" },
+  delegate: { icon: "users" },
+  eliminate: { icon: "archive" }
 };
-var PERIODS = [
-  { id: "all", label: "\u5168\u90E8" },
-  { id: "today", label: "\u4ECA\u5929" },
-  { id: "7d", label: "\u8FD1 7 \u5929" },
-  { id: "30d", label: "\u8FD1 30 \u5929" },
-  { id: "custom", label: "\u81EA\u5B9A\u4E49" }
-];
+var PERIODS = ["all", "today", "7d", "30d", "custom"];
 function cloneData(data) {
   return normalizeData(JSON.parse(JSON.stringify(data)));
 }
@@ -743,8 +890,8 @@ function createIconButton(parent, icon, label, onClick, className = "") {
   button.addEventListener("click", onClick);
   return button;
 }
-function formatCompletedAt(value) {
-  return new Intl.DateTimeFormat(void 0, {
+function formatCompletedAt(value, language) {
+  return new Intl.DateTimeFormat(language === "en" ? "en-US" : "zh-CN", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -753,24 +900,25 @@ function formatCompletedAt(value) {
   }).format(new Date(value));
 }
 var TextInputModal = class extends Modal {
-  constructor(app, title, onSave, options = {}) {
-    super(app);
+  constructor(plugin, title, onSave, options = {}) {
+    super(plugin.app);
+    this.plugin = plugin;
     this.title = title;
     this.onSave = onSave;
-    this.modalTitle = options.modalTitle || "\u7F16\u8F91\u4EFB\u52A1";
-    this.inputLabel = options.inputLabel || "\u4EFB\u52A1\u5185\u5BB9";
+    this.modalTitleKey = options.modalTitleKey || "modal.editTask";
+    this.inputLabelKey = options.inputLabelKey || "modal.taskContent";
     this.maxLength = options.maxLength || null;
   }
   onOpen() {
-    this.setTitle(this.modalTitle);
+    this.setTitle(this.plugin.t(this.modalTitleKey));
     const input = this.contentEl.createEl("input", {
       cls: "qt-modal-input",
-      attr: { type: "text", value: this.title, "aria-label": this.inputLabel }
+      attr: { type: "text", value: this.title, "aria-label": this.plugin.t(this.inputLabelKey) }
     });
     if (this.maxLength) input.maxLength = this.maxLength;
     const actions = this.contentEl.createDiv({ cls: "modal-button-container" });
-    const cancel = actions.createEl("button", { text: "\u53D6\u6D88" });
-    const save = actions.createEl("button", { text: "\u4FDD\u5B58", cls: "mod-cta" });
+    const cancel = actions.createEl("button", { text: this.plugin.t("common.cancel") });
+    const save = actions.createEl("button", { text: this.plugin.t("common.save"), cls: "mod-cta" });
     const submit = () => {
       const value = input.value.trim();
       if (!value) {
@@ -837,7 +985,7 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
     if (!this.boardId || this.issues.length) {
       container.createDiv({
         cls: "qt-storage-error",
-        text: this.issues.join("\uFF1B") || "\u56DB\u8C61\u9650\u4EE3\u7801\u5757\u7F3A\u5C11 board-id"
+        text: this.plugin.t("board.invalid")
       });
       return;
     }
@@ -851,13 +999,13 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
     const titleGroup = header.createDiv({ cls: "qt-title-group" });
     const titleRow = titleGroup.createDiv({ cls: "qt-title-row" });
     titleRow.createEl("h3", { text: this.boardTitle });
-    createIconButton(titleRow, "pencil", "\u7F16\u8F91\u56DB\u8C61\u9650\u6807\u9898", () => this.openBoardTitleEditor(), "qt-title-edit");
+    createIconButton(titleRow, "pencil", this.plugin.t("board.editTitle"), () => this.openBoardTitleEditor(), "qt-title-edit");
     const stats = titleGroup.createDiv({ cls: "qt-stats", attr: { "aria-live": "polite" } });
-    stats.createSpan({ text: `${getActiveTasks(this.data).length} \u9879\u8FDB\u884C\u4E2D` });
-    stats.createSpan({ text: `${getCompletedTasks(this.data).length} \u9879\u5DF2\u5B8C\u6210` });
+    stats.createSpan({ text: this.plugin.t("stats.active", { count: getActiveTasks(this.data).length }) });
+    stats.createSpan({ text: this.plugin.t("stats.completed", { count: getCompletedTasks(this.data).length }) });
   }
   renderQuadrant(matrix, quadrant) {
-    const meta = QUADRANT_META[quadrant];
+    const meta = this.plugin.getQuadrantMeta(quadrant);
     const tasks = getActiveTasks(this.data, quadrant);
     const section = matrix.createEl("section", {
       cls: `qt-quadrant qt-quadrant-${quadrant}`,
@@ -873,7 +1021,11 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
     labels.createDiv({ text: meta.action, cls: "qt-quadrant-description" });
     const quickAdd = section.createDiv({ cls: "qt-quick-add" });
     const input = quickAdd.createEl("input", {
-      attr: { type: "text", placeholder: "\u6DFB\u52A0\u4EFB\u52A1", "aria-label": `\u6DFB\u52A0\u5230${meta.action}` }
+      attr: {
+        type: "text",
+        placeholder: this.plugin.t("task.add"),
+        "aria-label": this.plugin.t("task.addTo", { quadrant: meta.action })
+      }
     });
     const submit = async () => {
       const titleText = input.value.trim();
@@ -888,9 +1040,15 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.isComposing) void submit();
     });
-    createIconButton(quickAdd, "plus", `\u6DFB\u52A0\u5230${meta.action}`, () => void submit(), "qt-add-button");
+    createIconButton(
+      quickAdd,
+      "plus",
+      this.plugin.t("task.addTo", { quadrant: meta.action }),
+      () => void submit(),
+      "qt-add-button"
+    );
     const list = section.createEl("ul", { cls: "qt-task-list" });
-    if (tasks.length === 0) list.createEl("li", { text: "\u6682\u65E0\u4EFB\u52A1", cls: "qt-empty" });
+    if (tasks.length === 0) list.createEl("li", { text: this.plugin.t("task.empty"), cls: "qt-empty" });
     else for (const task of tasks) this.renderActiveTask(list, task);
     section.addEventListener("dragover", (event) => {
       if (!this.draggedTaskId) return;
@@ -916,16 +1074,16 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
     });
     const checkbox = row.createEl("input", {
       cls: "qt-task-checkbox",
-      attr: { type: "checkbox", "aria-label": `\u5B8C\u6210\u4EFB\u52A1\uFF1A${task.title}` }
+      attr: { type: "checkbox", "aria-label": this.plugin.t("task.complete", { title: task.title }) }
     });
     checkbox.addEventListener("change", () => void this.complete(task.id));
     const title = row.createEl("button", {
       text: task.title,
       cls: "qt-task-title",
-      attr: { type: "button", title: "\u7F16\u8F91\u4EFB\u52A1" }
+      attr: { type: "button", title: this.plugin.t("task.edit") }
     });
     title.addEventListener("click", () => this.openEditor(task));
-    createIconButton(row, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => this.openTaskMenu(event, task));
+    createIconButton(row, "more-horizontal", this.plugin.t("task.more"), (event) => this.openTaskMenu(event, task));
     row.addEventListener("dragstart", (event) => {
       var _a;
       this.draggedTaskId = task.id;
@@ -939,55 +1097,55 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
     });
   }
   openEditor(task) {
-    new TextInputModal(this.plugin.app, task.title, (title) => {
+    new TextInputModal(this.plugin, task.title, (title) => {
       void this.mutate((data) => editTask(data, task.id, title));
     }).open();
   }
   openBoardTitleEditor() {
-    new TextInputModal(this.plugin.app, this.boardTitle, (title) => {
+    new TextInputModal(this.plugin, this.boardTitle, (title) => {
       void this.plugin.renameBoard(this.sourcePath, this.boardId, title);
     }, {
-      modalTitle: "\u7F16\u8F91\u56DB\u8C61\u9650\u6807\u9898",
-      inputLabel: "\u56DB\u8C61\u9650\u6807\u9898",
+      modalTitleKey: "modal.editTitle",
+      inputLabelKey: "modal.matrixTitle",
       maxLength: 120
     }).open();
   }
   openTaskMenu(event, task) {
     const menu = new Menu();
-    menu.addItem((item) => item.setTitle("\u7F16\u8F91").setIcon("pencil").onClick(() => this.openEditor(task)));
+    menu.addItem((item) => item.setTitle(this.plugin.t("task.menuEdit")).setIcon("pencil").onClick(() => this.openEditor(task)));
     for (const quadrant of QUADRANTS) {
-      const meta = QUADRANT_META[quadrant];
+      const meta = this.plugin.getQuadrantMeta(quadrant);
       menu.addItem((item) => {
-        item.setTitle(`\u79FB\u81F3\uFF1A${meta.action}`).setIcon(meta.icon).setDisabled(task.quadrant === quadrant);
+        item.setTitle(this.plugin.t("task.moveTo", { quadrant: meta.action })).setIcon(meta.icon).setDisabled(task.quadrant === quadrant);
         item.onClick(() => void this.mutate((data) => moveTask(data, task.id, quadrant)));
       });
     }
     menu.addSeparator();
     menu.addItem(
-      (item) => item.setTitle("\u5220\u9664").setIcon("trash-2").setWarning(true).onClick(() => void this.remove(task.id))
+      (item) => item.setTitle(this.plugin.t("task.delete")).setIcon("trash-2").setWarning(true).onClick(() => void this.remove(task.id))
     );
     menu.showAtMouseEvent(event);
   }
   async complete(taskId) {
     const task = await this.mutate((data) => completeTask(data, taskId));
     if (!task) return;
-    this.plugin.showUndo("\u4EFB\u52A1\u5DF2\u5B8C\u6210", () => this.mutate((data) => restoreTask(data, taskId)));
+    this.plugin.showUndo(this.plugin.t("task.completedNotice"), () => this.mutate((data) => restoreTask(data, taskId)));
   }
   async restore(taskId) {
     const task = await this.mutate((data) => restoreTask(data, taskId));
     if (!task) return;
-    this.plugin.showUndo("\u4EFB\u52A1\u5DF2\u6062\u590D", () => this.mutate((data) => completeTask(data, taskId)));
+    this.plugin.showUndo(this.plugin.t("task.restoredNotice"), () => this.mutate((data) => completeTask(data, taskId)));
   }
   async remove(taskId) {
     const deleted = await this.mutate((data) => deleteTask(data, taskId));
     if (!deleted) return;
-    this.plugin.showUndo("\u4EFB\u52A1\u5DF2\u5220\u9664", () => this.mutate((data) => restoreDeletedTask(data, deleted)));
+    this.plugin.showUndo(this.plugin.t("task.deletedNotice"), () => this.mutate((data) => restoreDeletedTask(data, deleted)));
   }
   renderCompleted(container) {
     const section = container.createEl("section", { cls: "qt-completed-section" });
     const header = section.createEl("header", { cls: "qt-completed-header" });
     const titleGroup = header.createDiv();
-    titleGroup.createEl("h3", { text: "\u5DF2\u5B8C\u6210" });
+    titleGroup.createEl("h3", { text: this.plugin.t("completed.title") });
     const allCompleted = getCompletedTasks(this.data);
     const bounds = completionBounds(this.filters);
     const tasks = getCompletedTasks(this.data, this.filters);
@@ -997,35 +1155,35 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
       attr: { "aria-live": "polite" }
     });
     const controls = section.createDiv({ cls: "qt-filters" });
-    const quadrantSelect = controls.createEl("select", { attr: { "aria-label": "\u6309\u6765\u6E90\u8C61\u9650\u7B5B\u9009" } });
-    quadrantSelect.createEl("option", { text: "\u5168\u90E8\u8C61\u9650", value: "all" });
+    const quadrantSelect = controls.createEl("select", { attr: { "aria-label": this.plugin.t("completed.filterQuadrant") } });
+    quadrantSelect.createEl("option", { text: this.plugin.t("completed.allQuadrants"), value: "all" });
     for (const quadrant of QUADRANTS) {
-      quadrantSelect.createEl("option", { text: QUADRANT_META[quadrant].action, value: quadrant });
+      quadrantSelect.createEl("option", { text: this.plugin.getQuadrantMeta(quadrant).action, value: quadrant });
     }
     quadrantSelect.value = this.filters.quadrant;
     quadrantSelect.addEventListener("change", () => {
       this.filters.quadrant = quadrantSelect.value;
       this.render();
     });
-    const periods = controls.createDiv({ cls: "qt-periods", attr: { role: "group", "aria-label": "\u5B8C\u6210\u65F6\u95F4" } });
-    for (const period of PERIODS) {
+    const periods = controls.createDiv({ cls: "qt-periods", attr: { role: "group", "aria-label": this.plugin.t("completed.timeFilter") } });
+    for (const periodId of PERIODS) {
       const button = periods.createEl("button", {
-        text: period.label,
-        cls: this.filters.period === period.id ? "is-active" : "",
-        attr: { type: "button", "aria-pressed": String(this.filters.period === period.id) }
+        text: this.plugin.t(`period.${periodId}`),
+        cls: this.filters.period === periodId ? "is-active" : "",
+        attr: { type: "button", "aria-pressed": String(this.filters.period === periodId) }
       });
       button.addEventListener("click", () => {
-        this.filters.period = period.id;
+        this.filters.period = periodId;
         this.render();
       });
     }
     if (this.filters.period === "custom") this.renderCustomRange(controls);
     const list = section.createEl("ul", { cls: "qt-completed-list" });
     if (!bounds.valid) {
-      list.createEl("li", { text: "\u5F00\u59CB\u65E5\u671F\u4E0D\u80FD\u665A\u4E8E\u7ED3\u675F\u65E5\u671F", cls: "qt-empty qt-filter-error" });
+      list.createEl("li", { text: this.plugin.t("completed.invalidRange"), cls: "qt-empty qt-filter-error" });
     } else if (tasks.length === 0) {
       list.createEl("li", {
-        text: allCompleted.length === 0 ? "\u8FD8\u6CA1\u6709\u5DF2\u5B8C\u6210\u7684\u4EFB\u52A1" : "\u6CA1\u6709\u7B26\u5408\u7B5B\u9009\u6761\u4EF6\u7684\u4EFB\u52A1",
+        text: allCompleted.length === 0 ? this.plugin.t("completed.none") : this.plugin.t("completed.noMatches"),
         cls: "qt-empty"
       });
     } else {
@@ -1034,10 +1192,10 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
   }
   renderCustomRange(controls) {
     const range = controls.createDiv({ cls: "qt-custom-range" });
-    const start = range.createEl("input", { attr: { type: "date", "aria-label": "\u5B8C\u6210\u65F6\u95F4\u8D77\u59CB\u65E5\u671F" } });
+    const start = range.createEl("input", { attr: { type: "date", "aria-label": this.plugin.t("completed.startDate") } });
     start.value = this.filters.startDate;
-    range.createSpan({ text: "\u81F3" });
-    const end = range.createEl("input", { attr: { type: "date", "aria-label": "\u5B8C\u6210\u65F6\u95F4\u7ED3\u675F\u65E5\u671F" } });
+    range.createSpan({ text: this.plugin.t("completed.to") });
+    const end = range.createEl("input", { attr: { type: "date", "aria-label": this.plugin.t("completed.endDate") } });
     end.value = this.filters.endDate;
     start.addEventListener("change", () => {
       this.filters.startDate = start.value;
@@ -1052,32 +1210,50 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
     const row = list.createEl("li", { cls: "qt-completed-row" });
     const checkbox = row.createEl("input", {
       cls: "qt-task-checkbox",
-      attr: { type: "checkbox", "aria-label": `\u6062\u590D\u4EFB\u52A1\uFF1A${task.title}` }
+      attr: { type: "checkbox", "aria-label": this.plugin.t("completed.restore", { title: task.title }) }
     });
     checkbox.checked = true;
     checkbox.addEventListener("change", () => void this.restore(task.id));
     const content = row.createDiv({ cls: "qt-completed-content" });
     content.createDiv({ text: task.title, cls: "qt-completed-title" });
     const metadata = content.createDiv({ cls: "qt-completed-meta" });
-    metadata.createSpan({ text: QUADRANT_META[task.quadrant].action, cls: `qt-badge qt-badge-${task.quadrant}` });
-    metadata.createEl("time", { text: formatCompletedAt(task.completedAt), attr: { datetime: task.completedAt } });
-    createIconButton(row, "trash-2", "\u5220\u9664\u4EFB\u52A1", () => void this.remove(task.id));
+    metadata.createSpan({ text: this.plugin.getQuadrantMeta(task.quadrant).action, cls: `qt-badge qt-badge-${task.quadrant}` });
+    metadata.createEl("time", { text: formatCompletedAt(task.completedAt, this.plugin.language), attr: { datetime: task.completedAt } });
+    createIconButton(row, "trash-2", this.plugin.t("completed.delete"), () => void this.remove(task.id));
+  }
+};
+var QuadrantTasksSettingTab = class extends PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+  display() {
+    const { containerEl } = this;
+    containerEl.empty();
+    new Setting(containerEl).setName(this.plugin.t("settings.language")).setDesc(this.plugin.t("settings.languageDescription")).addDropdown(
+      (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "English").setValue(this.plugin.language).onChange(async (value) => {
+        await this.plugin.setLanguage(value);
+        this.display();
+      })
+    );
   }
 };
 var QuadrantTasksPlugin = class extends Plugin {
   async onload() {
+    await this.loadPluginSettings();
     this.boardRenderers = /* @__PURE__ */ new Set();
     this.fileQueues = /* @__PURE__ */ new Map();
     this.refreshTimers = /* @__PURE__ */ new Map();
     this.registerMarkdownCodeBlockProcessor(BOARD_LANGUAGE, (source, element, context) => {
       context.addChild(new QuadrantBoardRenderChild(element, this, context.sourcePath, source));
     });
-    this.addCommand({
+    this.insertCommand = this.addCommand({
       id: "insert-quadrant-board",
-      name: "\u5728\u5F53\u524D\u5149\u6807\u5904\u63D2\u5165\u56DB\u8C61\u9650",
+      name: this.t("command.insert"),
       editorCallback: (editor) => this.insertBoard(editor)
     });
-    this.addRibbonIcon("layout-grid", "\u63D2\u5165\u56DB\u8C61\u9650", () => this.insertBoardIntoActiveNote());
+    this.ribbonEl = this.addRibbonIcon("layout-grid", this.t("ribbon.insert"), () => this.insertBoardIntoActiveNote());
+    this.addSettingTab(new QuadrantTasksSettingTab(this.app, this));
     this.registerVaultEvents();
     this.app.workspace.onLayoutReady(() => {
       this.app.workspace.detachLeavesOfType(LEGACY_VIEW_TYPE);
@@ -1087,6 +1263,37 @@ var QuadrantTasksPlugin = class extends Plugin {
   onunload() {
     for (const timer of this.refreshTimers.values()) window.clearTimeout(timer);
     this.refreshTimers.clear();
+  }
+  get language() {
+    var _a;
+    return normalizeLanguage((_a = this.settings) == null ? void 0 : _a.language);
+  }
+  t(key, variables) {
+    return translate(this.language, key, variables);
+  }
+  getQuadrantMeta(quadrant) {
+    return {
+      ...QUADRANT_META[quadrant],
+      action: this.t(`quadrant.${quadrant}.action`),
+      description: this.t(`quadrant.${quadrant}.description`)
+    };
+  }
+  async loadPluginSettings() {
+    const raw = await this.loadData();
+    this.settings = { language: normalizeLanguage(raw == null ? void 0 : raw.language) };
+  }
+  async setLanguage(value) {
+    const language = normalizeLanguage(value);
+    if (language === this.language) return;
+    this.settings = { ...this.settings, language };
+    const raw = await this.loadData();
+    await this.saveData({ ...raw || {}, language });
+    if (this.insertCommand) this.insertCommand.name = this.t("command.insert");
+    if (this.ribbonEl) {
+      this.ribbonEl.setAttribute("aria-label", this.t("ribbon.insert"));
+      this.ribbonEl.setAttribute("title", this.t("ribbon.insert"));
+    }
+    for (const renderer of this.boardRenderers) renderer.render();
   }
   insertBoard(editor) {
     const boardId = createBoardId();
@@ -1104,12 +1311,12 @@ var QuadrantTasksPlugin = class extends Plugin {
         ch: insertedLines[insertedLines.length - 1].length
       });
     }
-    new Notice("\u5DF2\u63D2\u5165\u72EC\u7ACB\u56DB\u8C61\u9650");
+    new Notice(this.t("notice.inserted"));
   }
   insertBoardIntoActiveNote() {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!(view == null ? void 0 : view.editor)) {
-      new Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u53EF\u7F16\u8F91\u7684 Markdown \u6587\u4EF6");
+      new Notice(this.t("notice.openMarkdown"));
       return;
     }
     this.insertBoard(view.editor);
@@ -1117,7 +1324,7 @@ var QuadrantTasksPlugin = class extends Plugin {
   async updateBoard(sourcePath, boardId, updater) {
     const file = this.app.vault.getAbstractFileByPath(sourcePath);
     if (!(file instanceof TFile)) {
-      new Notice("\u627E\u4E0D\u5230\u8FD9\u5F20\u56DB\u8C61\u9650\u6240\u5728\u7684 Markdown \u6587\u4EF6");
+      new Notice(this.t("notice.fileMissing"));
       return null;
     }
     let outcome = null;
@@ -1137,7 +1344,7 @@ var QuadrantTasksPlugin = class extends Plugin {
     } catch (error) {
       if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
       console.error("Quadrant Tasks failed to update a local board", error);
-      new Notice(`\u56DB\u8C61\u9650\u4FDD\u5B58\u5931\u8D25\uFF1A${error.message}`, 1e4);
+      new Notice(this.t("notice.saveFailed"), 1e4);
       await this.refreshFileRenderers(sourcePath);
       return null;
     }
@@ -1166,7 +1373,7 @@ var QuadrantTasksPlugin = class extends Plugin {
     if (!renderers.length) return;
     const file = this.app.vault.getAbstractFileByPath(sourcePath);
     if (!(file instanceof TFile)) {
-      for (const renderer of renderers) renderer.setBoardError(new Error("\u6240\u5728\u7684 Markdown \u6587\u4EF6\u4E0D\u53EF\u7528"));
+      for (const renderer of renderers) renderer.setBoardError(new Error(this.t("notice.fileUnavailable")));
       return;
     }
     await (this.fileQueues.get(file) || Promise.resolve()).catch(() => void 0);
@@ -1205,11 +1412,11 @@ var QuadrantTasksPlugin = class extends Plugin {
     }));
   }
   async migrateLegacyStorage() {
-    var _a;
+    var _a, _b;
     const raw = await this.loadData();
     if ((raw == null ? void 0 : raw.settingsVersion) === SETTINGS_VERSION) return;
     if (!raw) {
-      await this.saveData({ settingsVersion: SETTINGS_VERSION });
+      await this.saveData({ settingsVersion: SETTINGS_VERSION, language: this.language });
       return;
     }
     try {
@@ -1272,6 +1479,7 @@ ${renderBoardCodeBlock(LEGACY_BOARD_ID, legacyJson)}
       }
       await this.saveData({
         settingsVersion: SETTINGS_VERSION,
+        language: normalizeLanguage((_b = raw.language) != null ? _b : this.language),
         migration: {
           fromVersion: Array.isArray(raw.tasks) ? "1.0.0" : "1.1.0",
           completedAt: (/* @__PURE__ */ new Date()).toISOString(),
@@ -1280,10 +1488,10 @@ ${renderBoardCodeBlock(LEGACY_BOARD_ID, legacyJson)}
           jsonBackup
         }
       });
-      new Notice("\u65E7\u7684\u5168\u5C40\u4EFB\u52A1\u5DF2\u8FC1\u79FB\u4E3A Markdown \u6587\u4EF6\u4E2D\u7684\u72EC\u7ACB\u56DB\u8C61\u9650", 1e4);
+      new Notice(this.t("notice.migrationComplete"), 1e4);
     } catch (error) {
       console.error("Quadrant Tasks could not migrate global storage", error);
-      new Notice(`\u65E7\u4EFB\u52A1\u8FC1\u79FB\u5931\u8D25\uFF1A${error.message}`, 12e3);
+      new Notice(this.t("notice.migrationFailed"), 12e3);
     }
   }
   async backupLegacyJson(raw) {
@@ -1313,7 +1521,7 @@ ${renderBoardCodeBlock(LEGACY_BOARD_ID, legacyJson)}
     fragment.append(document.createTextNode(`${message} `));
     const button = document.createElement("button");
     button.className = "qt-undo-button";
-    button.textContent = "\u64A4\u9500";
+    button.textContent = this.t("common.undo");
     fragment.append(button);
     const notice = new Notice(fragment, 6e3);
     button.addEventListener("click", async () => {

@@ -12,6 +12,7 @@ Insert independent Eisenhower Matrix task boards directly into Markdown notes. E
 - Keep every board's data inside its own readable `quadrant-tasks` code block.
 - Add multiple independent boards to one note or different notes.
 - Rename each board from the pencil button beside its title; the custom title syncs inside the Markdown block.
+- Switch the complete plugin interface between Chinese and English from Obsidian's plugin settings.
 - Add, edit, delete, complete, restore, and move tasks without leaving the note.
 - Drag active tasks between quadrants on desktop.
 - Filter each board's completed history independently by quadrant and completion date.
@@ -43,6 +44,8 @@ Insert independent Eisenhower Matrix task boards directly into Markdown notes. E
 2. Place the cursor where the board should appear.
 3. Click the grid icon in the left ribbon, or run **Quadrant Tasks: 在当前光标处插入四象限** from the command palette.
 4. Use Live Preview or Reading view to interact with the rendered board.
+
+To change the interface language, open **Settings → Quadrant Tasks → Interface language** and choose **中文** or **English**. The change applies immediately and does not rewrite any Markdown board data.
 
 The inserted source remains part of the note:
 

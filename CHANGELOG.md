@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0 - 2026-07-22
+
+- Add an Obsidian settings tab with Chinese and English interface language options.
+- Apply language changes immediately to embedded boards, menus, filters, notices, commands, and ribbon labels.
+- Keep the language preference in plugin settings without rewriting Markdown board data.
+
 ## 2.0.1 - 2026-07-22
 
 - Let each embedded board store and edit its own title while keeping `Matrix` as the default.
