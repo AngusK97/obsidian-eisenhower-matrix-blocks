@@ -204,17 +204,18 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 
 	renderQuadrant(matrix, quadrant) {
 		const meta = this.plugin.getQuadrantMeta(quadrant);
+		const quadrantName = this.plugin.getQuadrantName(quadrant);
 		const tasks = getActiveTasks(this.data, quadrant);
 		const section = matrix.createEl("section", {
 			cls: `qt-quadrant qt-quadrant-${quadrant}`,
-			attr: { "data-quadrant": quadrant, "aria-label": `${meta.action}，${meta.description}` },
+			attr: { "data-quadrant": quadrant, "aria-label": `${quadrantName}，${meta.action}` },
 		});
 		const header = section.createEl("header", { cls: "qt-quadrant-header" });
 		const heading = header.createDiv({ cls: "qt-quadrant-heading" });
 		const icon = heading.createSpan({ cls: "qt-quadrant-icon", attr: { "aria-hidden": "true" } });
 		setIcon(icon, meta.icon);
 		const labels = heading.createDiv();
-		const title = labels.createEl("h3", { text: meta.description });
+		const title = labels.createEl("h3", { text: quadrantName });
 		title.createSpan({ text: String(tasks.length), cls: "qt-count" });
 		labels.createDiv({ text: meta.action, cls: "qt-quadrant-description" });
 
@@ -223,7 +224,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 			attr: {
 				type: "text",
 				placeholder: this.plugin.t("task.add"),
-				"aria-label": this.plugin.t("task.addTo", { quadrant: meta.action }),
+				"aria-label": this.plugin.t("task.addTo", { quadrant: quadrantName }),
 			},
 		});
 		const submit = async () => {
@@ -242,7 +243,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		createIconButton(
 			quickAdd,
 			"plus",
-			this.plugin.t("task.addTo", { quadrant: meta.action }),
+			this.plugin.t("task.addTo", { quadrant: quadrantName }),
 			() => void submit(),
 			"qt-add-button",
 		);
@@ -319,7 +320,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		for (const quadrant of QUADRANTS) {
 			const meta = this.plugin.getQuadrantMeta(quadrant);
 			menu.addItem((item) => {
-				item.setTitle(this.plugin.t("task.moveTo", { quadrant: meta.action })).setIcon(meta.icon).setDisabled(task.quadrant === quadrant);
+				item.setTitle(this.plugin.t("task.moveTo", { quadrant: this.plugin.getQuadrantName(quadrant) })).setIcon(meta.icon).setDisabled(task.quadrant === quadrant);
 				item.onClick(() => void this.mutate((data) => moveTask(data, task.id, quadrant)));
 			});
 		}
@@ -366,7 +367,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		const quadrantSelect = controls.createEl("select", { attr: { "aria-label": this.plugin.t("completed.filterQuadrant") } });
 		quadrantSelect.createEl("option", { text: this.plugin.t("completed.allQuadrants"), value: "all" });
 		for (const quadrant of QUADRANTS) {
-			quadrantSelect.createEl("option", { text: this.plugin.getQuadrantMeta(quadrant).action, value: quadrant });
+			quadrantSelect.createEl("option", { text: this.plugin.getQuadrantName(quadrant), value: quadrant });
 		}
 		quadrantSelect.value = this.filters.quadrant;
 		quadrantSelect.addEventListener("change", () => {
@@ -429,7 +430,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		const content = row.createDiv({ cls: "qt-completed-content" });
 		content.createDiv({ text: task.title, cls: "qt-completed-title" });
 		const metadata = content.createDiv({ cls: "qt-completed-meta" });
-		metadata.createSpan({ text: this.plugin.getQuadrantMeta(task.quadrant).action, cls: `qt-badge qt-badge-${task.quadrant}` });
+		metadata.createSpan({ text: this.plugin.getQuadrantName(task.quadrant), cls: `qt-badge qt-badge-${task.quadrant}` });
 		metadata.createEl("time", { text: formatCompletedAt(task.completedAt, this.plugin.language), attr: { datetime: task.completedAt } });
 		createIconButton(row, "trash-2", this.plugin.t("completed.delete"), () => void this.remove(task.id));
 	}
@@ -505,6 +506,10 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 			action: this.t(`quadrant.${quadrant}.action`),
 			description: this.t(`quadrant.${quadrant}.description`),
 		};
+	}
+
+	getQuadrantName(quadrant) {
+		return this.getQuadrantMeta(quadrant).description;
 	}
 
 	async loadPluginSettings() {

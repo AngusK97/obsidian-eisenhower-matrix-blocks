@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-eisenhower-matrix-blocks",
-	"version": "2.2.0",
+	"version": "2.2.1",
 	"description": "Independent Eisenhower Matrix task boards with Chinese and English interfaces for Obsidian Markdown notes.",
 	"private": true,
 	"license": "MIT",

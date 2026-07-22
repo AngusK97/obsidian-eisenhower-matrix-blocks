@@ -155,11 +155,13 @@ test("English settings localize commands and persist without dropping plugin dat
 
 	assert.equal(command.name, "Insert matrix at cursor");
 	assert.equal(plugin.getQuadrantMeta("do").description, "Important and urgent");
+	assert.equal(plugin.getQuadrantName("do"), "Important and urgent");
 	plugin.boardRenderers.add({ render() { renderCount += 1; } });
 	await plugin.setLanguage("zh");
 	assert.equal(saved.language, "zh");
 	assert.deepEqual(saved.migration, { fromVersion: "1.1.0" });
 	assert.equal(command.name, "在当前光标处插入四象限");
+	assert.equal(plugin.getQuadrantName("do"), "重要且紧急");
 	assert.equal(ribbonAttributes["aria-label"], "插入四象限");
 	assert.equal(renderCount, 1);
 });

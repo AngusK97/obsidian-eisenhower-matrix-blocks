@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.1 - 2026-07-23
+
+- Use urgency-and-importance quadrant names in completed-task tags, filters, move menus, and add-task labels.
+- Keep action prompts such as "Do now" and "Schedule" as quadrant subtitles only.
+
 ## 2.2.0 - 2026-07-22
 
 - Rename the plugin and repository to Eisenhower Matrix Blocks.
