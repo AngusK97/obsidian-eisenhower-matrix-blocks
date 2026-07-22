@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-quadrant-tasks",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"description": "A focused four-quadrant task board with a filterable completion history for Obsidian.",
 	"private": true,
 	"license": "MIT",
@@ -11,7 +11,7 @@
 	"scripts": {
 		"build": "esbuild src/main.js --bundle --external:obsidian --platform=node --format=cjs --target=es2018 --outfile=main.js",
 		"test": "node --test tests/*.test.js",
-		"check": "node --check src/core.js && node --check src/main.js",
+		"check": "node --check src/core.js && node --check src/markdown-store.js && node --check src/main.js",
 		"verify": "npm run check && npm run build && npm test"
 	},
 	"devDependencies": {

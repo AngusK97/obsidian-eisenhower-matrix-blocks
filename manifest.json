@@ -1,9 +1,9 @@
 {
 	"id": "quadrant-tasks",
 	"name": "Quadrant Tasks",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"minAppVersion": "1.5.0",
-	"description": "A focused four-quadrant task board with a filterable completion history.",
+	"description": "A Markdown-backed four-quadrant task board with a filterable completion history.",
 	"author": "AngusKung",
 	"authorUrl": "https://github.com/AngusK97",
 	"isDesktopOnly": false

@@ -42,6 +42,24 @@
 	font-size: var(--font-smallest);
 }
 
+.qt-storage-error,
+.qt-storage-loading {
+	max-width: 1400px;
+	margin: 24px auto;
+	padding: 14px 0;
+	font-size: var(--font-ui-small);
+}
+
+.qt-storage-error {
+	border-top: 1px solid var(--text-error);
+	border-bottom: 1px solid var(--text-error);
+	color: var(--text-error);
+}
+
+.qt-storage-loading {
+	color: var(--text-muted);
+}
+
 .qt-matrix {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));

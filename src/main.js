@@ -1,6 +1,17 @@
 "use strict";
 
-const { ItemView, Menu, Modal, Notice, Plugin, setIcon } = require("obsidian");
+const {
+	ItemView,
+	Menu,
+	Modal,
+	Notice,
+	Plugin,
+	PluginSettingTab,
+	Setting,
+	TFile,
+	normalizePath,
+	setIcon,
+} = require("obsidian");
 const {
 	QUADRANTS,
 	addTask,
@@ -15,8 +26,16 @@ const {
 	restoreDeletedTask,
 	restoreTask,
 } = require("./core");
+const {
+	mergeTaskData,
+	parseTaskMarkdown,
+	updateMarkdownDocument,
+} = require("./markdown-store");
 
 const VIEW_TYPE = "quadrant-tasks-view";
+const DEFAULT_TASK_FILE_PATH = "Quadrant Tasks.md";
+const SETTINGS_VERSION = 1;
+const LEGACY_BACKUP_NAME = "data-backup-1.0.0.json";
 
 const QUADRANT_META = {
 	do: {
@@ -151,6 +170,17 @@ class QuadrantTasksView extends ItemView {
 		container.addClass("qt-root");
 
 		this.renderHeader(container);
+		if (!this.plugin.storageReady) {
+			container.createDiv({ cls: "qt-storage-loading", text: "正在加载任务 Markdown 文件…" });
+			return;
+		}
+		if (this.plugin.storageMode === "markdown" && this.plugin.storageIssue) {
+			container.createDiv({
+				cls: "qt-storage-error",
+				text: "任务 Markdown 文件不可用。请恢复文件或修正插件管理区后再继续操作。",
+			});
+			return;
+		}
 		const matrix = container.createDiv({ cls: "qt-matrix" });
 		for (const quadrant of QUADRANTS) this.renderQuadrant(matrix, quadrant);
 		this.renderCompleted(container);
@@ -161,9 +191,17 @@ class QuadrantTasksView extends ItemView {
 		const titleGroup = header.createDiv({ cls: "qt-title-group" });
 		titleGroup.createEl("h2", { text: "四象限任务" });
 
+		const stats = titleGroup.createDiv({ cls: "qt-stats", attr: { "aria-live": "polite" } });
+		if (!this.plugin.storageReady) {
+			stats.createSpan({ text: "正在加载" });
+			return;
+		}
+		if (this.plugin.storageMode === "markdown" && this.plugin.storageIssue) {
+			stats.createSpan({ text: "数据源不可用" });
+			return;
+		}
 		const activeCount = getActiveTasks(this.plugin.data).length;
 		const completedCount = getCompletedTasks(this.plugin.data).length;
-		const stats = titleGroup.createDiv({ cls: "qt-stats", attr: { "aria-live": "polite" } });
 		stats.createSpan({ text: `${activeCount} 项进行中` });
 		stats.createSpan({ text: `${completedCount} 项已完成` });
 	}
@@ -189,21 +227,20 @@ class QuadrantTasksView extends ItemView {
 		const input = quickAdd.createEl("input", {
 			attr: { type: "text", placeholder: "添加任务", "aria-label": `添加到${meta.action}` },
 		});
-		const submit = () => {
+		const submit = async () => {
 			const titleText = input.value.trim();
 			if (!titleText) {
 				input.addClass("qt-input-error");
 				return;
 			}
-			addTask(this.plugin.data, titleText, quadrant);
-			input.value = "";
-			void this.plugin.commit();
+			const task = await this.plugin.mutate((data) => addTask(data, titleText, quadrant));
+			if (task) input.value = "";
 		};
 		input.addEventListener("input", () => input.removeClass("qt-input-error"));
 		input.addEventListener("keydown", (event) => {
 			if (event.key === "Enter" && !event.isComposing) submit();
 		});
-		createIconButton(quickAdd, "plus", `添加到${meta.action}`, submit, "qt-add-button");
+		createIconButton(quickAdd, "plus", `添加到${meta.action}`, () => void submit(), "qt-add-button");
 
 		const list = section.createEl("ul", { cls: "qt-task-list" });
 		if (tasks.length === 0) {
@@ -225,7 +262,7 @@ class QuadrantTasksView extends ItemView {
 			section.removeClass("qt-drop-target");
 			const taskId = event.dataTransfer?.getData("text/plain") || this.draggedTaskId;
 			this.draggedTaskId = null;
-			if (taskId && moveTask(this.plugin.data, taskId, quadrant)) void this.plugin.commit();
+			if (taskId) void this.plugin.mutate((data) => moveTask(data, taskId, quadrant));
 		});
 	}
 
@@ -263,7 +300,7 @@ class QuadrantTasksView extends ItemView {
 
 	openEditor(task) {
 		new TaskTitleModal(this.app, task.title, (title) => {
-			if (editTask(this.plugin.data, task.id, title)) void this.plugin.commit();
+			void this.plugin.mutate((data) => editTask(data, task.id, title));
 		}).open();
 	}
 
@@ -275,7 +312,7 @@ class QuadrantTasksView extends ItemView {
 			menu.addItem((item) => {
 				item.setTitle(`移至：${meta.action}`).setIcon(meta.icon).setDisabled(task.quadrant === quadrant);
 				item.onClick(() => {
-					if (moveTask(this.plugin.data, task.id, quadrant)) void this.plugin.commit();
+					void this.plugin.mutate((data) => moveTask(data, task.id, quadrant));
 				});
 			});
 		}
@@ -291,32 +328,26 @@ class QuadrantTasksView extends ItemView {
 	}
 
 	async complete(taskId) {
-		const task = completeTask(this.plugin.data, taskId);
+		const task = await this.plugin.mutate((data) => completeTask(data, taskId));
 		if (!task) return;
-		if (!(await this.plugin.commit())) return;
 		this.plugin.showUndo("任务已完成", async () => {
-			restoreTask(this.plugin.data, taskId);
-			await this.plugin.commit();
+			return this.plugin.mutate((data) => restoreTask(data, taskId));
 		});
 	}
 
 	async restore(taskId) {
-		const task = restoreTask(this.plugin.data, taskId);
+		const task = await this.plugin.mutate((data) => restoreTask(data, taskId));
 		if (!task) return;
-		if (!(await this.plugin.commit())) return;
 		this.plugin.showUndo("任务已恢复", async () => {
-			completeTask(this.plugin.data, taskId);
-			await this.plugin.commit();
+			return this.plugin.mutate((data) => completeTask(data, taskId));
 		});
 	}
 
 	async remove(taskId) {
-		const deleted = deleteTask(this.plugin.data, taskId);
+		const deleted = await this.plugin.mutate((data) => deleteTask(data, taskId));
 		if (!deleted) return;
-		if (!(await this.plugin.commit())) return;
 		this.plugin.showUndo("任务已删除", async () => {
-			restoreDeletedTask(this.plugin.data, deleted);
-			await this.plugin.commit();
+			return this.plugin.mutate((data) => restoreDeletedTask(data, deleted));
 		});
 	}
 
@@ -416,10 +447,86 @@ class QuadrantTasksView extends ItemView {
 	}
 }
 
+function cloneData(data) {
+	return normalizeData(JSON.parse(JSON.stringify(data)));
+}
+
+function isLegacyData(raw) {
+	return Boolean(raw && Array.isArray(raw.tasks));
+}
+
+function normalizeTaskFilePath(value) {
+	const raw = typeof value === "string" ? value.trim() : "";
+	if (raw && (/^[\\/]/.test(raw) || /^[a-z]:/i.test(raw) || raw.split(/[\\/]/).includes(".."))) {
+		throw new Error("任务文件路径必须是笔记库内的相对路径");
+	}
+	const path = normalizePath(raw || DEFAULT_TASK_FILE_PATH);
+	if (!path || !path.toLowerCase().endsWith(".md")) throw new Error("任务文件路径必须以 .md 结尾");
+	if (path === ".obsidian" || path.startsWith(".obsidian/")) {
+		throw new Error("任务文件必须位于笔记库中，不能放在 .obsidian 目录");
+	}
+	return path;
+}
+
+function storageSettings(raw) {
+	let taskFilePath = DEFAULT_TASK_FILE_PATH;
+	try {
+		taskFilePath = normalizeTaskFilePath(raw?.taskFilePath);
+	} catch {
+		taskFilePath = DEFAULT_TASK_FILE_PATH;
+	}
+	return {
+		taskFilePath,
+		migration: raw?.migration && typeof raw.migration === "object" ? raw.migration : null,
+	};
+}
+
+class QuadrantTasksSettingTab extends PluginSettingTab {
+	constructor(app, plugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+		this.pendingPath = plugin.settings.taskFilePath;
+	}
+
+	display() {
+		const { containerEl } = this;
+		containerEl.empty();
+		containerEl.createEl("h2", { text: "四象限任务" });
+
+		new Setting(containerEl)
+			.setName("任务 Markdown 文件")
+			.setDesc("四象限和已完成任务都保存在这个普通 Markdown 文件中。移动文件后，插件会继续跟随它。")
+			.addText((text) =>
+				text
+					.setPlaceholder(DEFAULT_TASK_FILE_PATH)
+					.setValue(this.plugin.settings.taskFilePath)
+					.onChange((value) => {
+						this.pendingPath = value;
+					}),
+			)
+			.addButton((button) =>
+				button.setButtonText("移动并使用").setCta().onClick(async () => {
+					if (await this.plugin.moveTaskFile(this.pendingPath)) this.display();
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName("打开任务文件")
+			.setDesc("直接查看或手动编辑插件管理的 Markdown 任务列表。")
+			.addButton((button) => button.setButtonText("打开").onClick(() => void this.plugin.openTaskFile()));
+	}
+}
+
 class QuadrantTasksPlugin extends Plugin {
 	async onload() {
-		this.data = normalizeData(await this.loadData());
+		this.data = normalizeData(null);
+		this.settings = storageSettings(null);
 		this.saveQueue = Promise.resolve();
+		this.storageMode = "markdown";
+		this.storageIssue = null;
+		this.storageReady = false;
+		this.movingTaskFile = false;
+		this.settingsDirty = false;
 
 		this.registerView(VIEW_TYPE, (leaf) => new QuadrantTasksView(leaf, this));
 		this.addRibbonIcon("layout-grid", "打开四象限任务", () => void this.activateView());
@@ -428,10 +535,337 @@ class QuadrantTasksPlugin extends Plugin {
 			name: "打开四象限任务",
 			callback: () => void this.activateView(),
 		});
+		this.addCommand({
+			id: "open-quadrant-task-file",
+			name: "打开任务 Markdown 文件",
+			callback: () => void this.openTaskFile(),
+		});
+		this.addSettingTab(new QuadrantTasksSettingTab(this.app, this));
+		this.app.workspace.onLayoutReady(() => void this.finishStorageInitialization());
 	}
 
 	onunload() {
 		this.app.workspace.detachLeavesOfType(VIEW_TYPE);
+	}
+
+	async finishStorageInitialization() {
+		try {
+			await this.initializeStorage();
+			this.registerTaskFileEvents();
+		} catch (error) {
+			this.storageIssue = error;
+			console.error("Quadrant Tasks storage initialization failed", error);
+			new Notice("四象限任务存储初始化失败，请查看控制台。", 10000);
+		} finally {
+			this.storageReady = true;
+			this.renderViews();
+		}
+	}
+
+	async initializeStorage() {
+		const raw = await this.loadData();
+		this.settings = storageSettings(raw);
+		if (isLegacyData(raw)) {
+			try {
+				const backupFile = await this.backupLegacyData(raw);
+				await this.migrateLegacyData(normalizeData(raw));
+				this.settings.migration = {
+					fromVersion: "1.0.0",
+					completedAt: new Date().toISOString(),
+					backupFile,
+				};
+				await this.saveStorageSettings();
+				return;
+			} catch (error) {
+				this.storageMode = "legacy";
+				this.data = normalizeData(raw);
+				this.storageIssue = error;
+				console.error("Quadrant Tasks could not migrate legacy data", error);
+				new Notice("任务迁移到 Markdown 失败，插件已继续使用原有数据。请查看控制台。", 10000);
+				return;
+			}
+		}
+
+		const firstRun = !raw || raw.settingsVersion !== SETTINGS_VERSION;
+		try {
+			if (firstRun) await this.ensureTaskFile();
+			this.data = await this.readTaskData();
+			if (firstRun) await this.saveStorageSettings();
+		} catch (error) {
+			this.storageIssue = error;
+			console.error("Quadrant Tasks could not load its Markdown file", error);
+			new Notice("任务 Markdown 文件暂时不可用。插件不会覆盖或重建已有数据。", 10000);
+		}
+	}
+
+	async backupLegacyData(raw) {
+		if (!this.manifest.dir) throw new Error("插件目录不可用，无法备份旧数据");
+		const adapter = this.app.vault.adapter;
+		let backupFile = LEGACY_BACKUP_NAME;
+		let backupPath = normalizePath(`${this.manifest.dir}/${backupFile}`);
+		if (await adapter.exists(backupPath)) {
+			try {
+				const previous = JSON.parse(await adapter.read(backupPath));
+				if (JSON.stringify(normalizeData(previous)) === JSON.stringify(normalizeData(raw))) return backupFile;
+			} catch {
+				// Keep an unreadable or different previous backup untouched.
+			}
+			backupFile = `data-backup-1.0.0-${Date.now()}.json`;
+			backupPath = normalizePath(`${this.manifest.dir}/${backupFile}`);
+		}
+		await adapter.write(backupPath, `${JSON.stringify(raw, null, 2)}\n`);
+		return backupFile;
+	}
+
+	async migrateLegacyData(legacyData) {
+		await this.ensureTaskFile();
+		const file = this.getTaskFile();
+		let expectedData = null;
+		await this.app.vault.process(file, (content) => {
+			const parsed = parseTaskMarkdown(content);
+			if (parsed.issues.length) throw new Error(`任务 Markdown 内容异常：${parsed.issues.join("；")}`);
+			const existingById = new Map(parsed.data.tasks.map((task) => [task.id, task]));
+			for (const legacyTask of legacyData.tasks) {
+				const existing = existingById.get(legacyTask.id);
+				if (existing && JSON.stringify(existing) !== JSON.stringify(legacyTask)) {
+					throw new Error(`迁移冲突：任务 ${legacyTask.id} 在 Markdown 与旧数据中的内容不同`);
+				}
+			}
+			expectedData = mergeTaskData(parsed.data, legacyData);
+			return updateMarkdownDocument(content, expectedData);
+		});
+
+		const migrated = await this.readTaskData();
+		const migratedById = new Map(migrated.tasks.map((task) => [task.id, task]));
+		if (
+			migrated.tasks.length !== expectedData.tasks.length
+			|| expectedData.tasks.some((task) => JSON.stringify(migratedById.get(task.id)) !== JSON.stringify(task))
+		) {
+			throw new Error("迁移校验失败：Markdown 与预期任务内容不一致");
+		}
+		this.data = migrated;
+	}
+
+	async ensureTaskFile() {
+		const existing = this.app.vault.getAbstractFileByPath(this.settings.taskFilePath);
+		if (existing instanceof TFile) return existing;
+		if (existing) throw new Error("任务文件路径已被文件夹占用");
+		await this.ensureParentFolder(this.settings.taskFilePath);
+		try {
+			return await this.app.vault.create(
+				this.settings.taskFilePath,
+				updateMarkdownDocument("", normalizeData(null)),
+			);
+		} catch (error) {
+			const createdElsewhere = this.app.vault.getAbstractFileByPath(this.settings.taskFilePath);
+			if (createdElsewhere instanceof TFile) return createdElsewhere;
+			throw error;
+		}
+	}
+
+	async ensureParentFolder(path) {
+		const slash = path.lastIndexOf("/");
+		if (slash < 0) return;
+		const segments = path.slice(0, slash).split("/");
+		let current = "";
+		for (const segment of segments) {
+			current = current ? `${current}/${segment}` : segment;
+			if (!this.app.vault.getAbstractFileByPath(current)) await this.app.vault.createFolder(current);
+		}
+	}
+
+	getTaskFile() {
+		const file = this.app.vault.getAbstractFileByPath(this.settings.taskFilePath);
+		if (!(file instanceof TFile)) throw new Error(`找不到任务文件：${this.settings.taskFilePath}`);
+		return file;
+	}
+
+	async readTaskData() {
+		const content = await this.app.vault.read(this.getTaskFile());
+		const parsed = parseTaskMarkdown(content);
+		if (parsed.issues.length) throw new Error(`任务 Markdown 内容异常：${parsed.issues.join("；")}`);
+		if (!parsed.hasManagedBlock) throw new Error("任务 Markdown 中缺少插件管理区");
+		return parsed.data;
+	}
+
+	async saveStorageSettings() {
+		await this.saveData({
+			settingsVersion: SETTINGS_VERSION,
+			taskFilePath: this.settings.taskFilePath,
+			migration: this.settings.migration,
+		});
+	}
+
+	async mutate(mutator) {
+		if (!this.storageReady) {
+			new Notice("任务文件仍在加载，请稍后再试。");
+			return null;
+		}
+		let mutationResult = null;
+		let committedData = null;
+		const pendingSave = this.saveQueue.catch(() => undefined).then(async () => {
+			if (this.storageMode === "legacy") {
+				const draft = cloneData(this.data);
+				mutationResult = mutator(draft);
+				if (!mutationResult) return;
+				await this.saveData(draft);
+				committedData = draft;
+				return;
+			}
+
+			const file = this.getTaskFile();
+			await this.app.vault.process(file, (content) => {
+				const parsed = parseTaskMarkdown(content);
+				if (parsed.issues.length) throw new Error(`任务 Markdown 内容异常：${parsed.issues.join("；")}`);
+				if (!parsed.hasManagedBlock) throw new Error("任务 Markdown 中缺少插件管理区");
+				const draft = cloneData(parsed.data);
+				mutationResult = mutator(draft);
+				if (!mutationResult) return content;
+				committedData = draft;
+				return updateMarkdownDocument(content, draft);
+			});
+		});
+
+		this.saveQueue = pendingSave;
+		try {
+			await pendingSave;
+			if (committedData) this.data = committedData;
+			this.storageIssue = null;
+			this.renderViews();
+			return mutationResult;
+		} catch (error) {
+			if (this.saveQueue !== pendingSave) await this.saveQueue.catch(() => undefined);
+			await this.reloadAfterFailure();
+			console.error("Quadrant Tasks failed to save task data", error);
+			new Notice("任务保存失败，磁盘内容未被覆盖。请检查任务 Markdown 文件。", 10000);
+			return null;
+		}
+	}
+
+	async reloadAfterFailure() {
+		try {
+			this.data = this.storageMode === "legacy"
+				? normalizeData(await this.loadData())
+				: await this.readTaskData();
+			this.storageIssue = null;
+		} catch (error) {
+			this.storageIssue = error;
+		}
+		this.renderViews();
+	}
+
+	registerTaskFileEvents() {
+		this.registerEvent(this.app.vault.on("modify", (file) => {
+			if (file.path === this.settings.taskFilePath) void this.reloadFromTaskFile();
+		}));
+		this.registerEvent(this.app.vault.on("create", (file) => {
+			if (file.path === this.settings.taskFilePath) void this.reloadFromTaskFile();
+		}));
+		this.registerEvent(this.app.vault.on("delete", (file) => {
+			if (file.path === this.settings.taskFilePath) void this.reloadFromTaskFile(true);
+		}));
+		this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+			if (this.movingTaskFile || !(file instanceof TFile)) return;
+			if (oldPath === this.settings.taskFilePath) {
+				void this.followRenamedTaskFile(file.path);
+			} else if (file.path === this.settings.taskFilePath) {
+				void this.reloadFromTaskFile();
+			}
+		}));
+	}
+
+	async reloadFromTaskFile(notifyOnFailure = false) {
+		if (this.storageMode !== "markdown") return;
+		await this.saveQueue.catch(() => undefined);
+		try {
+			this.data = await this.readTaskData();
+			this.storageIssue = null;
+			this.renderViews();
+		} catch (error) {
+			this.storageIssue = error;
+			console.error("Quadrant Tasks could not reload its Markdown file", error);
+			if (notifyOnFailure) new Notice("任务 Markdown 文件已被删除或暂时不可用，写入已暂停。", 10000);
+			this.renderViews();
+		}
+	}
+
+	async followRenamedTaskFile(newPath) {
+		try {
+			await this.saveQueue.catch(() => undefined);
+			this.settings.taskFilePath = normalizeTaskFilePath(newPath);
+			try {
+				await this.saveStorageSettings();
+				this.settingsDirty = false;
+			} catch (error) {
+				this.settingsDirty = true;
+				console.error("Quadrant Tasks could not save the renamed task path", error);
+				new Notice("任务文件已重命名，但新路径暂时无法保存到插件设置。", 10000);
+			}
+			await this.reloadFromTaskFile();
+			return true;
+		} catch (error) {
+			this.storageIssue = error;
+			console.error("Quadrant Tasks could not follow its renamed Markdown file", error);
+			new Notice(`无法继续跟随重命名后的任务文件：${error.message}`, 10000);
+			this.renderViews();
+			return false;
+		}
+	}
+
+	async moveTaskFile(value) {
+		if (!this.storageReady) {
+			new Notice("任务文件仍在加载，请稍后再试。");
+			return false;
+		}
+		if (this.storageMode !== "markdown") {
+			new Notice("旧数据迁移尚未完成，当前不能移动任务 Markdown 文件。", 10000);
+			return false;
+		}
+		let newPath;
+		try {
+			newPath = normalizeTaskFilePath(value);
+		} catch (error) {
+			new Notice(error.message);
+			return false;
+		}
+		const oldPath = this.settings.taskFilePath;
+		if (newPath === oldPath) {
+			if (!this.settingsDirty) return true;
+			try {
+				await this.saveStorageSettings();
+				this.settingsDirty = false;
+				return true;
+			} catch (error) {
+				new Notice(`无法保存任务文件路径：${error.message}`, 10000);
+				return false;
+			}
+		}
+		await this.saveQueue.catch(() => undefined);
+
+		try {
+			const file = this.getTaskFile();
+			if (this.app.vault.getAbstractFileByPath(newPath)) throw new Error("目标路径已经存在文件或文件夹");
+			await this.ensureParentFolder(newPath);
+			this.movingTaskFile = true;
+			await this.app.vault.rename(file, newPath);
+			this.settings.taskFilePath = newPath;
+			try {
+				await this.saveStorageSettings();
+			} catch (error) {
+				await this.app.vault.rename(file, oldPath);
+				this.settings.taskFilePath = oldPath;
+				throw error;
+			}
+			this.storageIssue = null;
+			new Notice(`任务文件已移动到 ${newPath}`);
+			return true;
+		} catch (error) {
+			console.error("Quadrant Tasks could not move its Markdown file", error);
+			new Notice(`无法移动任务文件：${error.message}`, 10000);
+			return false;
+		} finally {
+			this.movingTaskFile = false;
+		}
 	}
 
 	async activateView() {
@@ -441,22 +875,15 @@ class QuadrantTasksPlugin extends Plugin {
 		await this.app.workspace.revealLeaf(leaf);
 	}
 
-	async commit() {
-		const snapshot = JSON.parse(JSON.stringify(this.data));
-		const pendingSave = this.saveQueue.catch(() => undefined).then(() => this.saveData(snapshot));
-		this.saveQueue = pendingSave;
-		this.renderViews();
+	async openTaskFile() {
 		try {
-			await pendingSave;
-			return true;
+			if (!this.storageReady) throw new Error("任务文件仍在加载，请稍后再试");
+			if (this.storageMode !== "markdown") throw new Error("旧数据迁移尚未完成，任务 Markdown 文件暂不可用");
+			const leaf = this.app.workspace.getLeaf(false);
+			await leaf.openFile(this.getTaskFile());
+			await this.app.workspace.revealLeaf(leaf);
 		} catch (error) {
-			// A later queued save may already contain this mutation, so settle it before reloading disk state.
-			if (this.saveQueue !== pendingSave) await this.saveQueue.catch(() => undefined);
-			this.data = normalizeData(await this.loadData());
-			this.renderViews();
-			console.error("Quadrant Tasks failed to save plugin data", error);
-			new Notice("任务保存失败，已恢复到上次保存的状态");
-			return false;
+			new Notice(error.message);
 		}
 	}
 
@@ -464,12 +891,6 @@ class QuadrantTasksPlugin extends Plugin {
 		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
 			if (leaf.view instanceof QuadrantTasksView) leaf.view.render();
 		}
-	}
-
-	async onExternalSettingsChange() {
-		await this.saveQueue.catch(() => undefined);
-		this.data = normalizeData(await this.loadData());
-		this.renderViews();
 	}
 
 	showUndo(message, onUndo) {
@@ -480,9 +901,8 @@ class QuadrantTasksPlugin extends Plugin {
 		button.textContent = "撤销";
 		fragment.append(button);
 		const notice = new Notice(fragment, 6000);
-		button.addEventListener("click", () => {
-			void onUndo();
-			notice.hide();
+		button.addEventListener("click", async () => {
+			if (await onUndo()) notice.hide();
 		});
 	}
 }
