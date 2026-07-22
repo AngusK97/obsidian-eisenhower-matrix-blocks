@@ -33,6 +33,30 @@
 	line-height: 1.3;
 }
 
+.qt-title-row {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	gap: 6px;
+}
+
+.qt-title-row h3 {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.qt-title-edit {
+	width: 28px;
+	height: 28px;
+	flex: 0 0 28px;
+	color: var(--text-muted);
+}
+
+.qt-title-edit svg {
+	width: 15px;
+	height: 15px;
+}
+
 .qt-stats {
 	display: flex;
 	gap: 12px;
@@ -62,6 +86,7 @@
 .qt-matrix {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
+	align-items: start;
 	gap: 12px;
 	max-width: 1400px;
 	margin: 0 auto;
@@ -71,7 +96,7 @@
 	--qt-quadrant-color: var(--text-muted);
 	display: flex;
 	min-width: 0;
-	min-height: 260px;
+	min-height: 158px;
 	flex-direction: column;
 	border: 1px solid var(--background-modifier-border);
 	border-top: 3px solid var(--qt-quadrant-color);
@@ -215,7 +240,7 @@
 }
 
 .qt-task-list {
-	min-height: 92px;
+	min-height: 44px;
 	max-height: 330px;
 	overflow-y: auto;
 	padding: 0 12px 12px;
@@ -287,6 +312,11 @@
 	color: var(--text-faint);
 	font-size: var(--font-ui-small);
 	text-align: center;
+}
+
+.qt-task-list .qt-empty {
+	min-height: 32px;
+	padding: 6px;
 }
 
 .qt-completed-section {
@@ -441,7 +471,7 @@
 	}
 
 	.qt-quadrant {
-		min-height: 220px;
+		min-height: 158px;
 	}
 
 	.qt-task-list {

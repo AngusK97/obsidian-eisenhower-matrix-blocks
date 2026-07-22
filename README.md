@@ -11,6 +11,7 @@ Insert independent Eisenhower Matrix task boards directly into Markdown notes. E
 - Insert a complete four-quadrant board at the current editor cursor.
 - Keep every board's data inside its own readable `quadrant-tasks` code block.
 - Add multiple independent boards to one note or different notes.
+- Rename each board from the pencil button beside its title; the custom title syncs inside the Markdown block.
 - Add, edit, delete, complete, restore, and move tasks without leaving the note.
 - Drag active tasks between quadrants on desktop.
 - Filter each board's completed history independently by quadrant and completion date.

@@ -439,9 +439,11 @@ var require_board_store = __commonJS({
       renderManagedBlock
     } = require_markdown_store();
     var BOARD_LANGUAGE2 = "quadrant-tasks";
+    var DEFAULT_BOARD_TITLE2 = "Matrix";
     var BOARD_META_PREFIX = "<!-- quadrant-board ";
     var BOARD_META_SUFFIX = " -->";
     var BOARD_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{2,127}$/;
+    var MAX_BOARD_TITLE_LENGTH = 120;
     function createBoardId2() {
       if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
         return `board-${globalThis.crypto.randomUUID()}`;
@@ -451,12 +453,20 @@ var require_board_store = __commonJS({
     function cloneData2(data) {
       return normalizeData2(JSON.parse(JSON.stringify(data)));
     }
+    function normalizeBoardTitle(value, fallback = DEFAULT_BOARD_TITLE2) {
+      if (value === void 0) return fallback;
+      if (typeof value !== "string") return null;
+      const title = value.trim();
+      if (!title || title.length > MAX_BOARD_TITLE_LENGTH) return null;
+      return title;
+    }
     function parseBoardSource2(source, options = {}) {
       const newline = detectNewline(source);
       const lines = source.split(/\r?\n/);
       const firstContentIndex = lines.findIndex((line) => line.trim());
       const issues = [];
       let boardId = null;
+      let title = DEFAULT_BOARD_TITLE2;
       let bodyStart = 0;
       if (firstContentIndex < 0) {
         issues.push("\u4EE3\u7801\u5757\u7F3A\u5C11\u56DB\u8C61\u9650\u5143\u6570\u636E");
@@ -465,7 +475,12 @@ var require_board_store = __commonJS({
         if (metadataLine.startsWith(BOARD_META_PREFIX) && metadataLine.endsWith(BOARD_META_SUFFIX)) {
           try {
             const metadata = JSON.parse(metadataLine.slice(BOARD_META_PREFIX.length, -BOARD_META_SUFFIX.length));
-            if ((metadata == null ? void 0 : metadata.version) === 2 && BOARD_ID_PATTERN.test(metadata.id || "")) boardId = metadata.id;
+            if ((metadata == null ? void 0 : metadata.version) === 2 && BOARD_ID_PATTERN.test(metadata.id || "")) {
+              boardId = metadata.id;
+              const parsedTitle = normalizeBoardTitle(metadata.title);
+              if (parsedTitle) title = parsedTitle;
+              else issues.push("\u56DB\u8C61\u9650\u6807\u9898\u683C\u5F0F\u65E0\u6548");
+            }
           } catch (e) {
           }
         }
@@ -481,19 +496,24 @@ var require_board_store = __commonJS({
       issues.push(...parsed.issues);
       return {
         boardId,
+        title,
         data: parsed.data,
         issues,
         newline
       };
     }
-    function renderBoardSource(boardId, data, newline = "\n") {
+    function renderBoardSource(boardId, data, newline = "\n", title = DEFAULT_BOARD_TITLE2) {
       if (!BOARD_ID_PATTERN.test(boardId || "")) throw new Error("board-id \u683C\u5F0F\u65E0\u6548");
+      const normalizedTitle = normalizeBoardTitle(title, null);
+      if (!normalizedTitle) throw new Error(`\u56DB\u8C61\u9650\u6807\u9898\u4E0D\u80FD\u4E3A\u7A7A\u4E14\u4E0D\u80FD\u8D85\u8FC7 ${MAX_BOARD_TITLE_LENGTH} \u4E2A\u5B57\u7B26`);
       const managed = renderManagedBlock(data, newline);
       const body = managed.slice(START_MARKER.length, managed.length - END_MARKER.length).replace(/(?:\r?\n)+$/, "");
-      return `${BOARD_META_PREFIX}${JSON.stringify({ id: boardId, version: 2 })}${BOARD_META_SUFFIX}${body}`;
+      const metadata = { id: boardId, version: 2 };
+      if (normalizedTitle !== DEFAULT_BOARD_TITLE2) metadata.title = normalizedTitle;
+      return `${BOARD_META_PREFIX}${JSON.stringify(metadata)}${BOARD_META_SUFFIX}${body}`;
     }
-    function renderBoardCodeBlock2(boardId, data, newline = "\n") {
-      return `\`\`\`${BOARD_LANGUAGE2}${newline}${renderBoardSource(boardId, data, newline)}${newline}\`\`\``;
+    function renderBoardCodeBlock2(boardId, data, newline = "\n", title = DEFAULT_BOARD_TITLE2) {
+      return `\`\`\`${BOARD_LANGUAGE2}${newline}${renderBoardSource(boardId, data, newline, title)}${newline}\`\`\``;
     }
     function lineRecords(content) {
       const records = [];
@@ -536,6 +556,7 @@ var require_board_store = __commonJS({
           const parsed = parseBoardSource2(source);
           blocks.push({
             boardId: parsed.boardId,
+            title: parsed.title,
             data: parsed.data,
             issues: parsed.issues,
             newline: lines[index].newline || detectNewline(content),
@@ -562,18 +583,34 @@ var require_board_store = __commonJS({
     }
     function readBoardFromDocument2(content, boardId) {
       const board = findUniqueBoard(content, boardId);
-      return { boardId, data: board.data };
+      return { boardId, title: board.title, data: board.data };
     }
     function mutateBoardDocument2(content, boardId, mutator) {
       const board = findUniqueBoard(content, boardId);
       const draft = cloneData2(board.data);
       const result = mutator(draft);
       if (!result) return { content, data: board.data, result };
-      const source = renderBoardSource(boardId, draft, board.newline);
+      const source = renderBoardSource(boardId, draft, board.newline, board.title);
       return {
         content: `${content.slice(0, board.sourceStart)}${source}${board.newline}${content.slice(board.sourceEnd)}`,
         data: draft,
+        title: board.title,
         result
+      };
+    }
+    function renameBoardDocument2(content, boardId, title) {
+      const board = findUniqueBoard(content, boardId);
+      const normalizedTitle = normalizeBoardTitle(title, null);
+      if (!normalizedTitle) throw new Error(`\u56DB\u8C61\u9650\u6807\u9898\u4E0D\u80FD\u4E3A\u7A7A\u4E14\u4E0D\u80FD\u8D85\u8FC7 ${MAX_BOARD_TITLE_LENGTH} \u4E2A\u5B57\u7B26`);
+      if (normalizedTitle === board.title) {
+        return { content, data: board.data, title: board.title, result: board.title };
+      }
+      const source = renderBoardSource(boardId, board.data, board.newline, normalizedTitle);
+      return {
+        content: `${content.slice(0, board.sourceStart)}${source}${board.newline}${content.slice(board.sourceEnd)}`,
+        data: board.data,
+        title: normalizedTitle,
+        result: normalizedTitle
       };
     }
     function replaceLegacyManagedBlock2(content, boardId, additionalData = null) {
@@ -617,6 +654,7 @@ var require_board_store = __commonJS({
     }
     module2.exports = {
       BOARD_LANGUAGE: BOARD_LANGUAGE2,
+      DEFAULT_BOARD_TITLE: DEFAULT_BOARD_TITLE2,
       appendBoardCodeBlock: appendBoardCodeBlock2,
       createBoardId: createBoardId2,
       findBoardCodeBlocks: findBoardCodeBlocks2,
@@ -624,6 +662,7 @@ var require_board_store = __commonJS({
       mutateBoardDocument: mutateBoardDocument2,
       parseBoardSource: parseBoardSource2,
       readBoardFromDocument: readBoardFromDocument2,
+      renameBoardDocument: renameBoardDocument2,
       renderBoardCodeBlock: renderBoardCodeBlock2,
       renderBoardSource,
       replaceLegacyManagedBlock: replaceLegacyManagedBlock2
@@ -660,6 +699,7 @@ var {
 } = require_core();
 var {
   BOARD_LANGUAGE,
+  DEFAULT_BOARD_TITLE,
   appendBoardCodeBlock,
   createBoardId,
   findBoardCodeBlocks,
@@ -667,6 +707,7 @@ var {
   mutateBoardDocument,
   parseBoardSource,
   readBoardFromDocument,
+  renameBoardDocument,
   renderBoardCodeBlock,
   replaceLegacyManagedBlock
 } = require_board_store();
@@ -696,7 +737,7 @@ function cloneData(data) {
 function createIconButton(parent, icon, label, onClick, className = "") {
   const button = parent.createEl("button", {
     cls: `clickable-icon qt-icon-button ${className}`.trim(),
-    attr: { "aria-label": label, type: "button" }
+    attr: { "aria-label": label, title: label, type: "button" }
   });
   setIcon(button, icon);
   button.addEventListener("click", onClick);
@@ -711,18 +752,22 @@ function formatCompletedAt(value) {
     minute: "2-digit"
   }).format(new Date(value));
 }
-var TaskTitleModal = class extends Modal {
-  constructor(app, title, onSave) {
+var TextInputModal = class extends Modal {
+  constructor(app, title, onSave, options = {}) {
     super(app);
     this.title = title;
     this.onSave = onSave;
+    this.modalTitle = options.modalTitle || "\u7F16\u8F91\u4EFB\u52A1";
+    this.inputLabel = options.inputLabel || "\u4EFB\u52A1\u5185\u5BB9";
+    this.maxLength = options.maxLength || null;
   }
   onOpen() {
-    this.setTitle("\u7F16\u8F91\u4EFB\u52A1");
+    this.setTitle(this.modalTitle);
     const input = this.contentEl.createEl("input", {
       cls: "qt-modal-input",
-      attr: { type: "text", value: this.title, "aria-label": "\u4EFB\u52A1\u5185\u5BB9" }
+      attr: { type: "text", value: this.title, "aria-label": this.inputLabel }
     });
+    if (this.maxLength) input.maxLength = this.maxLength;
     const actions = this.contentEl.createDiv({ cls: "modal-button-container" });
     const cancel = actions.createEl("button", { text: "\u53D6\u6D88" });
     const save = actions.createEl("button", { text: "\u4FDD\u5B58", cls: "mod-cta" });
@@ -757,6 +802,7 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
     this.sourcePath = sourcePath;
     const parsed = parseBoardSource(source);
     this.boardId = parsed.boardId;
+    this.boardTitle = parsed.title;
     this.data = parsed.data;
     this.issues = parsed.issues;
     this.filters = { quadrant: "all", period: "all", startDate: "", endDate: "" };
@@ -769,8 +815,9 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
   onunload() {
     this.plugin.boardRenderers.delete(this);
   }
-  setBoardData(data) {
+  setBoardData(data, title = this.boardTitle) {
     this.data = cloneData(data);
+    this.boardTitle = title || DEFAULT_BOARD_TITLE;
     this.issues = [];
     this.render();
   }
@@ -802,7 +849,9 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
   renderHeader(container) {
     const header = container.createEl("header", { cls: "qt-page-header" });
     const titleGroup = header.createDiv({ cls: "qt-title-group" });
-    titleGroup.createEl("h3", { text: "\u56DB\u8C61\u9650\u4EFB\u52A1" });
+    const titleRow = titleGroup.createDiv({ cls: "qt-title-row" });
+    titleRow.createEl("h3", { text: this.boardTitle });
+    createIconButton(titleRow, "pencil", "\u7F16\u8F91\u56DB\u8C61\u9650\u6807\u9898", () => this.openBoardTitleEditor(), "qt-title-edit");
     const stats = titleGroup.createDiv({ cls: "qt-stats", attr: { "aria-live": "polite" } });
     stats.createSpan({ text: `${getActiveTasks(this.data).length} \u9879\u8FDB\u884C\u4E2D` });
     stats.createSpan({ text: `${getCompletedTasks(this.data).length} \u9879\u5DF2\u5B8C\u6210` });
@@ -819,9 +868,9 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
     const icon = heading.createSpan({ cls: "qt-quadrant-icon", attr: { "aria-hidden": "true" } });
     setIcon(icon, meta.icon);
     const labels = heading.createDiv();
-    const title = labels.createEl("h3", { text: meta.action });
+    const title = labels.createEl("h3", { text: meta.description });
     title.createSpan({ text: String(tasks.length), cls: "qt-count" });
-    labels.createDiv({ text: meta.description, cls: "qt-quadrant-description" });
+    labels.createDiv({ text: meta.action, cls: "qt-quadrant-description" });
     const quickAdd = section.createDiv({ cls: "qt-quick-add" });
     const input = quickAdd.createEl("input", {
       attr: { type: "text", placeholder: "\u6DFB\u52A0\u4EFB\u52A1", "aria-label": `\u6DFB\u52A0\u5230${meta.action}` }
@@ -890,8 +939,17 @@ var QuadrantBoardRenderChild = class extends MarkdownRenderChild {
     });
   }
   openEditor(task) {
-    new TaskTitleModal(this.plugin.app, task.title, (title) => {
+    new TextInputModal(this.plugin.app, task.title, (title) => {
       void this.mutate((data) => editTask(data, task.id, title));
+    }).open();
+  }
+  openBoardTitleEditor() {
+    new TextInputModal(this.plugin.app, this.boardTitle, (title) => {
+      void this.plugin.renameBoard(this.sourcePath, this.boardId, title);
+    }, {
+      modalTitle: "\u7F16\u8F91\u56DB\u8C61\u9650\u6807\u9898",
+      inputLabel: "\u56DB\u8C61\u9650\u6807\u9898",
+      maxLength: 120
     }).open();
   }
   openTaskMenu(event, task) {
@@ -1056,7 +1114,7 @@ var QuadrantTasksPlugin = class extends Plugin {
     }
     this.insertBoard(view.editor);
   }
-  async mutateBoard(sourcePath, boardId, mutator) {
+  async updateBoard(sourcePath, boardId, updater) {
     const file = this.app.vault.getAbstractFileByPath(sourcePath);
     if (!(file instanceof TFile)) {
       new Notice("\u627E\u4E0D\u5230\u8FD9\u5F20\u56DB\u8C61\u9650\u6240\u5728\u7684 Markdown \u6587\u4EF6");
@@ -1066,7 +1124,7 @@ var QuadrantTasksPlugin = class extends Plugin {
     const previous = this.fileQueues.get(file) || Promise.resolve();
     const pending = previous.catch(() => void 0).then(
       () => this.app.vault.process(file, (content) => {
-        outcome = mutateBoardDocument(content, boardId, mutator);
+        outcome = updater(content, boardId);
         return outcome.content;
       })
     );
@@ -1074,7 +1132,7 @@ var QuadrantTasksPlugin = class extends Plugin {
     try {
       await pending;
       if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
-      if (outcome) this.refreshBoardRenderers(sourcePath, boardId, outcome.data);
+      if (outcome) this.refreshBoardRenderers(sourcePath, boardId, outcome.data, outcome.title);
       return outcome;
     } catch (error) {
       if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
@@ -1084,9 +1142,23 @@ var QuadrantTasksPlugin = class extends Plugin {
       return null;
     }
   }
-  refreshBoardRenderers(sourcePath, boardId, data) {
+  mutateBoard(sourcePath, boardId, mutator) {
+    return this.updateBoard(
+      sourcePath,
+      boardId,
+      (content, targetBoardId) => mutateBoardDocument(content, targetBoardId, mutator)
+    );
+  }
+  renameBoard(sourcePath, boardId, title) {
+    return this.updateBoard(
+      sourcePath,
+      boardId,
+      (content, targetBoardId) => renameBoardDocument(content, targetBoardId, title)
+    );
+  }
+  refreshBoardRenderers(sourcePath, boardId, data, title) {
     for (const renderer of this.boardRenderers) {
-      if (renderer.sourcePath === sourcePath && renderer.boardId === boardId) renderer.setBoardData(data);
+      if (renderer.sourcePath === sourcePath && renderer.boardId === boardId) renderer.setBoardData(data, title);
     }
   }
   async refreshFileRenderers(sourcePath) {
@@ -1102,7 +1174,8 @@ var QuadrantTasksPlugin = class extends Plugin {
       const content = await this.app.vault.read(file);
       for (const renderer of renderers) {
         try {
-          renderer.setBoardData(readBoardFromDocument(content, renderer.boardId).data);
+          const board = readBoardFromDocument(content, renderer.boardId);
+          renderer.setBoardData(board.data, board.title);
         } catch (error) {
           renderer.setBoardError(error);
         }

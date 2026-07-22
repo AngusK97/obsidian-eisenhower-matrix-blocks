@@ -28,6 +28,7 @@ const {
 } = require("./core");
 const {
 	BOARD_LANGUAGE,
+	DEFAULT_BOARD_TITLE,
 	appendBoardCodeBlock,
 	createBoardId,
 	findBoardCodeBlocks,
@@ -35,6 +36,7 @@ const {
 	mutateBoardDocument,
 	parseBoardSource,
 	readBoardFromDocument,
+	renameBoardDocument,
 	renderBoardCodeBlock,
 	replaceLegacyManagedBlock,
 } = require("./board-store");
@@ -69,7 +71,7 @@ function cloneData(data) {
 function createIconButton(parent, icon, label, onClick, className = "") {
 	const button = parent.createEl("button", {
 		cls: `clickable-icon qt-icon-button ${className}`.trim(),
-		attr: { "aria-label": label, type: "button" },
+		attr: { "aria-label": label, title: label, type: "button" },
 	});
 	setIcon(button, icon);
 	button.addEventListener("click", onClick);
@@ -86,19 +88,23 @@ function formatCompletedAt(value) {
 	}).format(new Date(value));
 }
 
-class TaskTitleModal extends Modal {
-	constructor(app, title, onSave) {
+class TextInputModal extends Modal {
+	constructor(app, title, onSave, options = {}) {
 		super(app);
 		this.title = title;
 		this.onSave = onSave;
+		this.modalTitle = options.modalTitle || "编辑任务";
+		this.inputLabel = options.inputLabel || "任务内容";
+		this.maxLength = options.maxLength || null;
 	}
 
 	onOpen() {
-		this.setTitle("编辑任务");
+		this.setTitle(this.modalTitle);
 		const input = this.contentEl.createEl("input", {
 			cls: "qt-modal-input",
-			attr: { type: "text", value: this.title, "aria-label": "任务内容" },
+			attr: { type: "text", value: this.title, "aria-label": this.inputLabel },
 		});
+		if (this.maxLength) input.maxLength = this.maxLength;
 		const actions = this.contentEl.createDiv({ cls: "modal-button-container" });
 		const cancel = actions.createEl("button", { text: "取消" });
 		const save = actions.createEl("button", { text: "保存", cls: "mod-cta" });
@@ -135,6 +141,7 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 		this.sourcePath = sourcePath;
 		const parsed = parseBoardSource(source);
 		this.boardId = parsed.boardId;
+		this.boardTitle = parsed.title;
 		this.data = parsed.data;
 		this.issues = parsed.issues;
 		this.filters = { quadrant: "all", period: "all", startDate: "", endDate: "" };
@@ -150,8 +157,9 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 		this.plugin.boardRenderers.delete(this);
 	}
 
-	setBoardData(data) {
+	setBoardData(data, title = this.boardTitle) {
 		this.data = cloneData(data);
+		this.boardTitle = title || DEFAULT_BOARD_TITLE;
 		this.issues = [];
 		this.render();
 	}
@@ -188,7 +196,9 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 	renderHeader(container) {
 		const header = container.createEl("header", { cls: "qt-page-header" });
 		const titleGroup = header.createDiv({ cls: "qt-title-group" });
-		titleGroup.createEl("h3", { text: "四象限任务" });
+		const titleRow = titleGroup.createDiv({ cls: "qt-title-row" });
+		titleRow.createEl("h3", { text: this.boardTitle });
+		createIconButton(titleRow, "pencil", "编辑四象限标题", () => this.openBoardTitleEditor(), "qt-title-edit");
 		const stats = titleGroup.createDiv({ cls: "qt-stats", attr: { "aria-live": "polite" } });
 		stats.createSpan({ text: `${getActiveTasks(this.data).length} 项进行中` });
 		stats.createSpan({ text: `${getCompletedTasks(this.data).length} 项已完成` });
@@ -206,9 +216,9 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 		const icon = heading.createSpan({ cls: "qt-quadrant-icon", attr: { "aria-hidden": "true" } });
 		setIcon(icon, meta.icon);
 		const labels = heading.createDiv();
-		const title = labels.createEl("h3", { text: meta.action });
+		const title = labels.createEl("h3", { text: meta.description });
 		title.createSpan({ text: String(tasks.length), cls: "qt-count" });
-		labels.createDiv({ text: meta.description, cls: "qt-quadrant-description" });
+		labels.createDiv({ text: meta.action, cls: "qt-quadrant-description" });
 
 		const quickAdd = section.createDiv({ cls: "qt-quick-add" });
 		const input = quickAdd.createEl("input", {
@@ -280,8 +290,18 @@ class QuadrantBoardRenderChild extends MarkdownRenderChild {
 	}
 
 	openEditor(task) {
-		new TaskTitleModal(this.plugin.app, task.title, (title) => {
+		new TextInputModal(this.plugin.app, task.title, (title) => {
 			void this.mutate((data) => editTask(data, task.id, title));
+		}).open();
+	}
+
+	openBoardTitleEditor() {
+		new TextInputModal(this.plugin.app, this.boardTitle, (title) => {
+			void this.plugin.renameBoard(this.sourcePath, this.boardId, title);
+		}, {
+			modalTitle: "编辑四象限标题",
+			inputLabel: "四象限标题",
+			maxLength: 120,
 		}).open();
 	}
 
@@ -462,7 +482,7 @@ class QuadrantTasksPlugin extends Plugin {
 		this.insertBoard(view.editor);
 	}
 
-	async mutateBoard(sourcePath, boardId, mutator) {
+	async updateBoard(sourcePath, boardId, updater) {
 		const file = this.app.vault.getAbstractFileByPath(sourcePath);
 		if (!(file instanceof TFile)) {
 			new Notice("找不到这张四象限所在的 Markdown 文件");
@@ -473,7 +493,7 @@ class QuadrantTasksPlugin extends Plugin {
 		const previous = this.fileQueues.get(file) || Promise.resolve();
 		const pending = previous.catch(() => undefined).then(() =>
 			this.app.vault.process(file, (content) => {
-				outcome = mutateBoardDocument(content, boardId, mutator);
+				outcome = updater(content, boardId);
 				return outcome.content;
 			}),
 		);
@@ -481,7 +501,7 @@ class QuadrantTasksPlugin extends Plugin {
 		try {
 			await pending;
 			if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
-			if (outcome) this.refreshBoardRenderers(sourcePath, boardId, outcome.data);
+			if (outcome) this.refreshBoardRenderers(sourcePath, boardId, outcome.data, outcome.title);
 			return outcome;
 		} catch (error) {
 			if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
@@ -492,9 +512,21 @@ class QuadrantTasksPlugin extends Plugin {
 		}
 	}
 
-	refreshBoardRenderers(sourcePath, boardId, data) {
+	mutateBoard(sourcePath, boardId, mutator) {
+		return this.updateBoard(sourcePath, boardId, (content, targetBoardId) =>
+			mutateBoardDocument(content, targetBoardId, mutator),
+		);
+	}
+
+	renameBoard(sourcePath, boardId, title) {
+		return this.updateBoard(sourcePath, boardId, (content, targetBoardId) =>
+			renameBoardDocument(content, targetBoardId, title),
+		);
+	}
+
+	refreshBoardRenderers(sourcePath, boardId, data, title) {
 		for (const renderer of this.boardRenderers) {
-			if (renderer.sourcePath === sourcePath && renderer.boardId === boardId) renderer.setBoardData(data);
+			if (renderer.sourcePath === sourcePath && renderer.boardId === boardId) renderer.setBoardData(data, title);
 		}
 	}
 
@@ -511,7 +543,8 @@ class QuadrantTasksPlugin extends Plugin {
 			const content = await this.app.vault.read(file);
 			for (const renderer of renderers) {
 				try {
-					renderer.setBoardData(readBoardFromDocument(content, renderer.boardId).data);
+					const board = readBoardFromDocument(content, renderer.boardId);
+					renderer.setBoardData(board.data, board.title);
 				} catch (error) {
 					renderer.setBoardError(error);
 				}

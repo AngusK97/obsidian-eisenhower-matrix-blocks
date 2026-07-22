@@ -146,6 +146,26 @@ test("a local mutation rebases on the latest note and only changes its board", a
 	assert.deepEqual(readBoardFromDocument(harness.getContent(), "board-beta").data.tasks.map((task) => task.id), ["local"]);
 });
 
+test("renaming a board persists its title and refreshes the matching renderer", async () => {
+	const PluginClass = loadBuiltPlugin();
+	const original = renderBoardCodeBlock("board-alpha", createEmptyData());
+	const harness = createPluginHarness(PluginClass, original);
+	let renderedTitle = null;
+	harness.plugin.boardRenderers.add({
+		sourcePath: "Projects.md",
+		boardId: "board-alpha",
+		setBoardData(data, title) {
+			assert.deepEqual(data.tasks, []);
+			renderedTitle = title;
+		},
+	});
+
+	const outcome = await harness.plugin.renameBoard("Projects.md", "board-alpha", "个人计划");
+	assert.equal(outcome.result, "个人计划");
+	assert.equal(readBoardFromDocument(harness.getContent(), "board-alpha").title, "个人计划");
+	assert.equal(renderedTitle, "个人计划");
+});
+
 test("a failed local write leaves the note unchanged", async () => {
 	const PluginClass = loadBuiltPlugin();
 	const original = renderBoardCodeBlock("board-alpha", createEmptyData());

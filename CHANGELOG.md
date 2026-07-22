@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.1 - 2026-07-22
+
+- Let each embedded board store and edit its own title while keeping `Matrix` as the default.
+- Promote urgency/importance descriptions to quadrant headings and move action labels to subtitles.
+- Reduce unused vertical space in empty quadrants on desktop and mobile.
+
 ## 2.0.0 - 2026-07-22
 
 - Replace the single global board with independent `quadrant-tasks` code blocks embedded in Markdown notes.

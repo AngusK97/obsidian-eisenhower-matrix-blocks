@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-quadrant-tasks",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"description": "Independent four-quadrant task boards embedded directly in Obsidian Markdown notes.",
 	"private": true,
 	"license": "MIT",

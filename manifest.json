@@ -1,7 +1,7 @@
 {
 	"id": "quadrant-tasks",
 	"name": "Quadrant Tasks",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"minAppVersion": "1.5.0",
 	"description": "Insert independent four-quadrant task boards directly into Markdown notes.",
 	"author": "AngusKung",

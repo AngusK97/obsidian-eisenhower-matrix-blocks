@@ -14,6 +14,7 @@ const {
 	mutateBoardDocument,
 	parseBoardSource,
 	readBoardFromDocument,
+	renameBoardDocument,
 	renderBoardCodeBlock,
 	renderBoardSource,
 	replaceLegacyManagedBlock,
@@ -36,7 +37,33 @@ test("board source serializes deterministically and round trips", () => {
 	const parsed = parseBoardSource(source);
 	assert.deepEqual(parsed.issues, []);
 	assert.equal(parsed.boardId, "board-alpha");
+	assert.equal(parsed.title, "Matrix");
 	assert.deepEqual(parsed.data, data);
+});
+
+test("custom board titles round trip and survive task mutations", () => {
+	const source = renderBoardCodeBlock("board-titled", boardData("task-a", "Task"), "\n", "本周工作");
+	const parsed = findBoardCodeBlocks(source)[0];
+	assert.equal(parsed.title, "本周工作");
+	assert.match(parsed.source, /"title":"本周工作"/);
+
+	const updated = mutateBoardDocument(source, "board-titled", (data) =>
+		addTask(data, "Another", "schedule", { idFactory: () => "task-b" }),
+	).content;
+	assert.equal(readBoardFromDocument(updated, "board-titled").title, "本周工作");
+});
+
+test("renaming one board preserves its tasks and every sibling byte", () => {
+	const first = renderBoardCodeBlock("board-first", boardData("task-a", "First"));
+	const second = renderBoardCodeBlock("board-second", boardData("task-b", "Second"));
+	const document = `${first}\n\nKeep this text.\n\n${second}`;
+	const renamed = renameBoardDocument(document, "board-first", "项目 Alpha");
+
+	assert.equal(renamed.title, "项目 Alpha");
+	assert.equal(readBoardFromDocument(renamed.content, "board-first").data.tasks[0].id, "task-a");
+	assert.equal(readBoardFromDocument(renamed.content, "board-first").title, "项目 Alpha");
+	assert.ok(renamed.content.endsWith(`Keep this text.\n\n${second}`));
+	assert.throws(() => renameBoardDocument(document, "board-first", "   "), /标题不能为空/);
 });
 
 test("mutating one board leaves sibling boards and surrounding bytes unchanged", () => {

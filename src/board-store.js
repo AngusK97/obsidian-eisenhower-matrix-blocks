@@ -11,9 +11,11 @@ const {
 } = require("./markdown-store");
 
 const BOARD_LANGUAGE = "quadrant-tasks";
+const DEFAULT_BOARD_TITLE = "Matrix";
 const BOARD_META_PREFIX = "<!-- quadrant-board ";
 const BOARD_META_SUFFIX = " -->";
 const BOARD_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{2,127}$/;
+const MAX_BOARD_TITLE_LENGTH = 120;
 
 function createBoardId() {
 	if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
@@ -26,12 +28,21 @@ function cloneData(data) {
 	return normalizeData(JSON.parse(JSON.stringify(data)));
 }
 
+function normalizeBoardTitle(value, fallback = DEFAULT_BOARD_TITLE) {
+	if (value === undefined) return fallback;
+	if (typeof value !== "string") return null;
+	const title = value.trim();
+	if (!title || title.length > MAX_BOARD_TITLE_LENGTH) return null;
+	return title;
+}
+
 function parseBoardSource(source, options = {}) {
 	const newline = detectNewline(source);
 	const lines = source.split(/\r?\n/);
 	const firstContentIndex = lines.findIndex((line) => line.trim());
 	const issues = [];
 	let boardId = null;
+	let title = DEFAULT_BOARD_TITLE;
 	let bodyStart = 0;
 
 	if (firstContentIndex < 0) {
@@ -41,7 +52,12 @@ function parseBoardSource(source, options = {}) {
 		if (metadataLine.startsWith(BOARD_META_PREFIX) && metadataLine.endsWith(BOARD_META_SUFFIX)) {
 			try {
 				const metadata = JSON.parse(metadataLine.slice(BOARD_META_PREFIX.length, -BOARD_META_SUFFIX.length));
-				if (metadata?.version === 2 && BOARD_ID_PATTERN.test(metadata.id || "")) boardId = metadata.id;
+				if (metadata?.version === 2 && BOARD_ID_PATTERN.test(metadata.id || "")) {
+					boardId = metadata.id;
+					const parsedTitle = normalizeBoardTitle(metadata.title);
+					if (parsedTitle) title = parsedTitle;
+					else issues.push("四象限标题格式无效");
+				}
 			} catch {
 				// Report the common validation error below.
 			}
@@ -60,21 +76,26 @@ function parseBoardSource(source, options = {}) {
 
 	return {
 		boardId,
+		title,
 		data: parsed.data,
 		issues,
 		newline,
 	};
 }
 
-function renderBoardSource(boardId, data, newline = "\n") {
+function renderBoardSource(boardId, data, newline = "\n", title = DEFAULT_BOARD_TITLE) {
 	if (!BOARD_ID_PATTERN.test(boardId || "")) throw new Error("board-id 格式无效");
+	const normalizedTitle = normalizeBoardTitle(title, null);
+	if (!normalizedTitle) throw new Error(`四象限标题不能为空且不能超过 ${MAX_BOARD_TITLE_LENGTH} 个字符`);
 	const managed = renderManagedBlock(data, newline);
 	const body = managed.slice(START_MARKER.length, managed.length - END_MARKER.length).replace(/(?:\r?\n)+$/, "");
-	return `${BOARD_META_PREFIX}${JSON.stringify({ id: boardId, version: 2 })}${BOARD_META_SUFFIX}${body}`;
+	const metadata = { id: boardId, version: 2 };
+	if (normalizedTitle !== DEFAULT_BOARD_TITLE) metadata.title = normalizedTitle;
+	return `${BOARD_META_PREFIX}${JSON.stringify(metadata)}${BOARD_META_SUFFIX}${body}`;
 }
 
-function renderBoardCodeBlock(boardId, data, newline = "\n") {
-	return `\`\`\`${BOARD_LANGUAGE}${newline}${renderBoardSource(boardId, data, newline)}${newline}\`\`\``;
+function renderBoardCodeBlock(boardId, data, newline = "\n", title = DEFAULT_BOARD_TITLE) {
+	return `\`\`\`${BOARD_LANGUAGE}${newline}${renderBoardSource(boardId, data, newline, title)}${newline}\`\`\``;
 }
 
 function lineRecords(content) {
@@ -119,6 +140,7 @@ function findBoardCodeBlocks(content) {
 			const parsed = parseBoardSource(source);
 			blocks.push({
 				boardId: parsed.boardId,
+				title: parsed.title,
 				data: parsed.data,
 				issues: parsed.issues,
 				newline: lines[index].newline || detectNewline(content),
@@ -147,7 +169,7 @@ function findUniqueBoard(content, boardId) {
 
 function readBoardFromDocument(content, boardId) {
 	const board = findUniqueBoard(content, boardId);
-	return { boardId, data: board.data };
+	return { boardId, title: board.title, data: board.data };
 }
 
 function mutateBoardDocument(content, boardId, mutator) {
@@ -155,11 +177,28 @@ function mutateBoardDocument(content, boardId, mutator) {
 	const draft = cloneData(board.data);
 	const result = mutator(draft);
 	if (!result) return { content, data: board.data, result };
-	const source = renderBoardSource(boardId, draft, board.newline);
+	const source = renderBoardSource(boardId, draft, board.newline, board.title);
 	return {
 		content: `${content.slice(0, board.sourceStart)}${source}${board.newline}${content.slice(board.sourceEnd)}`,
 		data: draft,
+		title: board.title,
 		result,
+	};
+}
+
+function renameBoardDocument(content, boardId, title) {
+	const board = findUniqueBoard(content, boardId);
+	const normalizedTitle = normalizeBoardTitle(title, null);
+	if (!normalizedTitle) throw new Error(`四象限标题不能为空且不能超过 ${MAX_BOARD_TITLE_LENGTH} 个字符`);
+	if (normalizedTitle === board.title) {
+		return { content, data: board.data, title: board.title, result: board.title };
+	}
+	const source = renderBoardSource(boardId, board.data, board.newline, normalizedTitle);
+	return {
+		content: `${content.slice(0, board.sourceStart)}${source}${board.newline}${content.slice(board.sourceEnd)}`,
+		data: board.data,
+		title: normalizedTitle,
+		result: normalizedTitle,
 	};
 }
 
@@ -207,6 +246,7 @@ function mergeWithoutConflicts(primary, additional) {
 
 module.exports = {
 	BOARD_LANGUAGE,
+	DEFAULT_BOARD_TITLE,
 	appendBoardCodeBlock,
 	createBoardId,
 	findBoardCodeBlocks,
@@ -214,6 +254,7 @@ module.exports = {
 	mutateBoardDocument,
 	parseBoardSource,
 	readBoardFromDocument,
+	renameBoardDocument,
 	renderBoardCodeBlock,
 	renderBoardSource,
 	replaceLegacyManagedBlock,
