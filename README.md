@@ -1,19 +1,19 @@
-<p align="right"><strong>English</strong> | <a href="README.zh-CN.md">简体中文</a></p>
+<p align="right"><strong>English</strong> | <a href="https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/blob/main/README.zh-CN.md">简体中文</a></p>
 
 # Eisenhower Matrix Blocks for Obsidian
 
 [![CI](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/actions/workflows/ci.yml/badge.svg)](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/AngusK97/obsidian-eisenhower-matrix-blocks?sort=semver)](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/blob/main/LICENSE)
 
 **Eisenhower matrices that live inside your Obsidian notes.**
 
 Insert an independent four-quadrant task board anywhere in Markdown, complete tasks in place, and keep a filterable history.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/matrix-desktop-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="docs/assets/matrix-desktop-light.png">
-  <img src="docs/assets/matrix-desktop-light.png" alt="Eisenhower Matrix Blocks embedded in an Obsidian note">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/matrix-desktop-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/matrix-desktop-light.png">
+  <img src="https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/matrix-desktop-light.png" alt="Eisenhower Matrix Blocks embedded in an Obsidian note">
 </picture>
 
 - **Local to every note:** each matrix owns its tasks and completed history, and a note can contain more than one matrix.
@@ -73,7 +73,7 @@ Each matrix belongs to the note that contains it:
 
 ## Markdown-backed by design
 
-![The rendered matrix beside its readable Markdown source](docs/assets/markdown-source.png)
+![The rendered matrix beside its readable Markdown source](https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/markdown-source.png)
 
 The note contains the complete board state in an `eisenhower-matrix-blocks` code block:
 
@@ -137,7 +137,7 @@ Yes. The plugin runs locally and makes no network requests.
 
 Bug reports and feature requests are welcome. Please use fictional or sanitized examples and never upload a complete personal vault.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, compatibility requirements, privacy rules, and verification checklist.
+See [CONTRIBUTING.md](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/blob/main/CONTRIBUTING.md) for the development setup, compatibility requirements, privacy rules, and verification checklist.
 
 ```bash
 npm ci
@@ -146,4 +146,4 @@ npm run verify
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/blob/main/LICENSE)

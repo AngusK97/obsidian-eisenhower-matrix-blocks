@@ -1,19 +1,19 @@
-<p align="right"><a href="README.md">English</a> | <strong>简体中文</strong></p>
+<p align="right"><a href="https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/blob/main/README.md">English</a> | <strong>简体中文</strong></p>
 
 # Eisenhower Matrix Blocks：Obsidian 四象限任务插件
 
 [![CI](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/actions/workflows/ci.yml/badge.svg)](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/AngusK97/obsidian-eisenhower-matrix-blocks?sort=semver)](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/blob/main/LICENSE)
 
 **把四象限任务管理直接放进 Obsidian 笔记。**
 
 你可以在任意 Markdown 笔记中插入一张独立的艾森豪威尔矩阵，就地添加、调整和完成任务，并按象限或时间筛选完成记录。每张矩阵都属于当前笔记。
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/matrix-desktop-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="docs/assets/matrix-desktop-light.png">
-  <img src="docs/assets/matrix-desktop-light.png" alt="嵌入 Obsidian 笔记中的 Eisenhower Matrix Blocks">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/matrix-desktop-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/matrix-desktop-light.png">
+  <img src="https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/matrix-desktop-light.png" alt="嵌入 Obsidian 笔记中的 Eisenhower Matrix Blocks">
 </picture>
 
 - **矩阵之间互不影响：** 任务和完成记录只属于所在矩阵；同一篇笔记也可以插入多张矩阵。
@@ -73,7 +73,7 @@
 
 ## 所有数据都在 Markdown 里
 
-![矩阵界面与 Markdown 源码对照](docs/assets/markdown-source.png)
+![矩阵界面与 Markdown 源码对照](https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/markdown-source.png)
 
 一张矩阵的完整状态都保存在笔记中的 `eisenhower-matrix-blocks` 代码块里：
 
@@ -137,7 +137,7 @@
 
 欢迎提交问题报告和功能建议。示例内容请使用虚构数据或先做匿名处理，不要上传完整的私人 Obsidian 库。
 
-开发环境、兼容要求、隐私规则和提交前检查，请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。
+开发环境、兼容要求、隐私规则和提交前检查，请参阅 [CONTRIBUTING.md](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/blob/main/CONTRIBUTING.md)。
 
 ```bash
 npm ci
@@ -146,4 +146,4 @@ npm run verify
 
 ## 开源许可
 
-[MIT](LICENSE)
+[MIT](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/blob/main/LICENSE)
