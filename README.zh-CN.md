@@ -1,14 +1,14 @@
 <p align="right"><a href="README.md">English</a> | <strong>简体中文</strong></p>
 
-# Eisenhower Matrix Blocks for Obsidian
+# Eisenhower Matrix Blocks：Obsidian 四象限任务插件
 
 [![CI](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/actions/workflows/ci.yml/badge.svg)](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/AngusK97/obsidian-eisenhower-matrix-blocks?sort=semver)](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**直接生活在 Obsidian 笔记中的四象限任务矩阵。**
+**把四象限任务管理直接放进 Obsidian 笔记。**
 
-在任意 Markdown 笔记中插入独立的 Eisenhower Matrix，就地管理任务，并保留可筛选的完成记录，无需全局任务数据库。
+你可以在任意 Markdown 笔记中插入一张独立的艾森豪威尔矩阵，就地添加、调整和完成任务，并按象限或时间筛选完成记录。每张矩阵都属于当前笔记，不依赖全局任务数据库。
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/matrix-desktop-dark.png">
@@ -16,67 +16,67 @@
   <img src="docs/assets/matrix-desktop-light.png" alt="嵌入 Obsidian 笔记中的 Eisenhower Matrix Blocks">
 </picture>
 
-- **属于每篇笔记：** 每个矩阵独立拥有自己的任务和完成记录，同一篇笔记可以插入多个矩阵。
-- **由 Markdown 保存：** 任务、象限、顺序和完成时间随着笔记通过 Obsidian Sync、Remotely Save 或 Git 同步。
-- **完整任务流程：** 无需离开矩阵即可添加、编辑、移动、完成、恢复、删除和筛选任务。
+- **矩阵之间互不影响：** 任务和完成记录只属于所在矩阵；同一篇笔记也可以插入多张矩阵。
+- **数据保存在 Markdown 中：** 象限、任务顺序和完成时间都会随笔记一起同步和备份。
+- **操作集中在矩阵内：** 添加、编辑、移动、完成、恢复、删除和筛选任务都不需要离开当前笔记。
 
-矩阵会插入当前编辑器光标所在的位置，始终属于这篇笔记，而不是变成独立的全局任务面板。
+矩阵会插入当前光标位置，成为笔记内容的一部分，而不是另行打开一个全局任务面板。
 
 ## 快速开始
 
 1. [安装插件](#安装方式)，然后在 Obsidian 中启用 **Eisenhower Matrix Blocks**。
-2. 打开一篇可编辑的 Markdown 笔记，把光标放到需要插入矩阵的位置。
-3. 点击左侧边栏的网格图标，或在命令面板运行 **Eisenhower Matrix Blocks：在当前光标处插入四象限**。
-4. 在实时预览或阅读视图中使用渲染后的矩阵。
+2. 打开一篇可编辑的 Markdown 笔记，将光标放在需要插入矩阵的位置。
+3. 点击左侧功能区中的网格图标，或在命令面板中运行 **Eisenhower Matrix Blocks：在当前光标处插入四象限**。
+4. 切换到实时预览或阅读视图，即可使用渲染后的矩阵。
 
-每次插入都会生成一个新的独立矩阵 ID。如果要在同一篇笔记中再放一个矩阵，请再次运行插入命令。
+每次执行插入命令都会新建一张矩阵，并为它分配独立 ID。需要在同一篇笔记中加入第二张矩阵时，再执行一次命令即可。
 
 ## 安装方式
 
-Eisenhower Matrix Blocks 尚未被 Obsidian Community Plugins 正式收录。在通过审核前，可以使用 BRAT 或 GitHub Release 安装。
+插件目前尚未正式上架 Obsidian 社区插件市场。在审核通过前，可以通过 BRAT 或 GitHub Release 安装。
 
-### 使用 BRAT
+### 通过 BRAT 安装
 
 1. 安装社区插件 [BRAT](https://github.com/TfTHacker/obsidian42-brat)。
-2. 选择 **Add beta plugin**。
+2. 在 BRAT 中选择 **Add beta plugin**。
 3. 输入 `AngusK97/obsidian-eisenhower-matrix-blocks`。
-4. 在 Obsidian 的第三方插件设置中启用 **Eisenhower Matrix Blocks**。
+4. 打开 Obsidian 的 **设置 → 第三方插件**，启用 **Eisenhower Matrix Blocks**。
 
 ### 手动安装
 
-1. 从[最新 Release](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/latest)下载 `main.js`、`manifest.json` 和 `styles.css`。
-2. 创建 `<Vault>/.obsidian/plugins/eisenhower-matrix-blocks/` 目录。
-3. 把三个文件复制到该目录。
-4. 重新加载 Obsidian，然后启用 **Eisenhower Matrix Blocks**。
+1. 打开[最新版本页面](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/latest)，下载 `main.js`、`manifest.json` 和 `styles.css`。
+2. 在 Obsidian 库中创建 `.obsidian/plugins/eisenhower-matrix-blocks/` 文件夹。
+3. 将下载的三个文件放入该文件夹。
+4. 重新加载 Obsidian，然后在第三方插件列表中启用 **Eisenhower Matrix Blocks**。
 
-## 与其他任务方式有什么不同
+## 为什么不是全局任务面板
 
-许多任务工具会把任务集中到全局数据库或独立页面中。Eisenhower Matrix Blocks 把数据归属边界保留在笔记内部：
+不少任务插件会把整个库中的任务汇总到数据库或独立页面。Eisenhower Matrix Blocks 则把每篇笔记作为独立的数据范围：
 
-- 项目笔记可以拥有自己的矩阵和完成记录。
-- 同一篇笔记可以包含多个互不影响的矩阵。
-- 复制矩阵代码块就会复制数据，删除代码块就会删除该矩阵。
-- 不需要插件专用的全局任务文件。
-- 每次操作只修改当前矩阵，并保留周围正文、frontmatter、callout、代码和同文件中的其他矩阵。
-- 插件不发送网络请求，也不收集遥测数据。
+- 每篇项目笔记都可以拥有自己的矩阵和完成记录。
+- 同一篇笔记可以放置多张互不影响的矩阵。
+- 复制矩阵代码块就会连同数据一起复制；删除代码块也会删除对应矩阵。
+- 不需要维护插件专用的全局任务文件。
+- 操作矩阵时，只会更新当前代码块；正文、属性、Callout 块、其他代码和同文件中的其他矩阵都会原样保留。
+- 插件完全在本地运行，不发送网络请求，也不收集遥测数据。
 
-## 核心工作流
+## 可以做什么
 
-| 工作流 | 行为 |
+| 操作 | 说明 |
 |---|---|
-| 添加 | 直接向重要且紧急、重要不紧急、紧急不重要或不重要不紧急象限添加任务。 |
-| 编辑 | 点击任务标题即可编辑，不需要打开其他页面。 |
-| 移动 | 所有设备都可以使用任务菜单；桌面端还可以在象限之间拖动。 |
-| 完成 | 勾选任务后，它会进入统一的已完成列表并记录准确完成时间。 |
-| 恢复 | 取消勾选已完成任务，它会回到原来的象限。 |
-| 筛选 | 按来源象限，以及今天、近 7 天、近 30 天或自定义时间段筛选完成记录。 |
-| 改名 | 每个嵌入式矩阵都可以拥有自己的标题，默认标题为 `Matrix`。 |
+| 添加 | 直接在“重要且紧急”“重要不紧急”“紧急不重要”或“不重要不紧急”象限中添加任务。 |
+| 编辑 | 单击任务标题即可原地修改内容。 |
+| 移动 | 桌面端和手机端都可以通过任务菜单切换象限；桌面端还支持直接拖拽。 |
+| 完成 | 勾选任务后，它会移入统一的已完成列表，并记录具体完成时间。 |
+| 恢复 | 取消勾选已完成任务后，任务会回到完成前所在的象限。 |
+| 筛选 | 可以按来源象限，以及今天、近 7 天、近 30 天或自定义时间段筛选完成记录。 |
+| 改名 | 每张矩阵都可以单独设置标题；默认标题为 `Matrix`。 |
 
-## 由 Markdown 保存
+## 所有数据都在 Markdown 里
 
-![矩阵界面与可读 Markdown 源码的对照](docs/assets/markdown-source.png)
+![矩阵界面与 Markdown 源码对照](docs/assets/markdown-source.png)
 
-笔记中的 `eisenhower-matrix-blocks` 代码块保存了矩阵的全部状态：
+一张矩阵的完整状态都保存在笔记中的 `eisenhower-matrix-blocks` 代码块里：
 
 ````markdown
 ```eisenhower-matrix-blocks
@@ -96,63 +96,63 @@ Eisenhower Matrix Blocks 尚未被 Obsidian Community Plugins 正式收录。在
 ```
 ````
 
-源码中的可见标题是稳定的存储标记。实际渲染界面会根据插件设置显示中文或英文。
+代码块中的这些标题是固定的存储标记。矩阵渲染后显示中文还是英文，取决于插件的界面语言设置。
 
-隐藏的 Markdown 注释保存稳定任务 ID、来源象限、顺序、创建时间和准确完成时间。建议使用插入命令创建矩阵，不要手动编写元数据。
+隐藏的 Markdown 注释用于保存任务 ID、所属象限、排序、创建时间和完成时间。建议通过插入命令创建矩阵，并使用界面操作任务，不要手动编写这些元数据。
 
-## 数据与多端同步
+## 同步与数据安全
 
-插件没有全局任务数据库，矩阵源码就是完整数据。
+插件没有单独的任务数据库。矩阵代码块本身就是全部数据。
 
-- Obsidian Sync、Remotely Save 和 Git 可以把矩阵当作普通笔记内容同步。
-- 多台设备同时离线编辑时，仍然遵循所选同步工具自身的冲突处理方式。
-- 每次本地操作都会重新读取最新笔记，并通过 Obsidian 的原子 Vault API 修改当前矩阵。
-- 同一篇笔记中出现重复矩阵 ID 时，插件会停止写入以避免歧义；不同笔记可以安全地使用相同 ID。
-- 删除矩阵代码块等于删除该矩阵，因此仍然建议保留笔记历史或备份。
+- 使用 Obsidian Sync、Remotely Save 或 Git 同步笔记时，矩阵会像其他 Markdown 内容一样随笔记同步。
+- 如果多台设备同时离线修改同一篇笔记，冲突仍由所使用的同步工具处理。
+- 每次操作前，插件都会读取最新的笔记内容，并通过 Obsidian Vault API 只更新当前矩阵。
+- 同一篇笔记中如果出现重复的矩阵 ID，插件会停止写入，避免修改错矩阵；不同笔记可以安全地使用相同 ID。
+- 删除矩阵代码块就等于删除这张矩阵，因此建议保留笔记历史或定期备份。
 
-界面语言保存在插件本地的 `data.json` 中，与矩阵数据分离。切换语言不会重写笔记。
+界面语言保存在插件自己的 `data.json` 中，与矩阵数据分开。切换语言不会改写笔记内容；该设置能否在设备间同步，取决于你的同步工具是否包含 `.obsidian` 配置目录。
 
-## 手机与界面语言
+## 手机端与语言设置
 
-矩阵会在 Obsidian Mobile 的窄屏中使用响应式布局。移动端无法使用桌面拖放时，可以通过任务菜单移动任务。
+在 Obsidian Mobile 中，四个象限会根据屏幕宽度自动改为单列布局。手机端无法拖动任务时，可以通过任务菜单切换象限。
 
-打开 **设置 → Eisenhower Matrix Blocks → 界面语言**，选择 **中文** 或 **English**。标题、菜单、筛选器、控件、日期、命令和提示会立即切换，矩阵代码块不会被重写。
+打开 **设置 → Eisenhower Matrix Blocks → 界面语言**，即可选择 **中文** 或 **English**。切换后，标题、菜单、筛选器、日期、命令和提示会立即更新，但不会改动矩阵代码块。
 
-## 兼容与升级
+## 旧版本兼容
 
-- 改名前创建的 `quadrant-tasks` 代码块仍然可以正常读取和编辑。
-- 1.1 版本的全局 Markdown 数据会在创建私人备份后原地迁移为独立矩阵。
-- 1.0 版本的 JSON 数据会在创建私人备份后插入旧任务笔记。
-- 私人备份只保存在当前插件目录，不会进入 Release 附件。
-- 旧的全局页面和全局任务文件设置已不再提供。
+- 使用旧插件名称创建的 `quadrant-tasks` 代码块仍然可以正常读取和编辑。
+- 从 1.1 版本升级时，原全局 Markdown 任务会在备份后迁移为笔记中的独立矩阵。
+- 从 1.0 版本升级时，原 JSON 任务会在备份后写入旧任务笔记中的独立矩阵。
+- 迁移备份只保存在当前插件目录中，不会包含在 GitHub Release 的安装文件里。
+- 新版本不再提供旧的全局任务页面和全局任务文件设置。
 
 ## 常见问题
 
-### 同一篇笔记可以放多个矩阵吗？
+### 同一篇笔记可以放多张矩阵吗？
 
-可以。每创建一个新矩阵都应运行一次插入命令，以获得独立的矩阵 ID。
+可以。每次需要新矩阵时都运行一次插入命令，这样每张矩阵都会获得独立 ID。
 
-### 任务会在多台设备间同步吗？
+### 任务会在不同设备间同步吗？
 
-矩阵数据保存在笔记中，因此会跟随笔记同步。界面语言等插件设置单独保存，是否同步取决于同步工具是否包含 Obsidian 配置文件。
+会。矩阵数据保存在笔记中，因此会随笔记一起同步。界面语言等插件设置单独保存在 `.obsidian` 目录中，是否同步取决于同步工具的配置。
 
-### 插件会扫描整个 Vault 的任务吗？
+### 插件会扫描整个库中的任务吗？
 
-不会。插件只处理明确插入的矩阵代码块，不会建立全局任务索引。
+不会。插件只处理明确插入的矩阵代码块，不会扫描整个库，也不会建立全局任务索引。
 
-### 可以手动修改 Markdown 吗？
+### 可以直接编辑 Markdown 源码吗？
 
-格式是可读的，但推荐使用插入命令和可视化控件，因为它们会维护 ID 和时间戳。遇到损坏或有歧义的内容时，插件会拒绝危险写入。
+可以阅读和手动修改，但更建议使用插入命令和矩阵界面，因为它们会自动维护任务 ID 与时间戳。如果代码块内容不完整、格式错误或存在重复 ID，插件会停止写入，以免破坏数据。
 
-### 离线可以使用吗？
+### 没有网络也能使用吗？
 
-可以。插件完全在本地运行，不发送网络请求。
+可以。插件完全在本地运行，本身不需要联网。
 
 ## 参与贡献
 
-欢迎提交 Bug 和功能建议。请使用虚构或经过清理的示例，不要上传完整的私人 Vault。
+欢迎提交问题报告和功能建议。示例内容请使用虚构数据或先做匿名处理，不要上传完整的私人 Obsidian 库。
 
-开发环境、兼容要求、隐私规则和验证清单请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。
+开发环境、兼容要求、隐私规则和提交前检查，请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ```bash
 npm ci
