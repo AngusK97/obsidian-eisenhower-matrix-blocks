@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.2 - 2026-07-23
+
+- Use full English quadrant names and `Completed` as the canonical headings stored in Markdown blocks.
+- Continue reading earlier Chinese and English action headings, then normalize them only when a matrix is edited.
+
 ## 2.2.1 - 2026-07-23
 
 - Use urgency-and-importance quadrant names in completed-task tags, filters, move menus, and add-task labels.

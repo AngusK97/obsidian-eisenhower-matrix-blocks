@@ -43,6 +43,33 @@ test("board source serializes deterministically and round trips", () => {
 	assert.deepEqual(parsed.data, data);
 });
 
+test("Chinese storage headings remain readable and normalize to English on mutation", () => {
+	const data = boardData("task-legacy-heading", "兼容任务");
+	const english = renderBoardCodeBlock("board-heading-compat", data);
+	const chinese = english
+		.replace("## Important and urgent", "## 立即做")
+		.replace("## Important, not urgent", "## 安排")
+		.replace("## Urgent, not important", "## 委派")
+		.replace("## Neither important nor urgent", "## 舍弃")
+		.replace("## Completed", "## 已完成");
+
+	assert.deepEqual(readBoardFromDocument(chinese, "board-heading-compat").data, data);
+
+	const updated = mutateBoardDocument(chinese, "board-heading-compat", (draft) =>
+		addTask(draft, "New task", "schedule", { idFactory: () => "task-new-heading" }),
+	).content;
+	assert.match(updated, /## Important and urgent/);
+	assert.match(updated, /## Important, not urgent/);
+	assert.match(updated, /## Urgent, not important/);
+	assert.match(updated, /## Neither important nor urgent/);
+	assert.match(updated, /## Completed/);
+	assert.doesNotMatch(updated, /## (立即做|安排|委派|舍弃|已完成)/);
+	assert.deepEqual(
+		readBoardFromDocument(updated, "board-heading-compat").data.tasks.map((task) => task.id).sort(),
+		["task-legacy-heading", "task-new-heading"],
+	);
+});
+
 test("new blocks use the renamed language while legacy blocks remain editable", () => {
 	const current = renderBoardCodeBlock("board-compatible", createEmptyData());
 	assert.ok(current.startsWith(`\`\`\`${BOARD_LANGUAGE}\n`));

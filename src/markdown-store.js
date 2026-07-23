@@ -8,18 +8,32 @@ const META_PREFIX = "<!-- quadrant-task ";
 const META_SUFFIX = " -->";
 
 const SECTION_TO_QUADRANT = {
+	"## Important and urgent": "do",
+	"## Do now": "do",
 	"## 立即做": "do",
+	"## 重要且紧急": "do",
+	"## Important, not urgent": "schedule",
+	"## Schedule": "schedule",
 	"## 安排": "schedule",
+	"## 重要不紧急": "schedule",
+	"## Urgent, not important": "delegate",
+	"## Delegate": "delegate",
 	"## 委派": "delegate",
+	"## 紧急不重要": "delegate",
+	"## Neither important nor urgent": "eliminate",
+	"## Eliminate": "eliminate",
 	"## 舍弃": "eliminate",
+	"## 不重要不紧急": "eliminate",
 };
 
 const QUADRANT_SECTIONS = [
-	["do", "立即做"],
-	["schedule", "安排"],
-	["delegate", "委派"],
-	["eliminate", "舍弃"],
+	["do", "Important and urgent"],
+	["schedule", "Important, not urgent"],
+	["delegate", "Urgent, not important"],
+	["eliminate", "Neither important nor urgent"],
 ];
+
+const COMPLETED_SECTIONS = new Set(["## Completed", "## 已完成"]);
 
 function defaultIdFactory() {
 	if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
@@ -149,7 +163,7 @@ function parseTaskMarkdown(content, options = {}) {
 			completedSection = false;
 			continue;
 		}
-		if (trimmed === "## 已完成") {
+		if (COMPLETED_SECTIONS.has(trimmed)) {
 			currentQuadrant = null;
 			completedSection = true;
 			continue;
@@ -231,7 +245,7 @@ function renderManagedBlock(data, newline = "\n") {
 		lines.push("");
 	}
 
-	lines.push("## 已完成");
+	lines.push("## Completed");
 	const completed = normalized.tasks
 		.filter((task) => task.completedAt)
 		.sort((left, right) => Date.parse(right.completedAt) - Date.parse(left.completedAt));

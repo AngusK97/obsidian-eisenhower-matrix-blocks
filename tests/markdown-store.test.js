@@ -34,6 +34,12 @@ test("serializes deterministically and round trips Chinese tasks", () => {
 	const first = renderManagedBlock(data);
 	const second = renderManagedBlock(data);
 	assert.equal(first, second);
+	assert.match(first, /## Important and urgent/);
+	assert.match(first, /## Important, not urgent/);
+	assert.match(first, /## Urgent, not important/);
+	assert.match(first, /## Neither important nor urgent/);
+	assert.match(first, /## Completed/);
+	assert.doesNotMatch(first, /## (立即做|安排|委派|舍弃|已完成)/);
 
 	const parsed = parseTaskMarkdown(first);
 	assert.deepEqual(parsed.issues, []);
@@ -92,6 +98,8 @@ test("manual task lines receive stable metadata on the next write", () => {
 	assert.equal(parsed.data.tasks[0].id, "manual-1");
 	const rewritten = updateMarkdownDocument(markdown, parsed.data);
 	assert.match(rewritten, /"id":"manual-1"/);
+	assert.match(rewritten, /## Important and urgent/);
+	assert.doesNotMatch(rewritten, /## 立即做/);
 });
 
 test("checked tasks preserve their source quadrant and exact completion time", () => {

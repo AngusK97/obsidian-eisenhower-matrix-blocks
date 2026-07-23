@@ -190,17 +190,30 @@ var require_markdown_store = __commonJS({
     var META_PREFIX = "<!-- quadrant-task ";
     var META_SUFFIX = " -->";
     var SECTION_TO_QUADRANT = {
+      "## Important and urgent": "do",
+      "## Do now": "do",
       "## \u7ACB\u5373\u505A": "do",
+      "## \u91CD\u8981\u4E14\u7D27\u6025": "do",
+      "## Important, not urgent": "schedule",
+      "## Schedule": "schedule",
       "## \u5B89\u6392": "schedule",
+      "## \u91CD\u8981\u4E0D\u7D27\u6025": "schedule",
+      "## Urgent, not important": "delegate",
+      "## Delegate": "delegate",
       "## \u59D4\u6D3E": "delegate",
-      "## \u820D\u5F03": "eliminate"
+      "## \u7D27\u6025\u4E0D\u91CD\u8981": "delegate",
+      "## Neither important nor urgent": "eliminate",
+      "## Eliminate": "eliminate",
+      "## \u820D\u5F03": "eliminate",
+      "## \u4E0D\u91CD\u8981\u4E0D\u7D27\u6025": "eliminate"
     };
     var QUADRANT_SECTIONS = [
-      ["do", "\u7ACB\u5373\u505A"],
-      ["schedule", "\u5B89\u6392"],
-      ["delegate", "\u59D4\u6D3E"],
-      ["eliminate", "\u820D\u5F03"]
+      ["do", "Important and urgent"],
+      ["schedule", "Important, not urgent"],
+      ["delegate", "Urgent, not important"],
+      ["eliminate", "Neither important nor urgent"]
     ];
+    var COMPLETED_SECTIONS = /* @__PURE__ */ new Set(["## Completed", "## \u5DF2\u5B8C\u6210"]);
     function defaultIdFactory() {
       if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
         return globalThis.crypto.randomUUID();
@@ -310,7 +323,7 @@ var require_markdown_store = __commonJS({
           completedSection = false;
           continue;
         }
-        if (trimmed === "## \u5DF2\u5B8C\u6210") {
+        if (COMPLETED_SECTIONS.has(trimmed)) {
           currentQuadrant = null;
           completedSection = true;
           continue;
@@ -384,7 +397,7 @@ var require_markdown_store = __commonJS({
         }
         lines.push("");
       }
-      lines.push("## \u5DF2\u5B8C\u6210");
+      lines.push("## Completed");
       const completed = normalized.tasks.filter((task) => task.completedAt).sort((left, right) => Date.parse(right.completedAt) - Date.parse(left.completedAt));
       for (const task of completed) {
         lines.push(`- [x] ${task.title} #quadrant/${task.quadrant} \u2705 ${formatLocalDate(task.completedAt)}`);

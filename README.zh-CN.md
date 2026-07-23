@@ -81,21 +81,21 @@
 ```eisenhower-matrix-blocks
 <!-- quadrant-board {"id":"board-example","version":2,"title":"Launch Week"} -->
 
-## 立即做
+## Important and urgent
 - [ ] Fix checkout regression #quadrant/do
   <!-- quadrant-task {"id":"task-example","quadrant":"do","createdAt":"2026-07-20T08:00:00.000Z","completedAt":null,"order":0} -->
 
-## 安排
+## Important, not urgent
 
-## 委派
+## Urgent, not important
 
-## 舍弃
+## Neither important nor urgent
 
-## 已完成
+## Completed
 ```
 ````
 
-代码块中的这些标题是固定的存储标记。矩阵渲染后显示中文还是英文，取决于插件的界面语言设置。
+代码块中的英文标题是固定的存储标记。矩阵渲染后显示中文还是英文，取决于插件的界面语言设置。
 
 隐藏的 Markdown 注释用于保存任务所属象限、排序、创建时间和完成时间。建议通过插入命令创建矩阵，并使用界面操作任务，不要手动编写这些元数据。
 
