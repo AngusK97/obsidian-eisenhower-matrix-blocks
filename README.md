@@ -136,6 +136,8 @@ Bug reports and feature requests are welcome. Please use fictional or sanitized 
 
 See [CONTRIBUTING.md](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/blob/main/CONTRIBUTING.md) for the development setup, compatibility requirements, privacy rules, and verification checklist.
 
+Project maintainers can use the [cross-machine maintainer handbook](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/blob/main/MAINTAINING.md) to rebuild the complete development and release environment on a new computer.
+
 ```bash
 npm ci
 npm run verify
