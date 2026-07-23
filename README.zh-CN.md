@@ -136,8 +136,6 @@
 
 开发环境、兼容要求、隐私规则和提交前检查，请参阅 [CONTRIBUTING.md](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/blob/main/CONTRIBUTING.md)。
 
-项目维护者如需在新电脑上重新搭建开发、测试和发布环境，请参阅[跨机器维护手册](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/blob/main/MAINTAINING.md)。
-
 ```bash
 npm ci
 npm run verify

@@ -2,8 +2,6 @@
 
 Thanks for helping improve Eisenhower Matrix Blocks. Changes should preserve note-local ownership, readable Markdown storage, and compatibility with existing boards.
 
-For cross-machine setup, local Obsidian installation, release automation, and recovery procedures, see the [maintainer handbook](MAINTAINING.md).
-
 ## Development setup
 
 Requirements:
