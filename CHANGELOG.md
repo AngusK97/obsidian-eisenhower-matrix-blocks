@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.3 - 2026-07-23
+
+- Use absolute repository URLs so screenshots and language links work on the Obsidian Community listing.
+- Add GitHub build provenance attestations for every release asset.
+
 ## 2.2.2 - 2026-07-23
 
 - Use full English quadrant names and `Completed` as the canonical headings stored in Markdown blocks.
