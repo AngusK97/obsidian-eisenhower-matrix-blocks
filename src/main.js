@@ -1,5 +1,6 @@
 "use strict";
 
+const obsidian = require("obsidian");
 const {
 	MarkdownRenderChild,
 	MarkdownView,
@@ -12,7 +13,7 @@ const {
 	TFile,
 	normalizePath,
 	setIcon,
-} = require("obsidian");
+} = obsidian;
 const {
 	QUADRANTS,
 	addTask,
@@ -42,7 +43,7 @@ const {
 	renderBoardCodeBlock,
 	replaceLegacyManagedBlock,
 } = require("./board-store");
-const { normalizeLanguage, translate } = require("./i18n");
+const { normalizeLanguageMode, resolveLanguage, translate } = require("./i18n");
 const { parseTaskMarkdown } = require("./markdown-store");
 
 const SETTINGS_VERSION = 2;
@@ -60,6 +61,9 @@ const QUADRANT_META = {
 };
 
 const PERIODS = ["all", "today", "7d", "30d", "custom"];
+const getAppLanguage = typeof obsidian.getLanguage === "function"
+	? obsidian.getLanguage
+	: () => globalThis.document?.documentElement?.lang || "en";
 
 function cloneData(data) {
 	return normalizeData(JSON.parse(JSON.stringify(data)));
@@ -450,9 +454,10 @@ class EisenhowerMatrixBlocksSettingTab extends PluginSettingTab {
 			.setDesc(this.plugin.t("settings.languageDescription"))
 			.addDropdown((dropdown) =>
 				dropdown
+					.addOption("auto", this.plugin.t("settings.followObsidian"))
 					.addOption("zh", "中文")
 					.addOption("en", "English")
-					.setValue(this.plugin.language)
+					.setValue(this.plugin.languageMode)
 					.onChange(async (value) => {
 						await this.plugin.setLanguage(value);
 						this.display();
@@ -493,7 +498,11 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 	}
 
 	get language() {
-		return normalizeLanguage(this.settings?.language);
+		return resolveLanguage(this.languageMode, getAppLanguage());
+	}
+
+	get languageMode() {
+		return normalizeLanguageMode(this.settings?.language);
 	}
 
 	t(key, variables) {
@@ -514,15 +523,15 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 
 	async loadPluginSettings() {
 		const raw = await this.loadData();
-		this.settings = { language: normalizeLanguage(raw?.language) };
+		this.settings = { language: normalizeLanguageMode(raw?.language) };
 	}
 
 	async setLanguage(value) {
-		const language = normalizeLanguage(value);
-		if (language === this.language) return;
-		this.settings = { ...this.settings, language };
+		const languageMode = normalizeLanguageMode(value);
+		if (languageMode === this.languageMode) return;
+		this.settings = { ...this.settings, language: languageMode };
 		const raw = await this.loadData();
-		await this.saveData({ ...(raw || {}), language });
+		await this.saveData({ ...(raw || {}), language: languageMode });
 		if (this.insertCommand) this.insertCommand.name = this.t("command.insert");
 		if (this.ribbonEl) {
 			this.ribbonEl.setAttribute("aria-label", this.t("ribbon.insert"));
@@ -657,7 +666,7 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 		const raw = await this.loadData();
 		if (raw?.settingsVersion === SETTINGS_VERSION) return;
 		if (!raw) {
-			await this.saveData({ settingsVersion: SETTINGS_VERSION, language: this.language });
+			await this.saveData({ settingsVersion: SETTINGS_VERSION, language: this.languageMode });
 			return;
 		}
 
@@ -719,7 +728,7 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 			}
 			await this.saveData({
 				settingsVersion: SETTINGS_VERSION,
-				language: normalizeLanguage(raw.language ?? this.language),
+				language: normalizeLanguageMode(raw.language),
 				migration: {
 					fromVersion: Array.isArray(raw.tasks) ? "1.0.0" : "1.1.0",
 					completedAt: new Date().toISOString(),

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.4 - 2026-07-23
+
+- Make new installations follow the Obsidian interface language by default while retaining explicit Chinese and English overrides.
+- Replace pre-release installation guidance with the official Community Plugins workflow.
+
 ## 2.2.3 - 2026-07-23
 
 - Use absolute repository URLs so screenshots and language links work on the Obsidian Community listing.

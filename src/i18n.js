@@ -1,7 +1,9 @@
 "use strict";
 
 const DEFAULT_LANGUAGE = "zh";
+const DEFAULT_LANGUAGE_MODE = "auto";
 const SUPPORTED_LANGUAGES = new Set(["zh", "en"]);
+const SUPPORTED_LANGUAGE_MODES = new Set([DEFAULT_LANGUAGE_MODE, ...SUPPORTED_LANGUAGES]);
 
 const TRANSLATIONS = {
 	zh: {
@@ -63,7 +65,8 @@ const TRANSLATIONS = {
 		"notice.migrationComplete": "旧的全局任务已迁移为 Markdown 文件中的独立四象限",
 		"notice.migrationFailed": "旧任务迁移失败，请检查控制台和备份文件。",
 		"settings.language": "界面语言",
-		"settings.languageDescription": "选择四象限控件、菜单和提示信息所使用的语言。",
+		"settings.languageDescription": "选择跟随 Obsidian，或指定四象限控件、菜单和提示信息所使用的语言。",
+		"settings.followObsidian": "跟随 Obsidian",
 	},
 	en: {
 		"quadrant.do.action": "Do now",
@@ -124,12 +127,25 @@ const TRANSLATIONS = {
 		"notice.migrationComplete": "The global task board was migrated to an independent Markdown matrix",
 		"notice.migrationFailed": "Legacy task migration failed. Check the console and backup files.",
 		"settings.language": "Interface language",
-		"settings.languageDescription": "Choose the language used by matrix controls, menus, and messages.",
+		"settings.languageDescription": "Follow Obsidian or choose the language used by matrix controls, menus, and messages.",
+		"settings.followObsidian": "Follow Obsidian",
 	},
 };
 
 function normalizeLanguage(value) {
-	return SUPPORTED_LANGUAGES.has(value) ? value : DEFAULT_LANGUAGE;
+	const baseLanguage = String(value || "").toLowerCase().split("-")[0];
+	return SUPPORTED_LANGUAGES.has(baseLanguage) ? baseLanguage : DEFAULT_LANGUAGE;
+}
+
+function normalizeLanguageMode(value) {
+	return SUPPORTED_LANGUAGE_MODES.has(value) ? value : DEFAULT_LANGUAGE_MODE;
+}
+
+function resolveLanguage(mode, appLanguage) {
+	const normalizedMode = normalizeLanguageMode(mode);
+	if (normalizedMode !== DEFAULT_LANGUAGE_MODE) return normalizedMode;
+	const appBaseLanguage = String(appLanguage || "en").toLowerCase().split("-")[0];
+	return appBaseLanguage === "zh" ? "zh" : "en";
 }
 
 function translate(language, key, variables = {}) {
@@ -142,6 +158,9 @@ function translate(language, key, variables = {}) {
 
 module.exports = {
 	DEFAULT_LANGUAGE,
+	DEFAULT_LANGUAGE_MODE,
 	normalizeLanguage,
+	normalizeLanguageMode,
+	resolveLanguage,
 	translate,
 };

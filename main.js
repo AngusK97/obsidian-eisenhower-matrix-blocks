@@ -693,7 +693,9 @@ var require_i18n = __commonJS({
   "src/i18n.js"(exports2, module2) {
     "use strict";
     var DEFAULT_LANGUAGE = "zh";
+    var DEFAULT_LANGUAGE_MODE = "auto";
     var SUPPORTED_LANGUAGES = /* @__PURE__ */ new Set(["zh", "en"]);
+    var SUPPORTED_LANGUAGE_MODES = /* @__PURE__ */ new Set([DEFAULT_LANGUAGE_MODE, ...SUPPORTED_LANGUAGES]);
     var TRANSLATIONS = {
       zh: {
         "quadrant.do.action": "\u7ACB\u5373\u505A",
@@ -754,7 +756,8 @@ var require_i18n = __commonJS({
         "notice.migrationComplete": "\u65E7\u7684\u5168\u5C40\u4EFB\u52A1\u5DF2\u8FC1\u79FB\u4E3A Markdown \u6587\u4EF6\u4E2D\u7684\u72EC\u7ACB\u56DB\u8C61\u9650",
         "notice.migrationFailed": "\u65E7\u4EFB\u52A1\u8FC1\u79FB\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u63A7\u5236\u53F0\u548C\u5907\u4EFD\u6587\u4EF6\u3002",
         "settings.language": "\u754C\u9762\u8BED\u8A00",
-        "settings.languageDescription": "\u9009\u62E9\u56DB\u8C61\u9650\u63A7\u4EF6\u3001\u83DC\u5355\u548C\u63D0\u793A\u4FE1\u606F\u6240\u4F7F\u7528\u7684\u8BED\u8A00\u3002"
+        "settings.languageDescription": "\u9009\u62E9\u8DDF\u968F Obsidian\uFF0C\u6216\u6307\u5B9A\u56DB\u8C61\u9650\u63A7\u4EF6\u3001\u83DC\u5355\u548C\u63D0\u793A\u4FE1\u606F\u6240\u4F7F\u7528\u7684\u8BED\u8A00\u3002",
+        "settings.followObsidian": "\u8DDF\u968F Obsidian"
       },
       en: {
         "quadrant.do.action": "Do now",
@@ -815,15 +818,26 @@ var require_i18n = __commonJS({
         "notice.migrationComplete": "The global task board was migrated to an independent Markdown matrix",
         "notice.migrationFailed": "Legacy task migration failed. Check the console and backup files.",
         "settings.language": "Interface language",
-        "settings.languageDescription": "Choose the language used by matrix controls, menus, and messages."
+        "settings.languageDescription": "Follow Obsidian or choose the language used by matrix controls, menus, and messages.",
+        "settings.followObsidian": "Follow Obsidian"
       }
     };
-    function normalizeLanguage2(value) {
-      return SUPPORTED_LANGUAGES.has(value) ? value : DEFAULT_LANGUAGE;
+    function normalizeLanguage(value) {
+      const baseLanguage = String(value || "").toLowerCase().split("-")[0];
+      return SUPPORTED_LANGUAGES.has(baseLanguage) ? baseLanguage : DEFAULT_LANGUAGE;
+    }
+    function normalizeLanguageMode2(value) {
+      return SUPPORTED_LANGUAGE_MODES.has(value) ? value : DEFAULT_LANGUAGE_MODE;
+    }
+    function resolveLanguage2(mode, appLanguage) {
+      const normalizedMode = normalizeLanguageMode2(mode);
+      if (normalizedMode !== DEFAULT_LANGUAGE_MODE) return normalizedMode;
+      const appBaseLanguage = String(appLanguage || "en").toLowerCase().split("-")[0];
+      return appBaseLanguage === "zh" ? "zh" : "en";
     }
     function translate2(language, key, variables = {}) {
       var _a, _b;
-      const normalized = normalizeLanguage2(language);
+      const normalized = normalizeLanguage(language);
       const template = (_b = (_a = TRANSLATIONS[normalized][key]) != null ? _a : TRANSLATIONS[DEFAULT_LANGUAGE][key]) != null ? _b : key;
       return template.replace(
         /\{([A-Za-z0-9_]+)\}/g,
@@ -832,13 +846,17 @@ var require_i18n = __commonJS({
     }
     module2.exports = {
       DEFAULT_LANGUAGE,
-      normalizeLanguage: normalizeLanguage2,
+      DEFAULT_LANGUAGE_MODE,
+      normalizeLanguage,
+      normalizeLanguageMode: normalizeLanguageMode2,
+      resolveLanguage: resolveLanguage2,
       translate: translate2
     };
   }
 });
 
 // src/main.js
+var obsidian = require("obsidian");
 var {
   MarkdownRenderChild,
   MarkdownView,
@@ -851,7 +869,7 @@ var {
   TFile,
   normalizePath,
   setIcon
-} = require("obsidian");
+} = obsidian;
 var {
   QUADRANTS,
   addTask,
@@ -881,7 +899,7 @@ var {
   renderBoardCodeBlock,
   replaceLegacyManagedBlock
 } = require_board_store();
-var { normalizeLanguage, translate } = require_i18n();
+var { normalizeLanguageMode, resolveLanguage, translate } = require_i18n();
 var { parseTaskMarkdown } = require_markdown_store();
 var SETTINGS_VERSION = 2;
 var DEFAULT_MIGRATION_PATH = "Quadrant Tasks.md";
@@ -896,6 +914,10 @@ var QUADRANT_META = {
   eliminate: { icon: "archive" }
 };
 var PERIODS = ["all", "today", "7d", "30d", "custom"];
+var getAppLanguage = typeof obsidian.getLanguage === "function" ? obsidian.getLanguage : () => {
+  var _a, _b;
+  return ((_b = (_a = globalThis.document) == null ? void 0 : _a.documentElement) == null ? void 0 : _b.lang) || "en";
+};
 function cloneData(data) {
   return normalizeData(JSON.parse(JSON.stringify(data)));
 }
@@ -1250,7 +1272,7 @@ var EisenhowerMatrixBlocksSettingTab = class extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     new Setting(containerEl).setName(this.plugin.t("settings.language")).setDesc(this.plugin.t("settings.languageDescription")).addDropdown(
-      (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "English").setValue(this.plugin.language).onChange(async (value) => {
+      (dropdown) => dropdown.addOption("auto", this.plugin.t("settings.followObsidian")).addOption("zh", "\u4E2D\u6587").addOption("en", "English").setValue(this.plugin.languageMode).onChange(async (value) => {
         await this.plugin.setLanguage(value);
         this.display();
       })
@@ -1286,8 +1308,11 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
     this.refreshTimers.clear();
   }
   get language() {
+    return resolveLanguage(this.languageMode, getAppLanguage());
+  }
+  get languageMode() {
     var _a;
-    return normalizeLanguage((_a = this.settings) == null ? void 0 : _a.language);
+    return normalizeLanguageMode((_a = this.settings) == null ? void 0 : _a.language);
   }
   t(key, variables) {
     return translate(this.language, key, variables);
@@ -1304,14 +1329,14 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
   }
   async loadPluginSettings() {
     const raw = await this.loadData();
-    this.settings = { language: normalizeLanguage(raw == null ? void 0 : raw.language) };
+    this.settings = { language: normalizeLanguageMode(raw == null ? void 0 : raw.language) };
   }
   async setLanguage(value) {
-    const language = normalizeLanguage(value);
-    if (language === this.language) return;
-    this.settings = { ...this.settings, language };
+    const languageMode = normalizeLanguageMode(value);
+    if (languageMode === this.languageMode) return;
+    this.settings = { ...this.settings, language: languageMode };
     const raw = await this.loadData();
-    await this.saveData({ ...raw || {}, language });
+    await this.saveData({ ...raw || {}, language: languageMode });
     if (this.insertCommand) this.insertCommand.name = this.t("command.insert");
     if (this.ribbonEl) {
       this.ribbonEl.setAttribute("aria-label", this.t("ribbon.insert"));
@@ -1436,11 +1461,11 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
     }));
   }
   async migrateLegacyStorage() {
-    var _a, _b;
+    var _a;
     const raw = await this.loadData();
     if ((raw == null ? void 0 : raw.settingsVersion) === SETTINGS_VERSION) return;
     if (!raw) {
-      await this.saveData({ settingsVersion: SETTINGS_VERSION, language: this.language });
+      await this.saveData({ settingsVersion: SETTINGS_VERSION, language: this.languageMode });
       return;
     }
     try {
@@ -1503,7 +1528,7 @@ ${renderBoardCodeBlock(LEGACY_BOARD_ID, legacyJson)}
       }
       await this.saveData({
         settingsVersion: SETTINGS_VERSION,
-        language: normalizeLanguage((_b = raw.language) != null ? _b : this.language),
+        language: normalizeLanguageMode(raw.language),
         migration: {
           fromVersion: Array.isArray(raw.tasks) ? "1.0.0" : "1.1.0",
           completedAt: (/* @__PURE__ */ new Date()).toISOString(),

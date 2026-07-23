@@ -33,14 +33,11 @@ Each insertion creates a separate matrix. Run the command again when you want an
 
 ## Installation
 
-Eisenhower Matrix Blocks is not yet listed in Obsidian's Community Plugins browser. Until it is accepted, install it with BRAT or from a release.
+### Community Plugins
 
-### BRAT
-
-1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) community plugin.
-2. Choose **Add beta plugin**.
-3. Enter `AngusK97/obsidian-eisenhower-matrix-blocks`.
-4. Enable **Eisenhower Matrix Blocks** in Obsidian's community plugin settings.
+1. Open **Settings → Community plugins** in Obsidian.
+2. Select **Browse** and search for **Eisenhower Matrix Blocks**.
+3. Select **Install**, then **Enable**.
 
 ### Manual installation
 
@@ -113,7 +110,7 @@ Interface language is stored separately from matrix data. Changing it does not r
 
 The matrix uses a responsive layout on Obsidian Mobile. Task menus provide the movement workflow where desktop drag and drop is unavailable.
 
-Open **Settings → Eisenhower Matrix Blocks → Interface language** and choose **中文** or **English**. The change applies immediately to headings, menus, filters, controls, dates, commands, and notices without rewriting matrix blocks.
+Open **Settings → Eisenhower Matrix Blocks → Interface language** and choose **Follow Obsidian** (the default), **中文**, or **English**. The change applies immediately to headings, menus, filters, controls, dates, commands, and notices without rewriting matrix blocks.
 
 ## Frequently asked questions
 

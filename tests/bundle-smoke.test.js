@@ -12,6 +12,8 @@ const {
 } = require("../src/board-store");
 const { updateMarkdownDocument } = require("../src/markdown-store");
 
+let mockAppLanguage = "en";
+
 class Component {}
 class Plugin extends Component {}
 class MarkdownRenderChild extends Component {
@@ -57,6 +59,7 @@ function loadBuiltPlugin() {
 				PluginSettingTab,
 				Setting,
 				TFile,
+				getLanguage: () => mockAppLanguage,
 				normalizePath,
 				setIcon() {},
 			};
@@ -70,6 +73,28 @@ function loadBuiltPlugin() {
 		Module._load = originalLoad;
 	}
 }
+
+test("new installations follow the Obsidian interface language", async () => {
+	mockAppLanguage = "en";
+	const PluginClass = loadBuiltPlugin();
+	const plugin = new PluginClass();
+	let command = null;
+	plugin.app = {
+		workspace: { onLayoutReady() {} },
+		vault: { on() { return {}; } },
+	};
+	plugin.loadData = async () => null;
+	plugin.registerMarkdownCodeBlockProcessor = () => {};
+	plugin.addCommand = (value) => { command = value; return value; };
+	plugin.addRibbonIcon = () => ({ setAttribute() {} });
+	plugin.addSettingTab = () => {};
+	plugin.registerEvent = () => {};
+	await plugin.onload();
+
+	assert.equal(plugin.languageMode, "auto");
+	assert.equal(plugin.language, "en");
+	assert.equal(command.name, "Insert matrix at cursor");
+});
 
 function createPluginHarness(PluginClass, initialContent) {
 	const file = new TFile("Projects.md");
@@ -164,6 +189,9 @@ test("English settings localize commands and persist without dropping plugin dat
 	assert.equal(plugin.getQuadrantName("do"), "重要且紧急");
 	assert.equal(ribbonAttributes["aria-label"], "插入四象限");
 	assert.equal(renderCount, 1);
+	await plugin.setLanguage("auto");
+	assert.equal(saved.language, "auto");
+	assert.equal(command.name, "Insert matrix at cursor");
 });
 
 test("insert command writes a complete independent board at the cursor", () => {

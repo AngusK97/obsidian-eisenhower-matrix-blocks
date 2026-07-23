@@ -33,14 +33,11 @@
 
 ## 安装方式
 
-插件目前尚未正式上架 Obsidian 社区插件市场。在审核通过前，可以通过 BRAT 或 GitHub Release 安装。
+### 通过社区插件市场安装
 
-### 通过 BRAT 安装
-
-1. 安装社区插件 [BRAT](https://github.com/TfTHacker/obsidian42-brat)。
-2. 在 BRAT 中选择 **Add beta plugin**。
-3. 输入 `AngusK97/obsidian-eisenhower-matrix-blocks`。
-4. 打开 Obsidian 的 **设置 → 第三方插件**，启用 **Eisenhower Matrix Blocks**。
+1. 打开 Obsidian 的 **设置 → 第三方插件**。
+2. 点击 **浏览**，搜索 **Eisenhower Matrix Blocks**。
+3. 点击 **安装**，然后启用插件。
 
 ### 手动安装
 
@@ -113,7 +110,7 @@
 
 在 Obsidian Mobile 中，四个象限会根据屏幕宽度自动改为单列布局。手机端无法拖动任务时，可以通过任务菜单切换象限。
 
-打开 **设置 → Eisenhower Matrix Blocks → 界面语言**，即可选择 **中文** 或 **English**。切换后，标题、菜单、筛选器、日期、命令和提示会立即更新，但不会改动矩阵代码块。
+打开 **设置 → Eisenhower Matrix Blocks → 界面语言**，即可选择默认的 **跟随 Obsidian**、**中文** 或 **English**。切换后，标题、菜单、筛选器、日期、命令和提示会立即更新，但不会改动矩阵代码块。
 
 ## 常见问题
 
