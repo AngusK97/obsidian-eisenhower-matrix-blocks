@@ -8,7 +8,7 @@
 
 **Eisenhower matrices that live inside your Obsidian notes.**
 
-Insert an independent four-quadrant task board anywhere in Markdown, complete tasks in place, and keep a filterable history without a global database.
+Insert an independent four-quadrant task board anywhere in Markdown, complete tasks in place, and keep a filterable history.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/matrix-desktop-dark.png">
@@ -20,7 +20,7 @@ Insert an independent four-quadrant task board anywhere in Markdown, complete ta
 - **Markdown-backed:** tasks, quadrants, ordering, and completion times travel with the note through Obsidian Sync, Remotely Save, or Git.
 - **A complete workflow:** add, edit, move, complete, restore, delete, and filter tasks without leaving the matrix.
 
-The matrix is inserted at the editor cursor and remains part of the note instead of becoming a separate global dashboard.
+The matrix is inserted at the editor cursor and remains part of the note.
 
 ## Quick start
 
@@ -29,7 +29,7 @@ The matrix is inserted at the editor cursor and remains part of the note instead
 3. Click the grid icon in the left ribbon, or run **Eisenhower Matrix Blocks: Insert matrix at cursor** from the command palette.
 4. Use Live Preview or Reading view to work with the rendered matrix.
 
-Each insertion creates a new independent board ID. Use the command again when you want another matrix in the same note.
+Each insertion creates a separate matrix. Run the command again when you want another matrix in the same note.
 
 ## Installation
 
@@ -49,14 +49,13 @@ Eisenhower Matrix Blocks is not yet listed in Obsidian's Community Plugins brows
 3. Copy the three files into that folder.
 4. Reload Obsidian and enable **Eisenhower Matrix Blocks**.
 
-## What makes it different
+## Boards belong to notes
 
-Many task tools collect work into a global database or dedicated view. Eisenhower Matrix Blocks keeps the ownership boundary at the note:
+Each matrix belongs to the note that contains it:
 
 - A project note can own its own matrix and completion history.
 - The same note can contain multiple independent matrices.
 - Copying a matrix block copies the data; deleting the block deletes that matrix.
-- No plugin-specific global task file is required.
 - Every operation updates only the selected matrix block and preserves surrounding prose, frontmatter, callouts, code, and sibling matrices.
 - The plugin makes no network requests and collects no telemetry.
 
@@ -98,19 +97,17 @@ The note contains the complete board state in an `eisenhower-matrix-blocks` code
 
 The visible headings inside the source are stable storage markers. The rendered interface follows the Chinese or English language selected in plugin settings.
 
-Task metadata is stored in hidden Markdown comments so the plugin can preserve stable IDs, source quadrants, ordering, creation times, and exact completion times. Use the insertion command instead of manually creating metadata.
+Hidden Markdown comments preserve source quadrants, ordering, creation times, and completion times. Use the insertion command and matrix controls to keep this data valid.
 
 ## Storage and sync
 
-There is no global task database. A matrix's source text is its complete data store.
+All data for a matrix is stored in its Markdown block.
 
 - Obsidian Sync, Remotely Save, and Git can sync matrices as ordinary note content.
 - Multiple offline edits still follow the conflict behavior of the selected sync provider.
-- The plugin re-reads the latest note and uses Obsidian's atomic Vault API for every local mutation.
-- Duplicate board IDs in one note are treated as ambiguous and blocked from writing; the same ID may exist safely in different notes.
 - Deleting a matrix code block deletes that matrix, so note history and backups remain important.
 
-The interface language is stored in the plugin's local `data.json`; it is separate from matrix data and changing it does not rewrite notes.
+Interface language is stored separately from matrix data. Changing it does not rewrite notes and may need to be configured on each device, depending on your sync settings.
 
 ## Mobile and languages
 
@@ -118,31 +115,19 @@ The matrix uses a responsive layout on Obsidian Mobile. Task menus provide the m
 
 Open **Settings → Eisenhower Matrix Blocks → Interface language** and choose **中文** or **English**. The change applies immediately to headings, menus, filters, controls, dates, commands, and notices without rewriting matrix blocks.
 
-## Compatibility and upgrades
-
-- Existing `quadrant-tasks` code blocks remain readable and editable after the plugin rename.
-- Version 1.1 global Markdown storage is migrated in place to an independent matrix after a private backup is created.
-- Version 1.0 JSON storage is inserted into the legacy task note after a private backup is created.
-- Private backups stay under the active plugin directory and are never included in release assets.
-- The old global view and global task-file setting are no longer part of the plugin.
-
 ## Frequently asked questions
 
 ### Can I put more than one matrix in a note?
 
-Yes. Run the insertion command for every new matrix so each one receives a unique board ID.
+Yes. Run the insertion command again whenever you need another matrix.
 
 ### Will my tasks sync between devices?
 
 Matrix data lives in the note, so it follows the note through your sync provider. Plugin settings such as interface language are separate and depend on whether that provider syncs Obsidian configuration files.
 
-### Does the plugin scan tasks from my entire vault?
-
-No. It operates only on explicit matrix blocks and does not build a global task index.
-
 ### Can I edit the Markdown manually?
 
-The format is readable, but the insertion command and visual controls are recommended because they maintain IDs and timestamps. The plugin refuses unsafe writes when managed content is malformed or ambiguous.
+The format is readable, but the insertion command and matrix controls are recommended because they maintain task metadata. If a matrix block is incomplete or malformed, fix its source before continuing.
 
 ### Does it work without an internet connection?
 
