@@ -1,0 +1,110 @@
+name: Bug report
+description: Report a reproducible problem with Eisenhower Matrix Blocks
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Use a minimal demo note where possible and remove private task text, paths, and account information before attaching files or screenshots.
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      placeholder: "For example: 2.2.1"
+    validations:
+      required: true
+  - type: input
+    id: obsidian-version
+    attributes:
+      label: Obsidian version
+      placeholder: "For example: 1.9.12"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - iOS
+        - Android
+    validations:
+      required: true
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system version
+      placeholder: "For example: Windows 11 24H2 or Android 16"
+    validations:
+      required: true
+  - type: dropdown
+    id: view-mode
+    attributes:
+      label: Obsidian view mode
+      options:
+        - Live Preview
+        - Reading view
+        - Source mode
+        - More than one mode
+    validations:
+      required: true
+  - type: dropdown
+    id: interface-language
+    attributes:
+      label: Plugin interface language
+      options:
+        - English
+        - Chinese
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest reliable sequence that triggers the problem.
+      placeholder: |
+        1. Open a note containing...
+        2. Click...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Add sanitized console errors, screenshots, or a minimal matrix block. Do not upload your complete vault.
+  - type: dropdown
+    id: sync
+    attributes:
+      label: Was a sync tool involved?
+      options:
+        - No
+        - Obsidian Sync
+        - Remotely Save
+        - Git
+        - Another sync tool
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: I removed private task text, credentials, personal paths, and unrelated vault content from everything attached to this issue.
+          required: true

@@ -1,28 +1,39 @@
+<p align="right"><strong>English</strong> | <a href="README.zh-CN.md">简体中文</a></p>
+
 # Eisenhower Matrix Blocks for Obsidian
 
 [![CI](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/actions/workflows/ci.yml/badge.svg)](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/AngusK97/obsidian-eisenhower-matrix-blocks?sort=semver)](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Insert independent Eisenhower Matrix task boards directly into Markdown notes. Every board owns its tasks and completed history; there is no global task database or dedicated plugin view.
+**Eisenhower matrices that live inside your Obsidian notes.**
 
-## Features
+Insert an independent four-quadrant task board anywhere in Markdown, complete tasks in place, and keep a filterable history without a global database.
 
-- Insert a complete four-quadrant board at the current editor cursor.
-- Keep every board's data inside its own readable `eisenhower-matrix-blocks` code block.
-- Add multiple independent boards to one note or different notes.
-- Rename each board from the pencil button beside its title; the custom title syncs inside the Markdown block.
-- Switch the complete plugin interface between Chinese and English from Obsidian's plugin settings.
-- Add, edit, delete, complete, restore, and move tasks without leaving the note.
-- Drag active tasks between quadrants on desktop.
-- Filter each board's completed history independently by quadrant and completion date.
-- Preserve stable task IDs, exact completion timestamps, and ordering in hidden Markdown comments.
-- Re-read the latest note and atomically replace only the selected board on every operation.
-- Preserve sibling boards, frontmatter, callouts, prose, code, and all content outside the selected block.
-- Work with Obsidian Sync, Remotely Save, and Git as ordinary Markdown content.
-- Make no network requests and collect no telemetry.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/matrix-desktop-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/matrix-desktop-light.png">
+  <img src="docs/assets/matrix-desktop-light.png" alt="Eisenhower Matrix Blocks embedded in an Obsidian note">
+</picture>
+
+- **Local to every note:** each matrix owns its tasks and completed history, and a note can contain more than one matrix.
+- **Markdown-backed:** tasks, quadrants, ordering, and completion times travel with the note through Obsidian Sync, Remotely Save, or Git.
+- **A complete workflow:** add, edit, move, complete, restore, delete, and filter tasks without leaving the matrix.
+
+The matrix is inserted at the editor cursor and remains part of the note instead of becoming a separate global dashboard.
+
+## Quick start
+
+1. [Install the plugin](#installation) and enable **Eisenhower Matrix Blocks** in Obsidian.
+2. Open an editable Markdown note and place the cursor where the matrix should appear.
+3. Click the grid icon in the left ribbon, or run **Eisenhower Matrix Blocks: Insert matrix at cursor** from the command palette.
+4. Use Live Preview or Reading view to work with the rendered matrix.
+
+Each insertion creates a new independent board ID. Use the command again when you want another matrix in the same note.
 
 ## Installation
+
+Eisenhower Matrix Blocks is not yet listed in Obsidian's Community Plugins browser. Until it is accepted, install it with BRAT or from a release.
 
 ### BRAT
 
@@ -38,23 +49,42 @@ Insert independent Eisenhower Matrix task boards directly into Markdown notes. E
 3. Copy the three files into that folder.
 4. Reload Obsidian and enable **Eisenhower Matrix Blocks**.
 
-## Usage
+## What makes it different
 
-1. Open a Markdown note in editing mode.
-2. Place the cursor where the board should appear.
-3. Click the grid icon in the left ribbon, or run **Eisenhower Matrix Blocks: 在当前光标处插入四象限** from the command palette.
-4. Use Live Preview or Reading view to interact with the rendered board.
+Many task tools collect work into a global database or dedicated view. Eisenhower Matrix Blocks keeps the ownership boundary at the note:
 
-To change the interface language, open **Settings → Eisenhower Matrix Blocks → Interface language** and choose **中文** or **English**. The change applies immediately and does not rewrite any Markdown board data.
+- A project note can own its own matrix and completion history.
+- The same note can contain multiple independent matrices.
+- Copying a matrix block copies the data; deleting the block deletes that matrix.
+- No plugin-specific global task file is required.
+- Every operation updates only the selected matrix block and preserves surrounding prose, frontmatter, callouts, code, and sibling matrices.
+- The plugin makes no network requests and collects no telemetry.
 
-The inserted source remains part of the note:
+## Core workflow
+
+| Workflow | Behavior |
+|---|---|
+| Add | Add a task directly to Important and urgent, Important, not urgent, Urgent, not important, or Neither important nor urgent. |
+| Edit | Click a task title to edit it without opening another view. |
+| Move | Use the task menu on every device or drag between quadrants on desktop. |
+| Complete | Check a task to move it into the unified completed list with an exact completion timestamp. |
+| Restore | Uncheck a completed task to return it to its source quadrant. |
+| Filter | Filter completed tasks by source quadrant and by today, 7 days, 30 days, or a custom date range. |
+| Rename | Give every embedded matrix its own title; `Matrix` is the default. |
+
+## Markdown-backed by design
+
+![The rendered matrix beside its readable Markdown source](docs/assets/markdown-source.png)
+
+The note contains the complete board state in an `eisenhower-matrix-blocks` code block:
 
 ````markdown
 ```eisenhower-matrix-blocks
-<!-- quadrant-board {"id":"board-example","version":2} -->
+<!-- quadrant-board {"id":"board-example","version":2,"title":"Launch Week"} -->
 
 ## 立即做
-- [ ] 示例任务 #quadrant/do
+- [ ] Fix checkout regression #quadrant/do
+  <!-- quadrant-task {"id":"task-example","quadrant":"do","createdAt":"2026-07-20T08:00:00.000Z","completedAt":null,"order":0} -->
 
 ## 安排
 
@@ -66,42 +96,68 @@ The inserted source remains part of the note:
 ```
 ````
 
-Use the insertion command instead of manually creating metadata. Each command invocation generates a new board ID. Duplicate board IDs inside the same note are treated as an ambiguity and blocked from writing; IDs may repeat safely in different notes because each note is an independent storage boundary.
+The visible headings inside the source are stable storage markers. The rendered interface follows the Chinese or English language selected in plugin settings.
+
+Task metadata is stored in hidden Markdown comments so the plugin can preserve stable IDs, source quadrants, ordering, creation times, and exact completion times. Use the insertion command instead of manually creating metadata.
 
 ## Storage and sync
 
-There is no global task file in 2.0. A board's source text is its complete data store. Deleting the code block deletes that board; copying it to another note copies the board. Use the insertion command when creating another independent board in the same note so it receives a unique ID.
+There is no global task database. A matrix's source text is its complete data store.
 
-Every local operation uses Obsidian's atomic Vault API against the latest note content. Simultaneous offline edits can still produce the sync provider's normal last-write-wins behavior or a Git conflict; the plugin does not attempt distributed conflict resolution.
+- Obsidian Sync, Remotely Save, and Git can sync matrices as ordinary note content.
+- Multiple offline edits still follow the conflict behavior of the selected sync provider.
+- The plugin re-reads the latest note and uses Obsidian's atomic Vault API for every local mutation.
+- Duplicate board IDs in one note are treated as ambiguous and blocked from writing; the same ID may exist safely in different notes.
+- Deleting a matrix code block deletes that matrix, so note history and backups remain important.
 
-## Upgrading
+The interface language is stored in the plugin's local `data.json`; it is separate from matrix data and changing it does not rewrite notes.
 
-- Existing `quadrant-tasks` code blocks remain fully supported and are not rewritten merely because the plugin was renamed.
-- From 1.1: the managed block in the legacy `Quadrant Tasks.md` file is replaced in place by one independent matrix block. Other note content is preserved.
-- From 1.0: legacy JSON tasks are inserted into the legacy `Quadrant Tasks.md` file as one independent code block.
-- Private backups remain under the active plugin directory and are never included in release assets.
-- The old dedicated global view and global task-file setting are removed.
+## Mobile and languages
 
-## Development
+The matrix uses a responsive layout on Obsidian Mobile. Task menus provide the movement workflow where desktop drag and drop is unavailable.
+
+Open **Settings → Eisenhower Matrix Blocks → Interface language** and choose **中文** or **English**. The change applies immediately to headings, menus, filters, controls, dates, commands, and notices without rewriting matrix blocks.
+
+## Compatibility and upgrades
+
+- Existing `quadrant-tasks` code blocks remain readable and editable after the plugin rename.
+- Version 1.1 global Markdown storage is migrated in place to an independent matrix after a private backup is created.
+- Version 1.0 JSON storage is inserted into the legacy task note after a private backup is created.
+- Private backups stay under the active plugin directory and are never included in release assets.
+- The old global view and global task-file setting are no longer part of the plugin.
+
+## Frequently asked questions
+
+### Can I put more than one matrix in a note?
+
+Yes. Run the insertion command for every new matrix so each one receives a unique board ID.
+
+### Will my tasks sync between devices?
+
+Matrix data lives in the note, so it follows the note through your sync provider. Plugin settings such as interface language are separate and depend on whether that provider syncs Obsidian configuration files.
+
+### Does the plugin scan tasks from my entire vault?
+
+No. It operates only on explicit matrix blocks and does not build a global task index.
+
+### Can I edit the Markdown manually?
+
+The format is readable, but the insertion command and visual controls are recommended because they maintain IDs and timestamps. The plugin refuses unsafe writes when managed content is malformed or ambiguous.
+
+### Does it work without an internet connection?
+
+Yes. The plugin runs locally and makes no network requests.
+
+## Contributing
+
+Bug reports and feature requests are welcome. Please use fictional or sanitized examples and never upload a complete personal vault.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, compatibility requirements, privacy rules, and verification checklist.
 
 ```bash
 npm ci
 npm run verify
 ```
-
-`npm run verify` checks the source, rebuilds `main.js`, runs the task, legacy Markdown, local-board, migration, and bundle smoke tests.
-
-## 中文说明
-
-Eisenhower Matrix Blocks 现在是可插入 Markdown 的局部四象限组件：
-
-- 每次插入都会创建一张完全独立的四象限表。
-- 表内任务和已完成列表直接保存在所在 Markdown 的代码块中。
-- 同一笔记可以插入多张表，不同笔记中的表也互不影响。
-- 勾选、恢复、编辑、删除、拖动和完成时间筛选都只影响当前表。
-- 不再提供全局任务数据库、独立全局页签或全局任务文件设置。
-- 通过命令面板运行“在当前光标处插入四象限”，或点击左侧网格图标即可插入。
-- 代码块会随普通笔记一起被 Obsidian Sync、Remotely Save 或 Git 同步。
 
 ## License
 
