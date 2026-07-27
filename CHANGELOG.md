@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.0 - 2026-07-27
+
+- Add precise drag-and-drop ordering within a quadrant and when dropping onto a task in another quadrant.
+- Insert newly created tasks at the top of their quadrant.
+- Add move-up and move-down task menu actions for mobile, keyboard, and non-drag workflows.
+- Keep the existing Markdown task metadata format; no migration is required.
+
 ## 2.2.4 - 2026-07-23
 
 - Make new installations follow the Obsidian interface language by default while retaining explicit Chinese and English overrides.

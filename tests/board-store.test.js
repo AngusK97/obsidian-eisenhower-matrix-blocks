@@ -6,6 +6,8 @@ const {
 	addTask,
 	completeTask,
 	createEmptyData,
+	getActiveTasks,
+	reorderTask,
 	restoreTask,
 } = require("../src/core");
 const {
@@ -131,6 +133,26 @@ test("mutating one board leaves sibling boards and surrounding bytes unchanged",
 		readBoardFromDocument(updated, "board-beta").data.tasks.map((task) => task.id).sort(),
 		["b", "local"],
 	);
+});
+
+test("task ordering persists inside only the selected board", () => {
+	const data = createEmptyData();
+	addTask(data, "First", "do", { idFactory: () => "first" });
+	addTask(data, "Second", "do", { idFactory: () => "second" });
+	addTask(data, "Third", "do", { idFactory: () => "third" });
+	const selected = renderBoardCodeBlock("board-selected", data);
+	const sibling = renderBoardCodeBlock("board-sibling", boardData("sibling-task", "Keep me"));
+	const document = `${selected}\n\nKeep this paragraph.\n\n${sibling}`;
+
+	const updated = mutateBoardDocument(document, "board-selected", (draft) =>
+		reorderTask(draft, "first", "do", "third", "before"),
+	).content;
+
+	assert.deepEqual(
+		getActiveTasks(readBoardFromDocument(updated, "board-selected").data, "do").map((task) => task.id),
+		["first", "third", "second"],
+	);
+	assert.ok(updated.endsWith(`Keep this paragraph.\n\n${sibling}`));
 });
 
 test("duplicate board ids are rejected as ambiguous", () => {

@@ -46,11 +46,8 @@ var require_core = __commonJS({
       }
       return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
     }
-    function nextOrder(data, quadrant) {
-      return data.tasks.reduce(
-        (max, task) => task.quadrant === quadrant && !task.completedAt ? Math.max(max, task.order) : max,
-        -1
-      ) + 1;
+    function setTaskOrder(tasks) {
+      for (let index = 0; index < tasks.length; index += 1) tasks[index].order = index;
     }
     function addTask2(data, title, quadrant, options = {}) {
       const normalizedTitle = typeof title === "string" ? title.trim() : "";
@@ -58,15 +55,17 @@ var require_core = __commonJS({
       if (!isQuadrant(quadrant)) throw new Error("Invalid quadrant");
       const now = options.now instanceof Date ? options.now : /* @__PURE__ */ new Date();
       const idFactory = options.idFactory || defaultIdFactory;
+      const existingTasks = getActiveTasks2(data, quadrant);
       const task = {
         id: idFactory(),
         title: normalizedTitle,
         quadrant,
         createdAt: now.toISOString(),
         completedAt: null,
-        order: nextOrder(data, quadrant)
+        order: 0
       };
       data.tasks.push(task);
+      setTaskOrder([task, ...existingTasks]);
       return task;
     }
     function editTask2(data, taskId, title) {
@@ -82,9 +81,31 @@ var require_core = __commonJS({
       const task = data.tasks.find((item) => item.id === taskId && !item.completedAt);
       if (!task) return null;
       if (task.quadrant !== quadrant) {
+        const sourceQuadrant = task.quadrant;
+        const destinationTasks = getActiveTasks2(data, quadrant);
         task.quadrant = quadrant;
-        task.order = nextOrder(data, quadrant);
+        setTaskOrder(getActiveTasks2(data, sourceQuadrant));
+        setTaskOrder([...destinationTasks, task]);
       }
+      return task;
+    }
+    function reorderTask2(data, taskId, quadrant, targetTaskId = null, placement = "before") {
+      if (!isQuadrant(quadrant) || !["before", "after"].includes(placement)) return null;
+      const task = data.tasks.find((item) => item.id === taskId && !item.completedAt);
+      if (!task) return null;
+      if (targetTaskId === taskId) return task;
+      const sourceQuadrant = task.quadrant;
+      const destinationTasks = getActiveTasks2(data, quadrant).filter((item) => item.id !== taskId);
+      let insertAt = destinationTasks.length;
+      if (targetTaskId) {
+        const targetIndex = destinationTasks.findIndex((item) => item.id === targetTaskId);
+        if (targetIndex < 0) return null;
+        insertAt = targetIndex + (placement === "after" ? 1 : 0);
+      }
+      task.quadrant = quadrant;
+      destinationTasks.splice(insertAt, 0, task);
+      if (sourceQuadrant !== quadrant) setTaskOrder(getActiveTasks2(data, sourceQuadrant));
+      setTaskOrder(destinationTasks);
       return task;
     }
     function completeTask2(data, taskId, now = /* @__PURE__ */ new Date()) {
@@ -96,8 +117,9 @@ var require_core = __commonJS({
     function restoreTask2(data, taskId) {
       const task = data.tasks.find((item) => item.id === taskId && item.completedAt);
       if (!task) return null;
+      const destinationTasks = getActiveTasks2(data, task.quadrant);
       task.completedAt = null;
-      task.order = nextOrder(data, task.quadrant);
+      setTaskOrder([...destinationTasks, task]);
       return task;
     }
     function deleteTask2(data, taskId) {
@@ -174,6 +196,7 @@ var require_core = __commonJS({
       isQuadrant,
       moveTask: moveTask2,
       normalizeData: normalizeData2,
+      reorderTask: reorderTask2,
       restoreDeletedTask: restoreDeletedTask2,
       restoreTask: restoreTask2
     };
@@ -729,6 +752,8 @@ var require_i18n = __commonJS({
         "task.edit": "\u7F16\u8F91\u4EFB\u52A1",
         "task.more": "\u66F4\u591A\u64CD\u4F5C",
         "task.menuEdit": "\u7F16\u8F91",
+        "task.moveUp": "\u4E0A\u79FB",
+        "task.moveDown": "\u4E0B\u79FB",
         "task.moveTo": "\u79FB\u81F3\uFF1A{quadrant}",
         "task.delete": "\u5220\u9664",
         "task.completedNotice": "\u4EFB\u52A1\u5DF2\u5B8C\u6210",
@@ -791,6 +816,8 @@ var require_i18n = __commonJS({
         "task.edit": "Edit task",
         "task.more": "More actions",
         "task.menuEdit": "Edit",
+        "task.moveUp": "Move up",
+        "task.moveDown": "Move down",
         "task.moveTo": "Move to: {quadrant}",
         "task.delete": "Delete",
         "task.completedNotice": "Task completed",
@@ -882,6 +909,7 @@ var {
   getCompletedTasks,
   moveTask,
   normalizeData,
+  reorderTask,
   restoreDeletedTask,
   restoreTask
 } = require_core();
@@ -1044,6 +1072,15 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     stats.createSpan({ text: this.plugin.t("stats.active", { count: getActiveTasks(this.data).length }) });
     stats.createSpan({ text: this.plugin.t("stats.completed", { count: getCompletedTasks(this.data).length }) });
   }
+  clearDropIndicators() {
+    this.containerEl.querySelectorAll(".qt-drop-target, .qt-drop-before, .qt-drop-after").forEach((element) => {
+      element.removeClass("qt-drop-target", "qt-drop-before", "qt-drop-after");
+    });
+  }
+  getDropPlacement(event, row) {
+    const bounds = row.getBoundingClientRect();
+    return event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+  }
   renderQuadrant(matrix, quadrant) {
     const meta = this.plugin.getQuadrantMeta(quadrant);
     const quadrantName = this.plugin.getQuadrantName(quadrant);
@@ -1102,10 +1139,10 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     section.addEventListener("drop", (event) => {
       var _a;
       event.preventDefault();
-      section.removeClass("qt-drop-target");
       const taskId = ((_a = event.dataTransfer) == null ? void 0 : _a.getData("text/plain")) || this.draggedTaskId;
       this.draggedTaskId = null;
-      if (taskId) void this.mutate((data) => moveTask(data, taskId, quadrant));
+      this.clearDropIndicators();
+      if (taskId) void this.mutate((data) => reorderTask(data, taskId, quadrant, null, "after"));
     });
   }
   renderActiveTask(list, task) {
@@ -1129,12 +1166,36 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
       var _a;
       this.draggedTaskId = task.id;
       row.addClass("qt-dragging");
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
       (_a = event.dataTransfer) == null ? void 0 : _a.setData("text/plain", task.id);
+    });
+    row.addEventListener("dragover", (event) => {
+      if (!this.draggedTaskId || this.draggedTaskId === task.id) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const placement = this.getDropPlacement(event, row);
+      row.removeClass("qt-drop-before", "qt-drop-after");
+      row.addClass(placement === "before" ? "qt-drop-before" : "qt-drop-after");
+    });
+    row.addEventListener("dragleave", (event) => {
+      if (!row.contains(event.relatedTarget)) row.removeClass("qt-drop-before", "qt-drop-after");
+    });
+    row.addEventListener("drop", (event) => {
+      var _a;
+      event.preventDefault();
+      event.stopPropagation();
+      const taskId = ((_a = event.dataTransfer) == null ? void 0 : _a.getData("text/plain")) || this.draggedTaskId;
+      const placement = this.getDropPlacement(event, row);
+      this.draggedTaskId = null;
+      this.clearDropIndicators();
+      if (taskId && taskId !== task.id) {
+        void this.mutate((data) => reorderTask(data, taskId, task.quadrant, task.id, placement));
+      }
     });
     row.addEventListener("dragend", () => {
       this.draggedTaskId = null;
       row.removeClass("qt-dragging");
-      this.containerEl.querySelectorAll(".qt-drop-target").forEach((element) => element.removeClass("qt-drop-target"));
+      this.clearDropIndicators();
     });
   }
   openEditor(task) {
@@ -1154,6 +1215,15 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
   openTaskMenu(event, task) {
     const menu = new Menu();
     menu.addItem((item) => item.setTitle(this.plugin.t("task.menuEdit")).setIcon("pencil").onClick(() => this.openEditor(task)));
+    const siblings = getActiveTasks(this.data, task.quadrant);
+    const taskIndex = siblings.findIndex((item) => item.id === task.id);
+    menu.addItem(
+      (item) => item.setTitle(this.plugin.t("task.moveUp")).setIcon("arrow-up").setDisabled(taskIndex <= 0).onClick(() => void this.moveWithinQuadrant(task.id, -1))
+    );
+    menu.addItem(
+      (item) => item.setTitle(this.plugin.t("task.moveDown")).setIcon("arrow-down").setDisabled(taskIndex < 0 || taskIndex >= siblings.length - 1).onClick(() => void this.moveWithinQuadrant(task.id, 1))
+    );
+    menu.addSeparator();
     for (const quadrant of QUADRANTS) {
       const meta = this.plugin.getQuadrantMeta(quadrant);
       menu.addItem((item) => {
@@ -1166,6 +1236,17 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
       (item) => item.setTitle(this.plugin.t("task.delete")).setIcon("trash-2").setWarning(true).onClick(() => void this.remove(task.id))
     );
     menu.showAtMouseEvent(event);
+  }
+  moveWithinQuadrant(taskId, offset) {
+    return this.mutate((data) => {
+      const task = data.tasks.find((item) => item.id === taskId && !item.completedAt);
+      if (!task) return null;
+      const siblings = getActiveTasks(data, task.quadrant);
+      const taskIndex = siblings.findIndex((item) => item.id === taskId);
+      const target = siblings[taskIndex + offset];
+      if (!target) return null;
+      return reorderTask(data, taskId, task.quadrant, target.id, offset < 0 ? "before" : "after");
+    });
   }
   async complete(taskId) {
     const task = await this.mutate((data) => completeTask(data, taskId));

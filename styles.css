@@ -264,6 +264,14 @@
 	opacity: 0.45;
 }
 
+.qt-task-row.qt-drop-before {
+	box-shadow: inset 0 2px 0 var(--interactive-accent);
+}
+
+.qt-task-row.qt-drop-after {
+	box-shadow: inset 0 -2px 0 var(--interactive-accent);
+}
+
 .qt-task-checkbox {
 	width: 18px;
 	height: 18px;

@@ -13,6 +13,7 @@ const {
 	getCompletedTasks,
 	moveTask,
 	normalizeData,
+	reorderTask,
 	restoreDeletedTask,
 	restoreTask,
 } = require("../src/core");
@@ -21,14 +22,44 @@ function add(data, title, quadrant, id, now = new Date(2026, 6, 1, 9, 0)) {
 	return addTask(data, title, quadrant, { idFactory: () => id, now });
 }
 
-test("adds tasks to the requested quadrant with stable ordering", () => {
+test("adds new tasks to the top of the requested quadrant", () => {
 	const data = createEmptyData();
 	add(data, "First", "do", "one");
 	add(data, "Second", "do", "two");
 	add(data, "Elsewhere", "schedule", "three");
 
-	assert.deepEqual(getActiveTasks(data, "do").map((task) => task.id), ["one", "two"]);
+	assert.deepEqual(getActiveTasks(data, "do").map((task) => task.id), ["two", "one"]);
+	assert.deepEqual(getActiveTasks(data, "do").map((task) => task.order), [0, 1]);
 	assert.equal(getActiveTasks(data, "schedule")[0].title, "Elsewhere");
+});
+
+test("reorders tasks before and after another task in the same quadrant", () => {
+	const data = createEmptyData();
+	add(data, "One", "do", "one");
+	add(data, "Two", "do", "two");
+	add(data, "Three", "do", "three");
+
+	reorderTask(data, "one", "do", "three", "before");
+	assert.deepEqual(getActiveTasks(data, "do").map((task) => task.id), ["one", "three", "two"]);
+
+	reorderTask(data, "one", "do", "two", "after");
+	assert.deepEqual(getActiveTasks(data, "do").map((task) => task.id), ["three", "two", "one"]);
+	assert.deepEqual(getActiveTasks(data, "do").map((task) => task.order), [0, 1, 2]);
+
+	reorderTask(data, "three", "do", null, "after");
+	assert.deepEqual(getActiveTasks(data, "do").map((task) => task.id), ["two", "one", "three"]);
+});
+
+test("reorders a task at a precise position in another quadrant", () => {
+	const data = createEmptyData();
+	add(data, "Source", "do", "source");
+	add(data, "Target one", "schedule", "target-one");
+	add(data, "Target two", "schedule", "target-two");
+
+	reorderTask(data, "source", "schedule", "target-one", "before");
+	assert.deepEqual(getActiveTasks(data, "do"), []);
+	assert.deepEqual(getActiveTasks(data, "schedule").map((task) => task.id), ["target-two", "source", "target-one"]);
+	assert.deepEqual(getActiveTasks(data, "schedule").map((task) => task.order), [0, 1, 2]);
 });
 
 test("rejects empty titles and invalid quadrants", () => {
@@ -134,6 +165,7 @@ test("missing task operations are safe no-ops", () => {
 	const data = createEmptyData();
 	assert.equal(editTask(data, "missing", "Title"), null);
 	assert.equal(moveTask(data, "missing", "do"), null);
+	assert.equal(reorderTask(data, "missing", "do", null), null);
 	assert.equal(completeTask(data, "missing"), null);
 	assert.equal(restoreTask(data, "missing"), null);
 	assert.equal(deleteTask(data, "missing"), null);

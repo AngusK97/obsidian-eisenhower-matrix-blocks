@@ -60,9 +60,9 @@ Each matrix belongs to the note that contains it:
 
 | Workflow | Behavior |
 |---|---|
-| Add | Add a task directly to Important and urgent, Important, not urgent, Urgent, not important, or Neither important nor urgent. |
+| Add | Add a task directly to any quadrant. New tasks appear at the top of that quadrant. |
 | Edit | Click a task title to edit it without opening another view. |
-| Move | Use the task menu on every device or drag between quadrants on desktop. |
+| Move and order | Drag tasks between quadrants or above and below one another on desktop. Use the task menu to move, raise, or lower tasks on every device. |
 | Complete | Check a task to move it into the unified completed list with an exact completion timestamp. |
 | Restore | Uncheck a completed task to return it to its source quadrant. |
 | Filter | Filter completed tasks by source quadrant and by today, 7 days, 30 days, or a custom date range. |
@@ -108,7 +108,7 @@ Interface language is stored separately from matrix data. Changing it does not r
 
 ## Mobile and languages
 
-The matrix uses a responsive layout on Obsidian Mobile. Task menus provide the movement workflow where desktop drag and drop is unavailable.
+The matrix uses a responsive layout on Obsidian Mobile. Task menus let you move tasks between quadrants or raise and lower them when desktop drag and drop is unavailable.
 
 Open **Settings → Eisenhower Matrix Blocks → Interface language** and choose **Follow Obsidian** (the default), **中文**, or **English**. The change applies immediately to headings, menus, filters, controls, dates, commands, and notices without rewriting matrix blocks.
 

@@ -26,6 +26,7 @@ const {
 	getCompletedTasks,
 	moveTask,
 	normalizeData,
+	reorderTask,
 	restoreDeletedTask,
 	restoreTask,
 } = require("./core");
@@ -206,6 +207,17 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		stats.createSpan({ text: this.plugin.t("stats.completed", { count: getCompletedTasks(this.data).length }) });
 	}
 
+	clearDropIndicators() {
+		this.containerEl.querySelectorAll(".qt-drop-target, .qt-drop-before, .qt-drop-after").forEach((element) => {
+			element.removeClass("qt-drop-target", "qt-drop-before", "qt-drop-after");
+		});
+	}
+
+	getDropPlacement(event, row) {
+		const bounds = row.getBoundingClientRect();
+		return event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+	}
+
 	renderQuadrant(matrix, quadrant) {
 		const meta = this.plugin.getQuadrantMeta(quadrant);
 		const quadrantName = this.plugin.getQuadrantName(quadrant);
@@ -266,10 +278,10 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		});
 		section.addEventListener("drop", (event) => {
 			event.preventDefault();
-			section.removeClass("qt-drop-target");
 			const taskId = event.dataTransfer?.getData("text/plain") || this.draggedTaskId;
 			this.draggedTaskId = null;
-			if (taskId) void this.mutate((data) => moveTask(data, taskId, quadrant));
+			this.clearDropIndicators();
+			if (taskId) void this.mutate((data) => reorderTask(data, taskId, quadrant, null, "after"));
 		});
 	}
 
@@ -293,12 +305,35 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		row.addEventListener("dragstart", (event) => {
 			this.draggedTaskId = task.id;
 			row.addClass("qt-dragging");
+			if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
 			event.dataTransfer?.setData("text/plain", task.id);
+		});
+		row.addEventListener("dragover", (event) => {
+			if (!this.draggedTaskId || this.draggedTaskId === task.id) return;
+			event.preventDefault();
+			event.stopPropagation();
+			const placement = this.getDropPlacement(event, row);
+			row.removeClass("qt-drop-before", "qt-drop-after");
+			row.addClass(placement === "before" ? "qt-drop-before" : "qt-drop-after");
+		});
+		row.addEventListener("dragleave", (event) => {
+			if (!row.contains(event.relatedTarget)) row.removeClass("qt-drop-before", "qt-drop-after");
+		});
+		row.addEventListener("drop", (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			const taskId = event.dataTransfer?.getData("text/plain") || this.draggedTaskId;
+			const placement = this.getDropPlacement(event, row);
+			this.draggedTaskId = null;
+			this.clearDropIndicators();
+			if (taskId && taskId !== task.id) {
+				void this.mutate((data) => reorderTask(data, taskId, task.quadrant, task.id, placement));
+			}
 		});
 		row.addEventListener("dragend", () => {
 			this.draggedTaskId = null;
 			row.removeClass("qt-dragging");
-			this.containerEl.querySelectorAll(".qt-drop-target").forEach((element) => element.removeClass("qt-drop-target"));
+			this.clearDropIndicators();
 		});
 	}
 
@@ -321,6 +356,23 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 	openTaskMenu(event, task) {
 		const menu = new Menu();
 		menu.addItem((item) => item.setTitle(this.plugin.t("task.menuEdit")).setIcon("pencil").onClick(() => this.openEditor(task)));
+		const siblings = getActiveTasks(this.data, task.quadrant);
+		const taskIndex = siblings.findIndex((item) => item.id === task.id);
+		menu.addItem((item) =>
+			item
+				.setTitle(this.plugin.t("task.moveUp"))
+				.setIcon("arrow-up")
+				.setDisabled(taskIndex <= 0)
+				.onClick(() => void this.moveWithinQuadrant(task.id, -1)),
+		);
+		menu.addItem((item) =>
+			item
+				.setTitle(this.plugin.t("task.moveDown"))
+				.setIcon("arrow-down")
+				.setDisabled(taskIndex < 0 || taskIndex >= siblings.length - 1)
+				.onClick(() => void this.moveWithinQuadrant(task.id, 1)),
+		);
+		menu.addSeparator();
 		for (const quadrant of QUADRANTS) {
 			const meta = this.plugin.getQuadrantMeta(quadrant);
 			menu.addItem((item) => {
@@ -333,6 +385,18 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 			item.setTitle(this.plugin.t("task.delete")).setIcon("trash-2").setWarning(true).onClick(() => void this.remove(task.id)),
 		);
 		menu.showAtMouseEvent(event);
+	}
+
+	moveWithinQuadrant(taskId, offset) {
+		return this.mutate((data) => {
+			const task = data.tasks.find((item) => item.id === taskId && !item.completedAt);
+			if (!task) return null;
+			const siblings = getActiveTasks(data, task.quadrant);
+			const taskIndex = siblings.findIndex((item) => item.id === taskId);
+			const target = siblings[taskIndex + offset];
+			if (!target) return null;
+			return reorderTask(data, taskId, task.quadrant, target.id, offset < 0 ? "before" : "after");
+		});
 	}
 
 	async complete(taskId) {

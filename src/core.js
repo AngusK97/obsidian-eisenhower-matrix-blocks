@@ -51,11 +51,8 @@ function defaultIdFactory() {
 	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
-function nextOrder(data, quadrant) {
-	return data.tasks.reduce(
-		(max, task) => task.quadrant === quadrant && !task.completedAt ? Math.max(max, task.order) : max,
-		-1,
-	) + 1;
+function setTaskOrder(tasks) {
+	for (let index = 0; index < tasks.length; index += 1) tasks[index].order = index;
 }
 
 function addTask(data, title, quadrant, options = {}) {
@@ -65,15 +62,17 @@ function addTask(data, title, quadrant, options = {}) {
 
 	const now = options.now instanceof Date ? options.now : new Date();
 	const idFactory = options.idFactory || defaultIdFactory;
+	const existingTasks = getActiveTasks(data, quadrant);
 	const task = {
 		id: idFactory(),
 		title: normalizedTitle,
 		quadrant,
 		createdAt: now.toISOString(),
 		completedAt: null,
-		order: nextOrder(data, quadrant),
+		order: 0,
 	};
 	data.tasks.push(task);
+	setTaskOrder([task, ...existingTasks]);
 	return task;
 }
 
@@ -91,9 +90,34 @@ function moveTask(data, taskId, quadrant) {
 	const task = data.tasks.find((item) => item.id === taskId && !item.completedAt);
 	if (!task) return null;
 	if (task.quadrant !== quadrant) {
+		const sourceQuadrant = task.quadrant;
+		const destinationTasks = getActiveTasks(data, quadrant);
 		task.quadrant = quadrant;
-		task.order = nextOrder(data, quadrant);
+		setTaskOrder(getActiveTasks(data, sourceQuadrant));
+		setTaskOrder([...destinationTasks, task]);
 	}
+	return task;
+}
+
+function reorderTask(data, taskId, quadrant, targetTaskId = null, placement = "before") {
+	if (!isQuadrant(quadrant) || !["before", "after"].includes(placement)) return null;
+	const task = data.tasks.find((item) => item.id === taskId && !item.completedAt);
+	if (!task) return null;
+	if (targetTaskId === taskId) return task;
+
+	const sourceQuadrant = task.quadrant;
+	const destinationTasks = getActiveTasks(data, quadrant).filter((item) => item.id !== taskId);
+	let insertAt = destinationTasks.length;
+	if (targetTaskId) {
+		const targetIndex = destinationTasks.findIndex((item) => item.id === targetTaskId);
+		if (targetIndex < 0) return null;
+		insertAt = targetIndex + (placement === "after" ? 1 : 0);
+	}
+
+	task.quadrant = quadrant;
+	destinationTasks.splice(insertAt, 0, task);
+	if (sourceQuadrant !== quadrant) setTaskOrder(getActiveTasks(data, sourceQuadrant));
+	setTaskOrder(destinationTasks);
 	return task;
 }
 
@@ -107,8 +131,9 @@ function completeTask(data, taskId, now = new Date()) {
 function restoreTask(data, taskId) {
 	const task = data.tasks.find((item) => item.id === taskId && item.completedAt);
 	if (!task) return null;
+	const destinationTasks = getActiveTasks(data, task.quadrant);
 	task.completedAt = null;
-	task.order = nextOrder(data, task.quadrant);
+	setTaskOrder([...destinationTasks, task]);
 	return task;
 }
 
@@ -198,6 +223,7 @@ module.exports = {
 	isQuadrant,
 	moveTask,
 	normalizeData,
+	reorderTask,
 	restoreDeletedTask,
 	restoreTask,
 };
