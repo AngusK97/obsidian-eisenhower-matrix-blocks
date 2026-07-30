@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.1 - 2026-07-30
+
+- Wrap long active task titles within their quadrant and grow the task row to fit multiple lines.
+- Break long words, URLs, and other continuous text before they can overflow the matrix.
+
 ## 2.3.0 - 2026-07-27
 
 - Add precise drag-and-drop ordering within a quadrant and when dropping onto a task in another quadrant.
