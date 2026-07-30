@@ -284,7 +284,6 @@
 	min-width: 0;
 	flex: 1;
 	padding: 8px 2px;
-	overflow-wrap: anywhere;
 	border: 0;
 	background: transparent;
 	box-shadow: none;
@@ -293,6 +292,14 @@
 	font-weight: var(--font-normal);
 	text-align: left;
 	cursor: text;
+}
+
+.qt-task-row .qt-task-title {
+	height: auto;
+	white-space: normal;
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+	word-break: break-word;
 }
 
 .qt-task-title:hover {
