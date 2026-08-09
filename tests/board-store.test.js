@@ -22,6 +22,7 @@ const {
 	renderBoardCodeBlock,
 	renderBoardSource,
 	replaceLegacyManagedBlock,
+	updateQuadrantLabelsDocument,
 } = require("../src/board-store");
 const { updateMarkdownDocument } = require("../src/markdown-store");
 
@@ -43,6 +44,18 @@ test("board source serializes deterministically and round trips", () => {
 	assert.equal(parsed.boardId, "board-alpha");
 	assert.equal(parsed.title, "Matrix");
 	assert.deepEqual(parsed.data, data);
+	const reverseLabels = {
+		eliminate: { title: "Later", subtitle: "Remove for now" },
+		do: { title: "Focus", subtitle: "Start here" },
+	};
+	const orderedLabels = {
+		do: { title: "Focus", subtitle: "Start here" },
+		eliminate: { title: "Later", subtitle: "Remove for now" },
+	};
+	assert.equal(
+		renderBoardSource("board-alpha", data, "\n", "Matrix", reverseLabels),
+		renderBoardSource("board-alpha", data, "\n", "Matrix", orderedLabels),
+	);
 });
 
 test("Chinese storage headings remain readable and normalize to English on mutation", () => {
@@ -114,6 +127,53 @@ test("renaming one board preserves its tasks and every sibling byte", () => {
 	assert.equal(readBoardFromDocument(renamed.content, "board-first").title, "项目 Alpha");
 	assert.ok(renamed.content.endsWith(`Keep this text.\n\n${second}`));
 	assert.throws(() => renameBoardDocument(document, "board-first", "   "), /标题不能为空/);
+});
+
+test("quadrant labels round trip, survive mutations, and reset to defaults", () => {
+	const sibling = renderBoardCodeBlock("board-sibling", boardData("task-b", "Sibling"));
+	const original = renderBoardCodeBlock("board-labels", boardData("task-a", "Focused task"));
+	const document = `${original}\n\nKeep this paragraph.\n\n${sibling}`;
+	const customized = updateQuadrantLabelsDocument(document, "board-labels", "do", {
+		title: "Critical focus",
+		subtitle: "Finish before anything else",
+	});
+
+	assert.deepEqual(customized.quadrantLabels.do, {
+		title: "Critical focus",
+		subtitle: "Finish before anything else",
+	});
+	assert.deepEqual(readBoardFromDocument(customized.content, "board-labels").quadrantLabels, customized.quadrantLabels);
+	assert.match(customized.content, /"quadrants":\{"do":\{"title":"Critical focus","subtitle":"Finish before anything else"\}\}/);
+	assert.ok(customized.content.endsWith(`Keep this paragraph.\n\n${sibling}`));
+
+	const mutated = mutateBoardDocument(customized.content, "board-labels", (data) =>
+		addTask(data, "Another", "schedule", { idFactory: () => "task-c" }),
+	);
+	assert.deepEqual(mutated.quadrantLabels, customized.quadrantLabels);
+	assert.deepEqual(readBoardFromDocument(mutated.content, "board-labels").quadrantLabels, customized.quadrantLabels);
+	const renamed = renameBoardDocument(mutated.content, "board-labels", "Renamed matrix");
+	assert.deepEqual(readBoardFromDocument(renamed.content, "board-labels").quadrantLabels, customized.quadrantLabels);
+
+	const reset = updateQuadrantLabelsDocument(renamed.content, "board-labels", "do", null);
+	assert.deepEqual(reset.quadrantLabels, {});
+	assert.deepEqual(readBoardFromDocument(reset.content, "board-labels").quadrantLabels, {});
+	assert.doesNotMatch(findBoardCodeBlocks(reset.content)[0].source, /"quadrants"/);
+});
+
+test("quadrant label validation rejects missing, oversized, and unknown values", () => {
+	const document = renderBoardCodeBlock("board-label-validation", createEmptyData());
+	assert.throws(
+		() => updateQuadrantLabelsDocument(document, "board-label-validation", "do", { title: "", subtitle: "Do now" }),
+		/标题和副标题不能为空/,
+	);
+	assert.throws(
+		() => updateQuadrantLabelsDocument(document, "board-label-validation", "do", { title: "Focus", subtitle: "x".repeat(161) }),
+		/副标题不能超过 160 个字符/,
+	);
+	assert.throws(
+		() => updateQuadrantLabelsDocument(document, "board-label-validation", "unknown", { title: "Focus", subtitle: "Now" }),
+		/象限无效/,
+	);
 });
 
 test("mutating one board leaves sibling boards and surrounding bytes unchanged", () => {

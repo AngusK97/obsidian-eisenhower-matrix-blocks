@@ -1,6 +1,6 @@
 "use strict";
 
-const { normalizeData } = require("./core");
+const { QUADRANTS, normalizeData } = require("./core");
 const {
 	END_MARKER,
 	START_MARKER,
@@ -18,6 +18,8 @@ const BOARD_META_PREFIX = "<!-- quadrant-board ";
 const BOARD_META_SUFFIX = " -->";
 const BOARD_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{2,127}$/;
 const MAX_BOARD_TITLE_LENGTH = 120;
+const MAX_QUADRANT_TITLE_LENGTH = 120;
+const MAX_QUADRANT_SUBTITLE_LENGTH = 160;
 
 function createBoardId() {
 	if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
@@ -38,6 +40,25 @@ function normalizeBoardTitle(value, fallback = DEFAULT_BOARD_TITLE) {
 	return title;
 }
 
+function normalizeQuadrantLabels(value) {
+	if (value === undefined) return {};
+	if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+	if (Object.keys(value).some((quadrant) => !QUADRANTS.includes(quadrant))) return null;
+	const normalized = {};
+	for (const quadrant of QUADRANTS) {
+		if (!Object.prototype.hasOwnProperty.call(value, quadrant)) continue;
+		const labels = value[quadrant];
+		if (!labels || typeof labels !== "object" || Array.isArray(labels)) return null;
+		if (typeof labels.title !== "string" || typeof labels.subtitle !== "string") return null;
+		const title = labels.title.trim();
+		const subtitle = labels.subtitle.trim();
+		if (!title || !subtitle) return null;
+		if (title.length > MAX_QUADRANT_TITLE_LENGTH || subtitle.length > MAX_QUADRANT_SUBTITLE_LENGTH) return null;
+		normalized[quadrant] = { title, subtitle };
+	}
+	return normalized;
+}
+
 function parseBoardSource(source, options = {}) {
 	const newline = detectNewline(source);
 	const lines = source.split(/\r?\n/);
@@ -45,6 +66,7 @@ function parseBoardSource(source, options = {}) {
 	const issues = [];
 	let boardId = null;
 	let title = DEFAULT_BOARD_TITLE;
+	let quadrantLabels = {};
 	let bodyStart = 0;
 
 	if (firstContentIndex < 0) {
@@ -59,6 +81,9 @@ function parseBoardSource(source, options = {}) {
 					const parsedTitle = normalizeBoardTitle(metadata.title);
 					if (parsedTitle) title = parsedTitle;
 					else issues.push("四象限标题格式无效");
+					const parsedQuadrantLabels = normalizeQuadrantLabels(metadata.quadrants);
+					if (parsedQuadrantLabels) quadrantLabels = parsedQuadrantLabels;
+					else issues.push("象限标题或副标题格式无效");
 				}
 			} catch {
 				// Report the common validation error below.
@@ -79,25 +104,29 @@ function parseBoardSource(source, options = {}) {
 	return {
 		boardId,
 		title,
+		quadrantLabels,
 		data: parsed.data,
 		issues,
 		newline,
 	};
 }
 
-function renderBoardSource(boardId, data, newline = "\n", title = DEFAULT_BOARD_TITLE) {
+function renderBoardSource(boardId, data, newline = "\n", title = DEFAULT_BOARD_TITLE, quadrantLabels = {}) {
 	if (!BOARD_ID_PATTERN.test(boardId || "")) throw new Error("board-id 格式无效");
 	const normalizedTitle = normalizeBoardTitle(title, null);
 	if (!normalizedTitle) throw new Error(`四象限标题不能为空且不能超过 ${MAX_BOARD_TITLE_LENGTH} 个字符`);
+	const normalizedQuadrantLabels = normalizeQuadrantLabels(quadrantLabels);
+	if (!normalizedQuadrantLabels) throw new Error("象限标题或副标题格式无效");
 	const managed = renderManagedBlock(data, newline);
 	const body = managed.slice(START_MARKER.length, managed.length - END_MARKER.length).replace(/(?:\r?\n)+$/, "");
 	const metadata = { id: boardId, version: 2 };
 	if (normalizedTitle !== DEFAULT_BOARD_TITLE) metadata.title = normalizedTitle;
+	if (Object.keys(normalizedQuadrantLabels).length) metadata.quadrants = normalizedQuadrantLabels;
 	return `${BOARD_META_PREFIX}${JSON.stringify(metadata)}${BOARD_META_SUFFIX}${body}`;
 }
 
-function renderBoardCodeBlock(boardId, data, newline = "\n", title = DEFAULT_BOARD_TITLE) {
-	return `\`\`\`${BOARD_LANGUAGE}${newline}${renderBoardSource(boardId, data, newline, title)}${newline}\`\`\``;
+function renderBoardCodeBlock(boardId, data, newline = "\n", title = DEFAULT_BOARD_TITLE, quadrantLabels = {}) {
+	return `\`\`\`${BOARD_LANGUAGE}${newline}${renderBoardSource(boardId, data, newline, title, quadrantLabels)}${newline}\`\`\``;
 }
 
 function lineRecords(content) {
@@ -144,6 +173,7 @@ function findBoardCodeBlocks(content) {
 				language,
 				boardId: parsed.boardId,
 				title: parsed.title,
+				quadrantLabels: parsed.quadrantLabels,
 				data: parsed.data,
 				issues: parsed.issues,
 				newline: lines[index].newline || detectNewline(content),
@@ -172,19 +202,20 @@ function findUniqueBoard(content, boardId) {
 
 function readBoardFromDocument(content, boardId) {
 	const board = findUniqueBoard(content, boardId);
-	return { boardId, title: board.title, data: board.data };
+	return { boardId, title: board.title, quadrantLabels: board.quadrantLabels, data: board.data };
 }
 
 function mutateBoardDocument(content, boardId, mutator) {
 	const board = findUniqueBoard(content, boardId);
 	const draft = cloneData(board.data);
 	const result = mutator(draft);
-	if (!result) return { content, data: board.data, result };
-	const source = renderBoardSource(boardId, draft, board.newline, board.title);
+	if (!result) return { content, data: board.data, title: board.title, quadrantLabels: board.quadrantLabels, result };
+	const source = renderBoardSource(boardId, draft, board.newline, board.title, board.quadrantLabels);
 	return {
 		content: `${content.slice(0, board.sourceStart)}${source}${board.newline}${content.slice(board.sourceEnd)}`,
 		data: draft,
 		title: board.title,
+		quadrantLabels: board.quadrantLabels,
 		result,
 	};
 }
@@ -194,14 +225,51 @@ function renameBoardDocument(content, boardId, title) {
 	const normalizedTitle = normalizeBoardTitle(title, null);
 	if (!normalizedTitle) throw new Error(`四象限标题不能为空且不能超过 ${MAX_BOARD_TITLE_LENGTH} 个字符`);
 	if (normalizedTitle === board.title) {
-		return { content, data: board.data, title: board.title, result: board.title };
+		return { content, data: board.data, title: board.title, quadrantLabels: board.quadrantLabels, result: board.title };
 	}
-	const source = renderBoardSource(boardId, board.data, board.newline, normalizedTitle);
+	const source = renderBoardSource(boardId, board.data, board.newline, normalizedTitle, board.quadrantLabels);
 	return {
 		content: `${content.slice(0, board.sourceStart)}${source}${board.newline}${content.slice(board.sourceEnd)}`,
 		data: board.data,
 		title: normalizedTitle,
+		quadrantLabels: board.quadrantLabels,
 		result: normalizedTitle,
+	};
+}
+
+function updateQuadrantLabelsDocument(content, boardId, quadrant, labels) {
+	if (!QUADRANTS.includes(quadrant)) throw new Error(`象限无效：${quadrant}`);
+	const board = findUniqueBoard(content, boardId);
+	const quadrantLabels = { ...board.quadrantLabels };
+	let result = null;
+	if (labels === null) {
+		delete quadrantLabels[quadrant];
+	} else {
+		if (!labels || typeof labels.title !== "string" || typeof labels.subtitle !== "string") {
+			throw new Error("象限标题和副标题不能为空");
+		}
+		const title = labels.title.trim();
+		const subtitle = labels.subtitle.trim();
+		if (!title || !subtitle) throw new Error("象限标题和副标题不能为空");
+		if (title.length > MAX_QUADRANT_TITLE_LENGTH) {
+			throw new Error(`象限标题不能超过 ${MAX_QUADRANT_TITLE_LENGTH} 个字符`);
+		}
+		if (subtitle.length > MAX_QUADRANT_SUBTITLE_LENGTH) {
+			throw new Error(`象限副标题不能超过 ${MAX_QUADRANT_SUBTITLE_LENGTH} 个字符`);
+		}
+		result = { title, subtitle };
+		quadrantLabels[quadrant] = result;
+	}
+	if (JSON.stringify(quadrantLabels) === JSON.stringify(board.quadrantLabels)) {
+		return { content, data: board.data, title: board.title, quadrantLabels: board.quadrantLabels, result };
+	}
+	const source = renderBoardSource(boardId, board.data, board.newline, board.title, quadrantLabels);
+	return {
+		content: `${content.slice(0, board.sourceStart)}${source}${board.newline}${content.slice(board.sourceEnd)}`,
+		data: board.data,
+		title: board.title,
+		quadrantLabels,
+		result,
 	};
 }
 
@@ -263,4 +331,5 @@ module.exports = {
 	renderBoardCodeBlock,
 	renderBoardSource,
 	replaceLegacyManagedBlock,
+	updateQuadrantLabelsDocument,
 };

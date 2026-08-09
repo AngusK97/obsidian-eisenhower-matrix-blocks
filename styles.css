@@ -128,16 +128,23 @@
 
 .qt-quadrant-header {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	justify-content: space-between;
+	gap: 8px;
 	padding: 14px 14px 10px;
 }
 
 .qt-quadrant-heading {
 	display: flex;
 	min-width: 0;
+	flex: 1;
 	align-items: center;
 	gap: 9px;
+}
+
+.qt-quadrant-labels {
+	min-width: 0;
+	overflow-wrap: anywhere;
 }
 
 .qt-quadrant-icon {
@@ -213,6 +220,17 @@
 	border-color: var(--text-error);
 }
 
+.qt-modal-field + .qt-modal-field {
+	margin-top: 14px;
+}
+
+.qt-modal-field label {
+	display: block;
+	margin-bottom: 6px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
 .qt-icon-button {
 	display: inline-grid;
 	width: 36px;
@@ -220,6 +238,19 @@
 	min-width: 36px;
 	padding: 0;
 	place-items: center;
+}
+
+.qt-quadrant-edit {
+	width: 28px;
+	height: 28px;
+	min-width: 28px;
+	flex: 0 0 28px;
+	color: var(--text-muted);
+}
+
+.qt-quadrant-edit svg {
+	width: 15px;
+	height: 15px;
 }
 
 .qt-add-button {
@@ -503,6 +534,10 @@
 		width: 44px;
 		height: 44px;
 		min-width: 44px;
+	}
+
+	.qt-quadrant-edit {
+		flex-basis: 44px;
 	}
 
 	.qt-quick-add {

@@ -43,6 +43,7 @@ const {
 	renameBoardDocument,
 	renderBoardCodeBlock,
 	replaceLegacyManagedBlock,
+	updateQuadrantLabelsDocument,
 } = require("./board-store");
 const { normalizeLanguageMode, resolveLanguage, translate } = require("./i18n");
 const { parseTaskMarkdown } = require("./markdown-store");
@@ -137,6 +138,65 @@ class TextInputModal extends Modal {
 	}
 }
 
+class QuadrantLabelsModal extends Modal {
+	constructor(plugin, labels, onSave, onReset) {
+		super(plugin.app);
+		this.plugin = plugin;
+		this.labels = labels;
+		this.onSave = onSave;
+		this.onReset = onReset;
+	}
+
+	onOpen() {
+		this.setTitle(this.plugin.t("modal.editQuadrant"));
+		const createField = (key, value, maxLength) => {
+			const field = this.contentEl.createDiv({ cls: "qt-modal-field" });
+			const inputId = `qt-${key}-input`;
+			field.createEl("label", { text: this.plugin.t(`modal.${key}`), attr: { for: inputId } });
+			const input = field.createEl("input", {
+				cls: "qt-modal-input",
+				attr: { id: inputId, type: "text", value, maxlength: String(maxLength) },
+			});
+			input.addEventListener("input", () => input.removeClass("qt-input-error"));
+			return input;
+		};
+		const titleInput = createField("quadrantTitle", this.labels.title, 120);
+		const subtitleInput = createField("quadrantSubtitle", this.labels.subtitle, 160);
+		const actions = this.contentEl.createDiv({ cls: "modal-button-container" });
+		const reset = actions.createEl("button", { text: this.plugin.t("modal.restoreQuadrantDefaults") });
+		const cancel = actions.createEl("button", { text: this.plugin.t("common.cancel") });
+		const save = actions.createEl("button", { text: this.plugin.t("common.save"), cls: "mod-cta" });
+		const submit = () => {
+			const title = titleInput.value.trim();
+			const subtitle = subtitleInput.value.trim();
+			if (!title) titleInput.addClass("qt-input-error");
+			if (!subtitle) subtitleInput.addClass("qt-input-error");
+			if (!title || !subtitle) return;
+			this.onSave({ title, subtitle });
+			this.close();
+		};
+		for (const input of [titleInput, subtitleInput]) {
+			input.addEventListener("keydown", (event) => {
+				if (event.key === "Enter" && !event.isComposing) submit();
+			});
+		}
+		reset.addEventListener("click", () => {
+			this.onReset();
+			this.close();
+		});
+		cancel.addEventListener("click", () => this.close());
+		save.addEventListener("click", submit);
+		requestAnimationFrame(() => {
+			titleInput.focus();
+			titleInput.select();
+		});
+	}
+
+	onClose() {
+		this.contentEl.empty();
+	}
+}
+
 class MatrixBoardRenderChild extends MarkdownRenderChild {
 	constructor(containerEl, plugin, sourcePath, source) {
 		super(containerEl);
@@ -145,6 +205,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		const parsed = parseBoardSource(source);
 		this.boardId = parsed.boardId;
 		this.boardTitle = parsed.title;
+		this.quadrantLabels = parsed.quadrantLabels;
 		this.data = parsed.data;
 		this.issues = parsed.issues;
 		this.filters = { quadrant: "all", period: "all", startDate: "", endDate: "" };
@@ -160,9 +221,10 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		this.plugin.boardRenderers.delete(this);
 	}
 
-	setBoardData(data, title = this.boardTitle) {
+	setBoardData(data, title = this.boardTitle, quadrantLabels = this.quadrantLabels) {
 		this.data = cloneData(data);
 		this.boardTitle = title || DEFAULT_BOARD_TITLE;
+		this.quadrantLabels = JSON.parse(JSON.stringify(quadrantLabels || {}));
 		this.issues = [];
 		this.render();
 	}
@@ -218,22 +280,43 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		return event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
 	}
 
+	getQuadrantPresentation(quadrant) {
+		const defaults = this.plugin.getQuadrantMeta(quadrant);
+		const custom = this.quadrantLabels[quadrant];
+		return {
+			icon: defaults.icon,
+			title: custom?.title || defaults.description,
+			subtitle: custom?.subtitle || defaults.action,
+		};
+	}
+
+	getQuadrantName(quadrant) {
+		return this.getQuadrantPresentation(quadrant).title;
+	}
+
 	renderQuadrant(matrix, quadrant) {
-		const meta = this.plugin.getQuadrantMeta(quadrant);
-		const quadrantName = this.plugin.getQuadrantName(quadrant);
+		const meta = this.getQuadrantPresentation(quadrant);
+		const quadrantName = meta.title;
 		const tasks = getActiveTasks(this.data, quadrant);
 		const section = matrix.createEl("section", {
 			cls: `qt-quadrant qt-quadrant-${quadrant}`,
-			attr: { "data-quadrant": quadrant, "aria-label": `${quadrantName}，${meta.action}` },
+			attr: { "data-quadrant": quadrant, "aria-label": `${quadrantName}, ${meta.subtitle}` },
 		});
 		const header = section.createEl("header", { cls: "qt-quadrant-header" });
 		const heading = header.createDiv({ cls: "qt-quadrant-heading" });
 		const icon = heading.createSpan({ cls: "qt-quadrant-icon", attr: { "aria-hidden": "true" } });
 		setIcon(icon, meta.icon);
-		const labels = heading.createDiv();
+		const labels = heading.createDiv({ cls: "qt-quadrant-labels" });
 		const title = labels.createEl("h3", { text: quadrantName });
 		title.createSpan({ text: String(tasks.length), cls: "qt-count" });
-		labels.createDiv({ text: meta.action, cls: "qt-quadrant-description" });
+		labels.createDiv({ text: meta.subtitle, cls: "qt-quadrant-description" });
+		createIconButton(
+			header,
+			"pencil",
+			this.plugin.t("board.editQuadrant", { quadrant: quadrantName }),
+			() => this.openQuadrantLabelsEditor(quadrant),
+			"qt-quadrant-edit",
+		);
 
 		const quickAdd = section.createDiv({ cls: "qt-quick-add" });
 		const input = quickAdd.createEl("input", {
@@ -353,6 +436,16 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		}).open();
 	}
 
+	openQuadrantLabelsEditor(quadrant) {
+		const labels = this.getQuadrantPresentation(quadrant);
+		new QuadrantLabelsModal(
+			this.plugin,
+			{ title: labels.title, subtitle: labels.subtitle },
+			(value) => void this.plugin.updateQuadrantLabels(this.sourcePath, this.boardId, quadrant, value),
+			() => void this.plugin.updateQuadrantLabels(this.sourcePath, this.boardId, quadrant, null),
+		).open();
+	}
+
 	openTaskMenu(event, task) {
 		const menu = new Menu();
 		menu.addItem((item) => item.setTitle(this.plugin.t("task.menuEdit")).setIcon("pencil").onClick(() => this.openEditor(task)));
@@ -376,7 +469,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		for (const quadrant of QUADRANTS) {
 			const meta = this.plugin.getQuadrantMeta(quadrant);
 			menu.addItem((item) => {
-				item.setTitle(this.plugin.t("task.moveTo", { quadrant: this.plugin.getQuadrantName(quadrant) })).setIcon(meta.icon).setDisabled(task.quadrant === quadrant);
+				item.setTitle(this.plugin.t("task.moveTo", { quadrant: this.getQuadrantName(quadrant) })).setIcon(meta.icon).setDisabled(task.quadrant === quadrant);
 				item.onClick(() => void this.mutate((data) => moveTask(data, task.id, quadrant)));
 			});
 		}
@@ -435,7 +528,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		const quadrantSelect = controls.createEl("select", { attr: { "aria-label": this.plugin.t("completed.filterQuadrant") } });
 		quadrantSelect.createEl("option", { text: this.plugin.t("completed.allQuadrants"), value: "all" });
 		for (const quadrant of QUADRANTS) {
-			quadrantSelect.createEl("option", { text: this.plugin.getQuadrantName(quadrant), value: quadrant });
+			quadrantSelect.createEl("option", { text: this.getQuadrantName(quadrant), value: quadrant });
 		}
 		quadrantSelect.value = this.filters.quadrant;
 		quadrantSelect.addEventListener("change", () => {
@@ -498,7 +591,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		const content = row.createDiv({ cls: "qt-completed-content" });
 		content.createDiv({ text: task.title, cls: "qt-completed-title" });
 		const metadata = content.createDiv({ cls: "qt-completed-meta" });
-		metadata.createSpan({ text: this.plugin.getQuadrantName(task.quadrant), cls: `qt-badge qt-badge-${task.quadrant}` });
+		metadata.createSpan({ text: this.getQuadrantName(task.quadrant), cls: `qt-badge qt-badge-${task.quadrant}` });
 		metadata.createEl("time", { text: formatCompletedAt(task.completedAt, this.plugin.language), attr: { datetime: task.completedAt } });
 		createIconButton(row, "trash-2", this.plugin.t("completed.delete"), () => void this.remove(task.id));
 	}
@@ -651,7 +744,9 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 		try {
 			await pending;
 			if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
-			if (outcome) this.refreshBoardRenderers(sourcePath, boardId, outcome.data, outcome.title);
+			if (outcome) {
+				this.refreshBoardRenderers(sourcePath, boardId, outcome.data, outcome.title, outcome.quadrantLabels);
+			}
 			return outcome;
 		} catch (error) {
 			if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
@@ -674,9 +769,15 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 		);
 	}
 
-	refreshBoardRenderers(sourcePath, boardId, data, title) {
+	updateQuadrantLabels(sourcePath, boardId, quadrant, labels) {
+		return this.updateBoard(sourcePath, boardId, (content, targetBoardId) =>
+			updateQuadrantLabelsDocument(content, targetBoardId, quadrant, labels),
+		);
+	}
+
+	refreshBoardRenderers(sourcePath, boardId, data, title, quadrantLabels) {
 		for (const renderer of this.boardRenderers) {
-			if (renderer.sourcePath === sourcePath && renderer.boardId === boardId) renderer.setBoardData(data, title);
+			if (renderer.sourcePath === sourcePath && renderer.boardId === boardId) renderer.setBoardData(data, title, quadrantLabels);
 		}
 	}
 
@@ -694,7 +795,7 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 			for (const renderer of renderers) {
 				try {
 					const board = readBoardFromDocument(content, renderer.boardId);
-					renderer.setBoardData(board.data, board.title);
+					renderer.setBoardData(board.data, board.title, board.quadrantLabels);
 				} catch (error) {
 					renderer.setBoardError(error);
 				}

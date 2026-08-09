@@ -67,6 +67,7 @@ Each matrix belongs to the note that contains it:
 | Restore | Uncheck a completed task to return it to its source quadrant. |
 | Filter | Filter completed tasks by source quadrant and by today, 7 days, 30 days, or a custom date range. |
 | Rename | Give every embedded matrix its own title; `Matrix` is the default. |
+| Customize quadrants | Edit each quadrant title and subtitle independently, or restore its language-aware defaults. |
 
 ## Markdown-backed by design
 
@@ -94,7 +95,7 @@ The note contains the complete board state in an `eisenhower-matrix-blocks` code
 
 The English headings inside the source are stable storage markers. The rendered interface follows the Chinese or English language selected in plugin settings.
 
-Hidden Markdown comments preserve source quadrants, ordering, creation times, and completion times. Use the insertion command and matrix controls to keep this data valid.
+Hidden Markdown comments preserve custom quadrant labels, source quadrants, ordering, creation times, and completion times. Use the insertion command and matrix controls to keep this data valid.
 
 ## Storage and sync
 
@@ -111,6 +112,8 @@ Interface language is stored separately from matrix data. Changing it does not r
 The matrix uses a responsive layout on Obsidian Mobile. Task menus let you move tasks between quadrants or raise and lower them when desktop drag and drop is unavailable.
 
 Open **Settings → Eisenhower Matrix Blocks → Interface language** and choose **Follow Obsidian** (the default), **中文**, or **English**. The change applies immediately to headings, menus, filters, controls, dates, commands, and notices without rewriting matrix blocks.
+
+Use the pencil button in a quadrant header to edit its title and subtitle. Custom labels are note content, so they stay unchanged when the interface language changes; restoring defaults makes that quadrant follow the interface language again.
 
 ## Frequently asked questions
 

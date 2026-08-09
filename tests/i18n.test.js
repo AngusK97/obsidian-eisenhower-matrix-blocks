@@ -35,4 +35,6 @@ test("translations cover Chinese and English with variables", () => {
 	assert.equal(translate("en", "stats.active", { count: 3 }), "3 active");
 	assert.equal(translate("zh", "task.moveUp"), "上移");
 	assert.equal(translate("en", "task.moveDown"), "Move down");
+	assert.equal(translate("zh", "board.editQuadrant", { quadrant: "重要且紧急" }), "编辑重要且紧急的标题和副标题");
+	assert.equal(translate("en", "modal.restoreQuadrantDefaults"), "Restore defaults");
 });

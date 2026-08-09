@@ -246,6 +246,28 @@ test("renaming a board persists its title and refreshes the matching renderer", 
 	assert.equal(renderedTitle, "个人计划");
 });
 
+test("customizing quadrant labels persists them and refreshes the matching renderer", async () => {
+	const PluginClass = loadBuiltPlugin();
+	const original = renderBoardCodeBlock("board-alpha", createEmptyData());
+	const harness = createPluginHarness(PluginClass, original);
+	let renderedLabels = null;
+	harness.plugin.boardRenderers.add({
+		sourcePath: "Projects.md",
+		boardId: "board-alpha",
+		setBoardData(data, title, quadrantLabels) {
+			assert.deepEqual(data.tasks, []);
+			assert.equal(title, "Matrix");
+			renderedLabels = quadrantLabels;
+		},
+	});
+
+	const labels = { title: "Deep work", subtitle: "Protect this time" };
+	const outcome = await harness.plugin.updateQuadrantLabels("Projects.md", "board-alpha", "schedule", labels);
+	assert.deepEqual(outcome.result, labels);
+	assert.deepEqual(readBoardFromDocument(harness.getContent(), "board-alpha").quadrantLabels.schedule, labels);
+	assert.deepEqual(renderedLabels.schedule, labels);
+});
+
 test("a failed local write leaves the note unchanged", async () => {
 	const PluginClass = loadBuiltPlugin();
 	const original = renderBoardCodeBlock("board-alpha", createEmptyData());
