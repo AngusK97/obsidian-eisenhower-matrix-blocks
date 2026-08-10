@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.4.0 - 2026-08-10
+
+- Edit each quadrant title and subtitle independently, with an option to restore language-aware defaults.
+- Store custom quadrant labels in the matrix's Markdown metadata so they remain local to the note and sync with it.
+- Use custom quadrant titles consistently in task movement, completed-task filters, and source badges.
+- Keep existing matrices compatible without changing stable Markdown section headings or task metadata.
+
 ## 2.3.1 - 2026-07-30
 
 - Wrap long active task titles within their quadrant and grow the task row to fit multiple lines.
