@@ -5,7 +5,12 @@
 	--qt-eliminate: var(--text-muted);
 	box-sizing: border-box;
 	width: 100%;
-	padding: 12px 0;
+	margin: 16px 0;
+	padding: 14px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-primary);
+	background: color-mix(in srgb, var(--background-secondary) 35%, var(--background-primary));
 	color: var(--text-normal);
 }
 
@@ -19,6 +24,43 @@
 	justify-content: space-between;
 	max-width: 1400px;
 	margin: 0 auto 16px;
+}
+
+.qt-board-toggle,
+.qt-completed-scroll-toggle {
+	flex: 0 0 auto;
+	color: var(--text-muted);
+}
+
+.qt-board-summary {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+	gap: 6px 14px;
+	max-width: 1400px;
+	margin: 0 auto;
+	padding: 10px 0 2px;
+	list-style: none;
+	border-top: 1px solid var(--background-modifier-border-hover);
+}
+
+.qt-board-summary li {
+	display: flex;
+	min-width: 0;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.qt-summary-label {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.qt-summary-count {
+	flex: 0 0 auto;
+	font-variant-numeric: tabular-nums;
 }
 
 .qt-title-group h3,
@@ -102,6 +144,7 @@
 	border-top: 3px solid var(--qt-quadrant-color);
 	border-radius: 8px;
 	background: var(--background-secondary);
+	overflow: hidden;
 	transition: border-color 120ms ease, background-color 120ms ease;
 }
 
@@ -194,19 +237,19 @@
 	padding: 0 12px 10px;
 }
 
-.qt-quick-add input,
+.qt-quick-add textarea,
 .qt-modal-input,
 .qt-filters select,
 .qt-custom-range input {
 	width: 100%;
-	height: 36px;
+	min-height: 36px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
 	background: var(--background-primary);
 	color: var(--text-normal);
 }
 
-.qt-quick-add input:focus,
+.qt-quick-add textarea:focus,
 .qt-modal-input:focus,
 .qt-filters select:focus,
 .qt-custom-range input:focus,
@@ -215,9 +258,24 @@
 	outline-offset: 2px;
 }
 
-.qt-quick-add input.qt-input-error,
+.qt-quick-add textarea.qt-input-error,
 .qt-modal-input.qt-input-error {
 	border-color: var(--text-error);
+}
+
+.qt-task-textarea {
+	min-height: 36px;
+	max-height: min(40dvh, 240px);
+	padding: 7px 9px;
+	overflow-y: auto;
+	resize: none;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	line-height: 1.45;
+}
+
+.modal .qt-task-textarea {
+	max-height: min(45dvh, 320px);
 }
 
 .qt-modal-field + .qt-modal-field {
@@ -280,10 +338,19 @@
 .qt-task-row,
 .qt-completed-row {
 	display: flex;
+	min-width: 0;
+	max-width: 100%;
 	min-height: 44px;
 	align-items: center;
 	gap: 9px;
 	border-bottom: 1px solid var(--background-modifier-border-hover);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.qt-task-row:focus-within,
+.qt-completed-row:focus-within {
+	box-shadow: inset 0 0 0 2px var(--interactive-accent);
 }
 
 .qt-task-row:last-child,
@@ -293,6 +360,42 @@
 
 .qt-task-row.qt-dragging {
 	opacity: 0.45;
+}
+
+.qt-drag-handle {
+	width: 28px;
+	height: 28px;
+	min-width: 28px;
+	touch-action: none;
+	color: var(--text-faint);
+	cursor: grab;
+}
+
+.qt-drag-handle:active {
+	cursor: grabbing;
+}
+
+.qt-drag-handle svg {
+	width: 15px;
+	height: 15px;
+}
+
+.qt-drag-preview {
+	position: fixed;
+	top: 0;
+	left: 0;
+	z-index: var(--layer-popover, 1000);
+	max-width: min(72vw, 360px);
+	padding: 8px 10px;
+	border: 1px solid var(--interactive-accent);
+	border-radius: 6px;
+	background: var(--background-primary);
+	box-shadow: var(--shadow-s);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	overflow-wrap: anywhere;
+	pointer-events: none;
+	will-change: transform;
 }
 
 .qt-task-row.qt-drop-before {
@@ -326,6 +429,7 @@
 }
 
 .qt-task-row .qt-task-title {
+	max-width: 100%;
 	height: auto;
 	white-space: normal;
 	line-height: 1.4;
@@ -367,14 +471,14 @@
 
 .qt-completed-section {
 	max-width: 1400px;
-	margin: 24px auto 40px;
+	margin: 24px auto 0;
 	padding-top: 18px;
 	border-top: 1px solid var(--background-modifier-border);
 }
 
 .qt-completed-header {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
 	justify-content: space-between;
 	margin-bottom: 12px;
 }
@@ -446,6 +550,13 @@
 	border-top: 1px solid var(--background-modifier-border-hover);
 }
 
+.qt-completed-list.is-scrollable {
+	max-height: min(40dvh, 360px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-gutter: stable;
+}
+
 .qt-completed-row {
 	padding: 5px 2px;
 }
@@ -464,8 +575,10 @@
 
 .qt-completed-meta {
 	display: flex;
+	min-width: 0;
 	align-items: center;
 	gap: 8px;
+	flex-wrap: wrap;
 	margin-top: 3px;
 	color: var(--text-faint);
 	font-size: var(--font-smallest);
@@ -509,7 +622,8 @@
 
 @media (max-width: 720px) {
 	.qt-root {
-		padding: 10px 0 20px;
+		margin: 12px 0;
+		padding: 10px;
 	}
 
 	.qt-matrix {
@@ -540,14 +654,21 @@
 		flex-basis: 44px;
 	}
 
+	.qt-drag-handle {
+		width: 44px;
+		height: 44px;
+		min-width: 44px;
+		color: var(--text-muted);
+	}
+
 	.qt-quick-add {
 		grid-template-columns: minmax(0, 1fr) 44px;
 	}
 
-	.qt-quick-add input,
+	.qt-quick-add textarea,
 	.qt-filters select,
 	.qt-custom-range input {
-		height: 44px;
+		min-height: 44px;
 	}
 
 	.qt-periods {

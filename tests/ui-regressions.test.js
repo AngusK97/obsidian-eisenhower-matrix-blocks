@@ -1,0 +1,478 @@
+"use strict";
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const Module = require("node:module");
+const { readFileSync } = require("node:fs");
+const { dirname, join } = require("node:path");
+const { addTask, completeTask, createEmptyData } = require("../src/core");
+const { renderBoardSource } = require("../src/board-store");
+const { translate } = require("../src/i18n");
+
+class FakeElement {
+	constructor(tagName = "div", options = {}) {
+		this.tagName = tagName.toUpperCase();
+		this.children = [];
+		this.parentElement = null;
+		this.attributes = {};
+		this.classes = new Set();
+		this.listeners = new Map();
+		this.text = options.text || "";
+		this.value = "";
+		this.checked = false;
+		this.hidden = false;
+		this.scrollHeight = 160;
+		this.style = {};
+		if (options.cls) this.addClass(...options.cls.split(/\s+/).filter(Boolean));
+		for (const [name, value] of Object.entries(options.attr || {})) this.setAttribute(name, value);
+	}
+
+	createEl(tagName, options) {
+		return this.appendChild(new FakeElement(tagName, options));
+	}
+
+	createDiv(options) {
+		return this.createEl("div", options);
+	}
+
+	createSpan(options) {
+		return this.createEl("span", options);
+	}
+
+	appendChild(child) {
+		child.parentElement = this;
+		this.children.push(child);
+		return child;
+	}
+
+	empty() {
+		this.children = [];
+		this.text = "";
+	}
+
+	addClass(...names) {
+		for (const name of names) this.classes.add(name);
+	}
+
+	removeClass(...names) {
+		for (const name of names) this.classes.delete(name);
+	}
+
+	hasClass(name) {
+		return this.classes.has(name);
+	}
+
+	setAttribute(name, value) {
+		this.attributes[name] = String(value);
+		if (name === "value") this.value = String(value);
+		if (name === "hidden") this.hidden = true;
+	}
+
+	getAttribute(name) {
+		return this.attributes[name] ?? null;
+	}
+
+	addEventListener(type, listener) {
+		const listeners = this.listeners.get(type) || [];
+		listeners.push(listener);
+		this.listeners.set(type, listeners);
+	}
+
+	dispatch(type, event = {}) {
+		const dispatched = {
+			preventDefault() { this.defaultPrevented = true; },
+			stopPropagation() { this.propagationStopped = true; },
+			...event,
+		};
+		for (const listener of this.listeners.get(type) || []) listener(dispatched);
+		return dispatched;
+	}
+
+	contains(candidate) {
+		return candidate === this || this.children.some((child) => child.contains(candidate));
+	}
+
+	querySelectorAll(selector) {
+		const selectors = selector.split(",").map((part) => part.trim());
+		return this.descendants().filter((element) => selectors.some((part) => element.matches(part)));
+	}
+
+	querySelector(selector) {
+		return this.querySelectorAll(selector)[0] || null;
+	}
+
+	descendants() {
+		return this.children.flatMap((child) => [child, ...child.descendants()]);
+	}
+
+	matches(selector) {
+		if (selector.startsWith(".")) return this.hasClass(selector.slice(1));
+		const attribute = selector.match(/^\[([^=\]]+)(?:="([^"]*)")?\]$/);
+		if (attribute) {
+			const value = this.getAttribute(attribute[1]);
+			return value !== null && (attribute[2] === undefined || value === attribute[2]);
+		}
+		return this.tagName === selector.toUpperCase();
+	}
+
+	closest(selector) {
+		for (let element = this; element; element = element.parentElement) {
+			if (element.matches(selector)) return element;
+		}
+		return null;
+	}
+
+	get textContent() {
+		return this.text + this.children.map((child) => child.textContent).join("");
+	}
+
+	focus() {}
+	select() {}
+	getBoundingClientRect() { return { top: 0, height: 44 }; }
+}
+
+class Component {}
+class MarkdownRenderChild extends Component {
+	constructor(containerEl) {
+		super();
+		this.containerEl = containerEl;
+	}
+}
+class Modal extends Component {
+	constructor() {
+		super();
+		this.contentEl = new FakeElement();
+		this.closed = false;
+		Modal.latest = this;
+	}
+
+	setTitle(title) { this.title = title; }
+	open() { this.onOpen(); }
+	close() { this.closed = true; this.onClose(); }
+}
+class Plugin extends Component {}
+class MarkdownView {}
+class Notice { constructor() {} }
+class Menu {}
+class PluginSettingTab extends Component {}
+class Setting {}
+class TFile {}
+
+function loadUiClasses() {
+	const filename = join(__dirname, "..", "src", "main.js");
+	const source = readFileSync(filename, "utf8").replace(
+		/module\.exports = EisenhowerMatrixBlocksPlugin;\s*$/,
+		"module.exports = { MatrixBoardRenderChild, TextInputModal };",
+	);
+	const originalLoad = Module._load;
+	Module._load = function mockObsidian(request, parent, isMain) {
+		if (request === "obsidian") {
+			return {
+				MarkdownRenderChild,
+				MarkdownView,
+				Menu,
+				Modal,
+				Notice,
+				Plugin,
+				PluginSettingTab,
+				Setting,
+				TFile,
+				getLanguage: () => "en",
+				normalizePath: (path) => path.replaceAll("\\", "/"),
+				setIcon() {},
+			};
+		}
+		return originalLoad.call(this, request, parent, isMain);
+	};
+	try {
+		const injected = new Module(filename, module);
+		injected.filename = filename;
+		injected.paths = Module._nodeModulePaths(dirname(filename));
+		injected._compile(source, filename);
+		return injected.exports;
+	} finally {
+		Module._load = originalLoad;
+	}
+}
+
+function createRenderer(data) {
+	const { MatrixBoardRenderChild } = loadUiClasses();
+	const container = new FakeElement();
+	const plugin = {
+		boardRenderers: new Set(),
+		language: "en",
+		t: (key, variables) => translate("en", key, variables),
+		getQuadrantMeta(quadrant) {
+			return {
+				icon: "circle",
+				action: translate("en", `quadrant.${quadrant}.action`),
+				description: translate("en", `quadrant.${quadrant}.description`),
+			};
+		},
+	};
+	const renderer = new MatrixBoardRenderChild(container, plugin, "Projects.md", renderBoardSource("board-alpha", data));
+	renderer.onload();
+	return { container, renderer };
+}
+
+function findByLabel(container, label) {
+	return container.descendants().find((element) => element.getAttribute("aria-label") === label) || null;
+}
+
+test("task editing uses a growing multiline control and Enter saves, prevents default, and closes", async () => {
+	const { TextInputModal } = loadUiClasses();
+	let saved = null;
+	const plugin = { app: {}, t: (key) => translate("en", key) };
+	const originalAnimationFrame = global.requestAnimationFrame;
+	global.requestAnimationFrame = (callback) => callback();
+	try {
+		const modal = new TextInputModal(plugin, "Before", async (value) => { saved = value; });
+		modal.open();
+		const editor = modal.contentEl.querySelector("textarea");
+		assert.ok(editor, "task content should use a textarea so wrapped text can grow vertically");
+		editor.value = "A much longer replacement task";
+		editor.dispatch("input");
+		assert.equal(editor.style.height, "160px", "the editor should grow to its wrapped content height");
+		const event = editor.dispatch("keydown", { key: "Enter", isComposing: false });
+		await new Promise((resolve) => setImmediate(resolve));
+
+		assert.equal(event.defaultPrevented, true);
+		assert.equal(saved, "A much longer replacement task");
+		assert.equal(modal.closed, true);
+	} finally {
+		global.requestAnimationFrame = originalAnimationFrame;
+	}
+});
+
+test("task textareas preserve the existing single-line Markdown title format", async () => {
+	const { TextInputModal } = loadUiClasses();
+	let saved = null;
+	const plugin = { app: {}, t: (key) => translate("en", key) };
+	const originalAnimationFrame = global.requestAnimationFrame;
+	global.requestAnimationFrame = (callback) => callback();
+	try {
+		const modal = new TextInputModal(plugin, "Before", async (value) => { saved = value; });
+		modal.open();
+		const editor = modal.contentEl.querySelector("textarea");
+		editor.value = "First line\nSecond line\r\nThird line";
+		editor.dispatch("keydown", { key: "Enter", isComposing: false });
+		await new Promise((resolve) => setImmediate(resolve));
+
+		assert.equal(saved, "First line Second line Third line");
+	} finally {
+		global.requestAnimationFrame = originalAnimationFrame;
+	}
+});
+
+test("task editing ignores IME Enter and submits only once while save is pending", async () => {
+	const { TextInputModal } = loadUiClasses();
+	let saveCount = 0;
+	let resolveSave;
+	const savePending = new Promise((resolve) => { resolveSave = resolve; });
+	const plugin = { app: {}, t: (key) => translate("en", key) };
+	const originalAnimationFrame = global.requestAnimationFrame;
+	global.requestAnimationFrame = (callback) => callback();
+	try {
+		const modal = new TextInputModal(plugin, "Before", async () => {
+			saveCount += 1;
+			await savePending;
+		});
+		modal.open();
+		const editor = modal.contentEl.querySelector("textarea");
+		editor.value = "After";
+		editor.dispatch("keydown", { key: "Enter", isComposing: true });
+		assert.equal(saveCount, 0, "IME confirmation must not submit the task");
+
+		editor.dispatch("keydown", { key: "Enter", isComposing: false });
+		editor.dispatch("keydown", { key: "Enter", isComposing: false });
+		await new Promise((resolve) => setImmediate(resolve));
+		assert.equal(saveCount, 1, "repeated Enter must not start concurrent saves");
+		assert.equal(modal.closed, false, "the editor remains visible until persistence succeeds");
+
+		resolveSave();
+		await new Promise((resolve) => setImmediate(resolve));
+		assert.equal(modal.closed, true);
+	} finally {
+		global.requestAnimationFrame = originalAnimationFrame;
+	}
+});
+
+test("quick add uses a growing multiline control for long mobile task text", () => {
+	const { container } = createRenderer(createEmptyData());
+	const quickAdd = container.querySelector(".qt-quick-add");
+	const editor = quickAdd.querySelector("textarea");
+
+	assert.ok(editor, "quick add should expose the whole wrapped task instead of a one-line tail");
+	editor.dispatch("input");
+	assert.equal(editor.style.height, "160px", "quick add should grow to its wrapped content height");
+});
+
+test("matrix collapse keeps a compact summary and its state survives a data refresh", () => {
+	const data = createEmptyData();
+	addTask(data, "Do now", "do", { idFactory: () => "active" });
+	const completed = addTask(data, "Finished", "schedule", { idFactory: () => "completed" });
+	completeTask(data, completed.id, new Date("2026-08-20T08:00:00.000Z"));
+	const { container, renderer } = createRenderer(data);
+	const collapse = container.querySelector('[aria-expanded="true"]');
+	assert.ok(collapse, "the expanded matrix should expose a collapse control");
+	collapse.dispatch("click");
+
+	assert.ok(container.querySelector('[aria-expanded="false"]'));
+	assert.equal(container.querySelector(".qt-matrix"), null);
+	assert.equal(container.querySelector(".qt-completed-section"), null);
+	for (const text of ["Matrix", "Important and urgent", "1", "Important, not urgent", "0", "Urgent, not important", "Neither important nor urgent", "1 completed"]) {
+		assert.match(container.textContent, new RegExp(text));
+	}
+
+	renderer.setBoardData(data);
+	assert.ok(container.querySelector('[aria-expanded="false"]'), "refreshing note data should not expand a matrix the user collapsed");
+});
+
+test("completed list toggles a keyboard-scrollable bounded mode and keeps it after refresh", () => {
+	const data = createEmptyData();
+	const completed = addTask(data, "Finished", "do", { idFactory: () => "completed" });
+	completeTask(data, completed.id, new Date("2026-08-20T08:00:00.000Z"));
+	const { container, renderer } = createRenderer(data);
+	const toggle = container
+		.querySelectorAll('[aria-pressed="false"]')
+		.find((element) => !element.parentElement?.hasClass("qt-periods"));
+	assert.ok(toggle, "the completed section should expose a scroll-mode toggle");
+	toggle.dispatch("click");
+
+	assert.ok(container.querySelector('[aria-pressed="true"]'));
+	assert.equal(container.querySelector(".qt-completed-list").getAttribute("tabindex"), "0");
+	renderer.setBoardData(data);
+	assert.ok(container.querySelector('[aria-pressed="true"]'), "refreshing note data should preserve completed-list scroll mode");
+});
+
+test("pointer drag clears its last target after leaving the matrix", () => {
+	const data = createEmptyData();
+	addTask(data, "Move me", "do", { idFactory: () => "active" });
+	const { container, renderer } = createRenderer(data);
+	const row = container.querySelector(".qt-task-row");
+	row.addClass("qt-drop-after");
+	container.ownerDocument = { elementFromPoint: () => null };
+	const target = { quadrant: "do", taskId: "active", placement: "after", element: row };
+	renderer.dragPoint = { x: -10, y: -10 };
+	renderer.dragTarget = target;
+
+	renderer.refreshDragTargetAtPoint();
+
+	assert.equal(renderer.dragTarget, null);
+	assert.equal(row.hasClass("qt-drop-after"), false);
+});
+
+test("dropping a task back on itself does not move it to the quadrant end", () => {
+	const data = createEmptyData();
+	addTask(data, "Move me", "do", { idFactory: () => "active" });
+	const { container, renderer } = createRenderer(data);
+	const row = container.querySelector(".qt-task-row");
+	const previousTarget = { quadrant: "schedule", taskId: null, placement: "after", element: row };
+	row.addClass("qt-drop-after");
+	container.ownerDocument = { elementFromPoint: () => row };
+	renderer.draggedTaskId = "active";
+	renderer.dragPoint = { x: 10, y: 10 };
+	renderer.dragTarget = previousTarget;
+
+	renderer.refreshDragTargetAtPoint();
+
+	assert.equal(renderer.dragTarget, null);
+	assert.equal(row.hasClass("qt-drop-after"), false);
+});
+
+test("touch drag suppresses its synthetic click while a normal handle tap opens actions", () => {
+	const data = createEmptyData();
+	addTask(data, "Move me", "do", { idFactory: () => "active" });
+	const { container, renderer } = createRenderer(data);
+	const dragHandle = container.querySelector(".qt-drag-handle");
+	let menuOpenCount = 0;
+	renderer.openTaskMenu = () => { menuOpenCount += 1; };
+
+	dragHandle.dispatch("pointerdown", { pointerType: "touch", pointerId: 7, button: 0, clientX: 10, clientY: 10 });
+	dragHandle.dispatch("pointermove", { pointerType: "touch", pointerId: 7, clientX: 10, clientY: 24 });
+	dragHandle.dispatch("pointerup", { pointerType: "touch", pointerId: 7, clientX: 10, clientY: 24 });
+	const syntheticClick = dragHandle.dispatch("click");
+	assert.equal(menuOpenCount, 0, "finishing a drag must not also open the task menu");
+	assert.equal(syntheticClick.defaultPrevented, true);
+
+	dragHandle.dispatch("click");
+	assert.equal(menuOpenCount, 1, "the suppression is one-shot so a regular tap remains useful");
+});
+
+test("a new handle tap resets drag-click suppression when no synthetic click was emitted", () => {
+	const data = createEmptyData();
+	addTask(data, "Move me", "do", { idFactory: () => "active" });
+	const { container, renderer } = createRenderer(data);
+	const dragHandle = container.querySelector(".qt-drag-handle");
+	let menuOpenCount = 0;
+	renderer.openTaskMenu = () => { menuOpenCount += 1; };
+
+	dragHandle.dispatch("pointerdown", { pointerType: "touch", pointerId: 7, button: 0, clientX: 10, clientY: 10 });
+	dragHandle.dispatch("pointermove", { pointerType: "touch", pointerId: 7, clientX: 10, clientY: 24 });
+	dragHandle.dispatch("pointerup", { pointerType: "touch", pointerId: 7, clientX: 10, clientY: 24 });
+	// This browser recognizes the drag gesture without emitting a click.
+	dragHandle.dispatch("pointerdown", { pointerType: "touch", pointerId: 8, button: 0, clientX: 10, clientY: 10 });
+	dragHandle.dispatch("pointerup", { pointerType: "touch", pointerId: 8, clientX: 10, clientY: 10 });
+	dragHandle.dispatch("click");
+
+	assert.equal(menuOpenCount, 1);
+});
+
+test("drag auto-scroll prefers the quadrant list and falls back to its containing note scroller", () => {
+	const data = createEmptyData();
+	addTask(data, "Move me", "do", { idFactory: () => "active" });
+	const { container, renderer } = createRenderer(data);
+	const list = container.querySelector(".qt-task-list");
+	const noteScroller = new FakeElement();
+	noteScroller.appendChild(container);
+	list.scrollHeight = 300;
+	list.clientHeight = 100;
+	list.scrollTop = 0;
+	list.getBoundingClientRect = () => ({ top: 0, bottom: 100, height: 100 });
+	noteScroller.scrollHeight = 900;
+	noteScroller.clientHeight = 400;
+	noteScroller.scrollTop = 100;
+	noteScroller.getBoundingClientRect = () => ({ top: 0, bottom: 400, height: 400 });
+	const ownerDocument = {
+		elementFromPoint: () => list,
+		defaultView: {
+			innerHeight: 400,
+			getComputedStyle: (element) => ({ overflowY: element === noteScroller ? "auto" : "visible" }),
+		},
+		scrollingElement: null,
+	};
+	container.ownerDocument = ownerDocument;
+	noteScroller.ownerDocument = ownerDocument;
+	renderer.dragInputType = "pointer";
+	renderer.dragPoint = { x: 10, y: 96 };
+
+	assert.equal(renderer.resolveAutoScroll()?.element, list, "the inner list scrolls before the note");
+
+	list.scrollTop = 200;
+	ownerDocument.elementFromPoint = () => noteScroller;
+	renderer.dragPoint = { x: 10, y: 395 };
+	assert.equal(renderer.resolveAutoScroll()?.element, noteScroller, "a direct hit on the note scroller must still scroll it");
+});
+
+test("ending a drag cancels its scheduled animation frame and clears visual state", () => {
+	const data = createEmptyData();
+	addTask(data, "Move me", "do", { idFactory: () => "active" });
+	const { container, renderer } = createRenderer(data);
+	const row = container.querySelector(".qt-task-row");
+	let cancelledFrame = null;
+	container.ownerDocument = {
+		defaultView: { cancelAnimationFrame: (frame) => { cancelledFrame = frame; } },
+	};
+	row.addClass("qt-dragging");
+	renderer.draggedTaskId = "active";
+	renderer.dragSourceRow = row;
+	renderer.dragFrame = 42;
+	renderer.dragPoint = { x: 10, y: 10 };
+
+	renderer.finishDrag(false);
+
+	assert.equal(cancelledFrame, 42);
+	assert.equal(renderer.draggedTaskId, null);
+	assert.equal(renderer.dragFrame, null);
+	assert.equal(row.hasClass("qt-dragging"), false);
+});

@@ -34,3 +34,31 @@ test("editable quadrant labels wrap without displacing their action", () => {
 	assert.match(labels, /overflow-wrap:\s*anywhere\s*;/);
 	assert.match(editButton, /flex:\s*0\s+0\s+28px\s*;/);
 });
+
+test("long active task titles stay clipped inside their rounded row", () => {
+	const rowRule = stylesheet.match(/\.qt-task-row,\s*\.qt-completed-row\s*\{([^}]*)\}/);
+	assert.ok(rowRule, "Missing shared task-row CSS rule");
+	const row = rowRule[1];
+	const title = declarationsFor(".qt-task-row .qt-task-title");
+
+	assert.match(row, /border-radius:\s*[^;]+;/);
+	assert.match(row, /overflow:\s*hidden\s*;/);
+	assert.match(title, /max-width:\s*100%\s*;/);
+});
+
+test("task textareas grow on mobile before becoming internally scrollable", () => {
+	const editor = declarationsFor(".qt-task-textarea");
+
+	assert.match(editor, /min-height:\s*[^;]+;/);
+	assert.match(editor, /max-height:\s*(?:min\([^;]+\)|[^;]+(?:vh|dvh))\s*;/);
+	assert.match(editor, /overflow-y:\s*auto\s*;/);
+	assert.match(editor, /resize:\s*none\s*;/);
+});
+
+test("completed scroll mode has a bounded focusable list", () => {
+	const list = declarationsFor(".qt-completed-list.is-scrollable");
+
+	assert.match(list, /max-height:\s*[^;]+;/);
+	assert.match(list, /overflow-y:\s*auto\s*;/);
+	assert.match(list, /overscroll-behavior:\s*contain\s*;/);
+});

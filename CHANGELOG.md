@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Use growing task textareas on desktop and mobile, and close task editors only after an Enter-triggered save succeeds.
+- Add touch and pen drag handles with edge auto-scroll for quadrant lists and the surrounding note.
+- Add a compact whole-matrix summary toggle and an optional bounded scrolling mode for completed tasks.
+- Give each embedded matrix a clear themed boundary and keep long task content inside rounded rows.
+- Preserve the existing Markdown data format; the new collapse and completed-list display modes are local interface state.
+
 ## 2.4.0 - 2026-08-10
 
 - Edit each quadrant title and subtitle independently, with an option to restore language-aware defaults.

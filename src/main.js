@@ -47,6 +47,11 @@ const {
 } = require("./board-store");
 const { normalizeLanguageMode, resolveLanguage, translate } = require("./i18n");
 const { parseTaskMarkdown } = require("./markdown-store");
+const {
+	canScrollElement,
+	getEdgeScrollVelocity,
+	getFrameScrollDelta,
+} = require("./drag-scroll");
 
 const SETTINGS_VERSION = 2;
 const DEFAULT_MIGRATION_PATH = "Quadrant Tasks.md";
@@ -63,6 +68,11 @@ const QUADRANT_META = {
 };
 
 const PERIODS = ["all", "today", "7d", "30d", "custom"];
+const LIST_SCROLL_EDGE = 48;
+const PAGE_SCROLL_EDGE_MOUSE = 72;
+const PAGE_SCROLL_EDGE_TOUCH = 96;
+const LIST_SCROLL_MAX_SPEED = 720;
+const PAGE_SCROLL_MAX_SPEED = 960;
 const getAppLanguage = typeof obsidian.getLanguage === "function"
 	? obsidian.getLanguage
 	: () => globalThis.document?.documentElement?.lang || "en";
@@ -79,6 +89,20 @@ function createIconButton(parent, icon, label, onClick, className = "") {
 	setIcon(button, icon);
 	button.addEventListener("click", onClick);
 	return button;
+}
+
+function autoSizeTaskTextarea(textarea) {
+	textarea.style.height = "auto";
+	textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
+function normalizeTaskTitle(value) {
+	return String(value || "").replace(/\s*[\r\n]+\s*/g, " ").trim();
+}
+
+function focusAfterRender(container, selector) {
+	const schedule = globalThis.requestAnimationFrame || ((callback) => callback());
+	schedule(() => container.querySelector(selector)?.focus());
 }
 
 function formatCompletedAt(value, language) {
@@ -100,34 +124,60 @@ class TextInputModal extends Modal {
 		this.modalTitleKey = options.modalTitleKey || "modal.editTask";
 		this.inputLabelKey = options.inputLabelKey || "modal.taskContent";
 		this.maxLength = options.maxLength || null;
+		this.multiline = options.multiline !== false;
 	}
 
 	onOpen() {
 		this.setTitle(this.plugin.t(this.modalTitleKey));
-		const input = this.contentEl.createEl("input", {
-			cls: "qt-modal-input",
-			attr: { type: "text", value: this.title, "aria-label": this.plugin.t(this.inputLabelKey) },
-		});
+		const input = this.multiline
+			? this.contentEl.createEl("textarea", {
+				cls: "qt-modal-input qt-task-textarea",
+				attr: { rows: "1", "aria-label": this.plugin.t(this.inputLabelKey) },
+			})
+			: this.contentEl.createEl("input", {
+				cls: "qt-modal-input",
+				attr: { type: "text", value: this.title, "aria-label": this.plugin.t(this.inputLabelKey) },
+			});
+		if (this.multiline) input.value = this.title;
 		if (this.maxLength) input.maxLength = this.maxLength;
 		const actions = this.contentEl.createDiv({ cls: "modal-button-container" });
 		const cancel = actions.createEl("button", { text: this.plugin.t("common.cancel") });
 		const save = actions.createEl("button", { text: this.plugin.t("common.save"), cls: "mod-cta" });
-		const submit = () => {
-			const value = input.value.trim();
+		let isSubmitting = false;
+		const submit = async () => {
+			if (isSubmitting) return;
+			const value = this.multiline ? normalizeTaskTitle(input.value) : input.value.trim();
 			if (!value) {
 				input.addClass("qt-input-error");
 				return;
 			}
-			this.onSave(value);
-			this.close();
+			isSubmitting = true;
+			save.disabled = true;
+			try {
+				await this.onSave(value);
+				this.close();
+			} catch (error) {
+				input.addClass("qt-input-error");
+				console.error("Failed to save matrix text input", error);
+			} finally {
+				isSubmitting = false;
+				save.disabled = false;
+			}
 		};
-		input.addEventListener("input", () => input.removeClass("qt-input-error"));
+		input.addEventListener("input", () => {
+			input.removeClass("qt-input-error");
+			if (this.multiline) autoSizeTaskTextarea(input);
+		});
 		input.addEventListener("keydown", (event) => {
-			if (event.key === "Enter" && !event.isComposing) submit();
+			if (event.key !== "Enter" || event.isComposing) return;
+			event.preventDefault();
+			event.stopPropagation();
+			void submit();
 		});
 		cancel.addEventListener("click", () => this.close());
-		save.addEventListener("click", submit);
+		save.addEventListener("click", () => void submit());
 		requestAnimationFrame(() => {
+			if (this.multiline) autoSizeTaskTextarea(input);
 			input.focus();
 			input.select();
 		});
@@ -210,15 +260,45 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		this.issues = parsed.issues;
 		this.filters = { quadrant: "all", period: "all", startDate: "", endDate: "" };
 		this.draggedTaskId = null;
+		this.dragSourceRow = null;
+		this.dragInputType = null;
+		this.dragPoint = null;
+		this.dragTarget = null;
+		this.dragFrame = null;
+		this.dragFrameTime = 0;
+		this.pointerDrag = null;
+		this.dragPreview = null;
+		this.handleDocumentDragOver = (event) => {
+			if (this.draggedTaskId) this.updateDragPoint(event.clientX, event.clientY);
+		};
+		this.handleDragInterruption = () => this.finishDrag(false);
+		this.handleVisibilityChange = () => {
+			if (this.getOwnerDocument()?.hidden) this.finishDrag(false);
+		};
+		this.isCollapsed = false;
+		this.isCompletedScrollable = false;
 	}
 
 	onload() {
 		this.plugin.boardRenderers.add(this);
+		const document = this.getOwnerDocument();
+		document?.addEventListener("dragover", this.handleDocumentDragOver, true);
+		document?.addEventListener("visibilitychange", this.handleVisibilityChange);
+		document?.defaultView?.addEventListener("blur", this.handleDragInterruption);
 		this.render();
 	}
 
 	onunload() {
+		const document = this.getOwnerDocument();
+		document?.removeEventListener("dragover", this.handleDocumentDragOver, true);
+		document?.removeEventListener("visibilitychange", this.handleVisibilityChange);
+		document?.defaultView?.removeEventListener("blur", this.handleDragInterruption);
+		this.finishDrag(false);
 		this.plugin.boardRenderers.delete(this);
+	}
+
+	getOwnerDocument() {
+		return this.containerEl.ownerDocument || globalThis.document || null;
 	}
 
 	setBoardData(data, title = this.boardTitle, quadrantLabels = this.quadrantLabels) {
@@ -253,6 +333,10 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		}
 
 		this.renderHeader(container);
+		if (this.isCollapsed) {
+			this.renderSummary(container);
+			return;
+		}
 		const matrix = container.createDiv({ cls: "qt-matrix" });
 		for (const quadrant of QUADRANTS) this.renderQuadrant(matrix, quadrant);
 		this.renderCompleted(container);
@@ -267,6 +351,36 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		const stats = titleGroup.createDiv({ cls: "qt-stats", attr: { "aria-live": "polite" } });
 		stats.createSpan({ text: this.plugin.t("stats.active", { count: getActiveTasks(this.data).length }) });
 		stats.createSpan({ text: this.plugin.t("stats.completed", { count: getCompletedTasks(this.data).length }) });
+		const toggleLabel = this.plugin.t(this.isCollapsed ? "board.expand" : "board.collapse");
+		const toggle = createIconButton(
+			header,
+			this.isCollapsed ? "chevron-down" : "chevron-up",
+			toggleLabel,
+			() => {
+				this.isCollapsed = !this.isCollapsed;
+				this.render();
+				focusAfterRender(this.containerEl, ".qt-board-toggle");
+			},
+			"qt-board-toggle",
+		);
+		toggle.setAttribute("aria-expanded", String(!this.isCollapsed));
+	}
+
+	renderSummary(container) {
+		const summary = container.createEl("ul", {
+			cls: "qt-board-summary",
+			attr: { "aria-label": this.plugin.t("board.summary") },
+		});
+		for (const quadrant of QUADRANTS) {
+			const item = summary.createEl("li");
+			item.createSpan({ text: this.getQuadrantName(quadrant), cls: "qt-summary-label" });
+			item.createSpan({ text: String(getActiveTasks(this.data, quadrant).length), cls: "qt-summary-count" });
+		}
+		const completed = summary.createEl("li", { cls: "qt-summary-completed" });
+		completed.createSpan({
+			text: this.plugin.t("stats.completed", { count: getCompletedTasks(this.data).length }),
+			cls: "qt-summary-label",
+		});
 	}
 
 	clearDropIndicators() {
@@ -275,9 +389,217 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		});
 	}
 
-	getDropPlacement(event, row) {
+	clearDragTarget() {
+		if (!this.dragTarget) return;
+		this.clearDropIndicators();
+		this.dragTarget = null;
+	}
+
+	beginDrag(taskId, row, inputType) {
+		if (this.draggedTaskId) this.finishDrag(false);
+		this.draggedTaskId = taskId;
+		this.dragSourceRow = row;
+		this.dragInputType = inputType;
+		row.addClass("qt-dragging");
+	}
+
+	updateDragPoint(clientX, clientY, refreshImmediately = false) {
+		if (!this.draggedTaskId || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
+		this.dragPoint = { x: clientX, y: clientY };
+		this.updateDragPreview();
+		if (refreshImmediately) this.refreshDragTargetAtPoint();
+		this.scheduleDragFrame();
+	}
+
+	scheduleDragFrame() {
+		if (this.dragFrame !== null || !this.draggedTaskId) return;
+		const view = this.getOwnerDocument()?.defaultView || globalThis;
+		if (typeof view.requestAnimationFrame !== "function") return;
+		this.dragFrame = view.requestAnimationFrame((timestamp) => this.runDragFrame(timestamp));
+	}
+
+	runDragFrame(timestamp) {
+		this.dragFrame = null;
+		if (!this.draggedTaskId || !this.dragPoint) return;
+		this.refreshDragTargetAtPoint();
+		const deltaMs = this.dragFrameTime ? timestamp - this.dragFrameTime : 16;
+		this.dragFrameTime = timestamp;
+		const scroll = this.resolveAutoScroll();
+		if (!scroll) return;
+		const delta = getFrameScrollDelta(scroll.velocity, deltaMs);
+		if (!delta) return;
+		scroll.element.scrollTop += delta;
+		this.refreshDragTargetAtPoint();
+		this.scheduleDragFrame();
+	}
+
+	resolveAutoScroll() {
+		const document = this.getOwnerDocument();
+		const point = this.dragPoint;
+		if (!document || !point) return null;
+		const hit = document.elementFromPoint?.(point.x, point.y);
+		const taskList = hit?.closest?.(".qt-task-list");
+		if (taskList && this.containerEl.contains(taskList)) {
+			const bounds = taskList.getBoundingClientRect();
+			const velocity = getEdgeScrollVelocity(point.y, bounds.top, bounds.bottom, LIST_SCROLL_EDGE, LIST_SCROLL_MAX_SPEED);
+			if (canScrollElement(taskList, Math.sign(velocity))) return { element: taskList, velocity };
+		}
+
+		const edgeSize = this.dragInputType === "pointer" ? PAGE_SCROLL_EDGE_TOUCH : PAGE_SCROLL_EDGE_MOUSE;
+		for (let element = hit || this.containerEl.parentElement; element; element = element.parentElement) {
+			if (element === taskList || !element.contains?.(this.containerEl) || !this.isScrollableElement(element)) continue;
+			const bounds = element.getBoundingClientRect();
+			const velocity = getEdgeScrollVelocity(point.y, bounds.top, bounds.bottom, edgeSize, PAGE_SCROLL_MAX_SPEED);
+			if (canScrollElement(element, Math.sign(velocity))) return { element, velocity };
+		}
+
+		const scrollingElement = document.scrollingElement;
+		const view = document.defaultView;
+		if (scrollingElement && view) {
+			const velocity = getEdgeScrollVelocity(point.y, 0, view.innerHeight, edgeSize, PAGE_SCROLL_MAX_SPEED);
+			if (canScrollElement(scrollingElement, Math.sign(velocity))) return { element: scrollingElement, velocity };
+		}
+		return null;
+	}
+
+	isScrollableElement(element) {
+		if (!element || element.scrollHeight <= element.clientHeight) return false;
+		const view = element.ownerDocument?.defaultView;
+		const overflowY = view?.getComputedStyle?.(element).overflowY || "";
+		return /auto|scroll|overlay/.test(overflowY);
+	}
+
+	refreshDragTargetAtPoint() {
+		const document = this.getOwnerDocument();
+		const point = this.dragPoint;
+		if (!document || !point) return;
+		const hit = document.elementFromPoint?.(point.x, point.y);
+		const row = hit?.closest?.(".qt-task-row");
+		if (row && this.containerEl.contains(row)) {
+			if (row.getAttribute("data-task-id") === this.draggedTaskId) {
+				this.clearDragTarget();
+				return;
+			}
+			const quadrantElement = row.closest(".qt-quadrant");
+			this.setDragTarget({
+				quadrant: quadrantElement?.getAttribute("data-quadrant"),
+				taskId: row.getAttribute("data-task-id"),
+				placement: this.getDropPlacementAtY(point.y, row),
+				element: row,
+			});
+			return;
+		}
+		const quadrantElement = hit?.closest?.(".qt-quadrant");
+		if (quadrantElement && this.containerEl.contains(quadrantElement)) {
+			this.setDragTarget({
+				quadrant: quadrantElement.getAttribute("data-quadrant"),
+				taskId: null,
+				placement: "after",
+				element: quadrantElement,
+			});
+			return;
+		}
+		this.clearDragTarget();
+	}
+
+	setDragTarget(target) {
+		if (!target?.quadrant) return;
+		const currentKey = this.dragTarget
+			? `${this.dragTarget.quadrant}:${this.dragTarget.taskId || "end"}:${this.dragTarget.placement}`
+			: "";
+		const nextKey = `${target.quadrant}:${target.taskId || "end"}:${target.placement}`;
+		if (currentKey === nextKey) return;
+		this.clearDropIndicators();
+		this.dragTarget = target;
+		if (target.taskId) target.element.addClass(target.placement === "before" ? "qt-drop-before" : "qt-drop-after");
+		else target.element.addClass("qt-drop-target");
+	}
+
+	getDropPlacementAtY(clientY, row) {
 		const bounds = row.getBoundingClientRect();
-		return event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+		return clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+	}
+
+	finishDrag(commit) {
+		const taskId = this.draggedTaskId;
+		const target = this.dragTarget;
+		const view = this.getOwnerDocument()?.defaultView || globalThis;
+		if (this.dragFrame !== null && typeof view.cancelAnimationFrame === "function") view.cancelAnimationFrame(this.dragFrame);
+		this.dragFrame = null;
+		this.dragFrameTime = 0;
+		this.dragSourceRow?.removeClass("qt-dragging");
+		this.dragPreview?.remove();
+		this.dragPreview = null;
+		this.clearDropIndicators();
+		this.draggedTaskId = null;
+		this.dragSourceRow = null;
+		this.dragInputType = null;
+		this.dragPoint = null;
+		this.dragTarget = null;
+		this.pointerDrag = null;
+		if (!commit || !taskId || !target) return;
+		if (target.taskId && target.taskId !== taskId) {
+			void this.mutate((data) => reorderTask(data, taskId, target.quadrant, target.taskId, target.placement));
+		} else if (!target.taskId) {
+			void this.mutate((data) => reorderTask(data, taskId, target.quadrant, null, "after"));
+		}
+	}
+
+	createDragPreview(title) {
+		const document = this.getOwnerDocument();
+		if (!document?.body) return;
+		const preview = document.createElement("div");
+		preview.className = "qt-drag-preview";
+		preview.textContent = title;
+		preview.setAttribute("aria-hidden", "true");
+		document.body.appendChild(preview);
+		this.dragPreview = preview;
+		this.updateDragPreview();
+	}
+
+	updateDragPreview() {
+		if (!this.dragPreview || !this.dragPoint) return;
+		this.dragPreview.style.transform = `translate3d(${this.dragPoint.x + 14}px, ${this.dragPoint.y + 14}px, 0)`;
+	}
+
+	startPointerDrag(event, task, row, handle) {
+		if (!/touch|pen/.test(event.pointerType || "") || event.button > 0) return;
+		event.preventDefault();
+		this.pointerDrag = {
+			pointerId: event.pointerId,
+			startX: event.clientX,
+			startY: event.clientY,
+			task,
+			row,
+			handle,
+			active: false,
+		};
+		handle.setPointerCapture?.(event.pointerId);
+	}
+
+	movePointerDrag(event) {
+		const pointer = this.pointerDrag;
+		if (!pointer || pointer.pointerId !== event.pointerId) return;
+		const distance = Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY);
+		if (!pointer.active && distance < 6) return;
+		event.preventDefault();
+		if (!pointer.active) {
+			pointer.active = true;
+			this.beginDrag(pointer.task.id, pointer.row, "pointer");
+			this.pointerDrag = pointer;
+			this.createDragPreview(pointer.task.title);
+		}
+		this.updateDragPoint(event.clientX, event.clientY);
+	}
+
+	endPointerDrag(event, commit) {
+		const pointer = this.pointerDrag;
+		if (!pointer || pointer.pointerId !== event.pointerId) return false;
+		if (pointer.active) this.updateDragPoint(event.clientX, event.clientY, true);
+		this.pointerDrag = null;
+		pointer.handle.releasePointerCapture?.(event.pointerId);
+		this.finishDrag(commit && pointer.active);
+		return pointer.active;
 	}
 
 	getQuadrantPresentation(quadrant) {
@@ -319,25 +641,42 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		);
 
 		const quickAdd = section.createDiv({ cls: "qt-quick-add" });
-		const input = quickAdd.createEl("input", {
+		const input = quickAdd.createEl("textarea", {
+			cls: "qt-task-textarea",
 			attr: {
-				type: "text",
+				rows: "1",
 				placeholder: this.plugin.t("task.add"),
 				"aria-label": this.plugin.t("task.addTo", { quadrant: quadrantName }),
 			},
 		});
+		let isSubmitting = false;
 		const submit = async () => {
-			const titleText = input.value.trim();
+			if (isSubmitting) return;
+			const titleText = normalizeTaskTitle(input.value);
 			if (!titleText) {
 				input.addClass("qt-input-error");
 				return;
 			}
-			const task = await this.mutate((data) => addTask(data, titleText, quadrant));
-			if (task) input.value = "";
+			isSubmitting = true;
+			try {
+				const task = await this.mutate((data) => addTask(data, titleText, quadrant));
+				if (task) {
+					input.value = "";
+					autoSizeTaskTextarea(input);
+				}
+			} finally {
+				isSubmitting = false;
+			}
 		};
-		input.addEventListener("input", () => input.removeClass("qt-input-error"));
+		input.addEventListener("input", () => {
+			input.removeClass("qt-input-error");
+			autoSizeTaskTextarea(input);
+		});
 		input.addEventListener("keydown", (event) => {
-			if (event.key === "Enter" && !event.isComposing) void submit();
+			if (event.key !== "Enter" || event.isComposing) return;
+			event.preventDefault();
+			event.stopPropagation();
+			void submit();
 		});
 		createIconButton(
 			quickAdd,
@@ -354,17 +693,17 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		section.addEventListener("dragover", (event) => {
 			if (!this.draggedTaskId) return;
 			event.preventDefault();
-			section.addClass("qt-drop-target");
+			this.updateDragPoint(event.clientX, event.clientY);
 		});
 		section.addEventListener("dragleave", (event) => {
-			if (!section.contains(event.relatedTarget)) section.removeClass("qt-drop-target");
+			if (!section.contains(event.relatedTarget) && this.dragTarget?.element === section) {
+				this.clearDragTarget();
+			}
 		});
 		section.addEventListener("drop", (event) => {
 			event.preventDefault();
-			const taskId = event.dataTransfer?.getData("text/plain") || this.draggedTaskId;
-			this.draggedTaskId = null;
-			this.clearDropIndicators();
-			if (taskId) void this.mutate((data) => reorderTask(data, taskId, quadrant, null, "after"));
+			this.updateDragPoint(event.clientX, event.clientY, true);
+			this.finishDrag(true);
 		});
 	}
 
@@ -373,6 +712,33 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 			cls: "qt-task-row",
 			attr: { draggable: "true", "data-task-id": task.id },
 		});
+		let suppressNextHandleClick = false;
+		const dragHandle = createIconButton(
+			row,
+			"grip-vertical",
+			this.plugin.t("task.drag", { title: task.title }),
+			(event) => {
+				if (suppressNextHandleClick) {
+					suppressNextHandleClick = false;
+					event.preventDefault();
+					event.stopPropagation();
+					return;
+				}
+				this.openTaskMenu(event, task);
+			},
+			"qt-drag-handle",
+		);
+		dragHandle.addEventListener("pointerdown", (event) => {
+			suppressNextHandleClick = false;
+			this.startPointerDrag(event, task, row, dragHandle);
+		}, { passive: false });
+		dragHandle.addEventListener("keydown", () => { suppressNextHandleClick = false; });
+		dragHandle.addEventListener("pointermove", (event) => this.movePointerDrag(event), { passive: false });
+		dragHandle.addEventListener("pointerup", (event) => {
+			if (this.endPointerDrag(event, true)) suppressNextHandleClick = true;
+		});
+		dragHandle.addEventListener("pointercancel", (event) => this.endPointerDrag(event, false));
+		dragHandle.addEventListener("lostpointercapture", (event) => this.endPointerDrag(event, false));
 		const checkbox = row.createEl("input", {
 			cls: "qt-task-checkbox",
 			attr: { type: "checkbox", "aria-label": this.plugin.t("task.complete", { title: task.title }) },
@@ -386,8 +752,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		title.addEventListener("click", () => this.openEditor(task));
 		createIconButton(row, "more-horizontal", this.plugin.t("task.more"), (event) => this.openTaskMenu(event, task));
 		row.addEventListener("dragstart", (event) => {
-			this.draggedTaskId = task.id;
-			row.addClass("qt-dragging");
+			this.beginDrag(task.id, row, "mouse");
 			if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
 			event.dataTransfer?.setData("text/plain", task.id);
 		});
@@ -395,44 +760,38 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 			if (!this.draggedTaskId || this.draggedTaskId === task.id) return;
 			event.preventDefault();
 			event.stopPropagation();
-			const placement = this.getDropPlacement(event, row);
-			row.removeClass("qt-drop-before", "qt-drop-after");
-			row.addClass(placement === "before" ? "qt-drop-before" : "qt-drop-after");
+			this.updateDragPoint(event.clientX, event.clientY);
 		});
 		row.addEventListener("dragleave", (event) => {
-			if (!row.contains(event.relatedTarget)) row.removeClass("qt-drop-before", "qt-drop-after");
+			if (!row.contains(event.relatedTarget) && this.dragTarget?.element === row) {
+				this.clearDragTarget();
+			}
 		});
 		row.addEventListener("drop", (event) => {
 			event.preventDefault();
 			event.stopPropagation();
-			const taskId = event.dataTransfer?.getData("text/plain") || this.draggedTaskId;
-			const placement = this.getDropPlacement(event, row);
-			this.draggedTaskId = null;
-			this.clearDropIndicators();
-			if (taskId && taskId !== task.id) {
-				void this.mutate((data) => reorderTask(data, taskId, task.quadrant, task.id, placement));
-			}
+			this.updateDragPoint(event.clientX, event.clientY, true);
+			this.finishDrag(true);
 		});
 		row.addEventListener("dragend", () => {
-			this.draggedTaskId = null;
-			row.removeClass("qt-dragging");
-			this.clearDropIndicators();
+			this.finishDrag(false);
 		});
 	}
 
 	openEditor(task) {
-		new TextInputModal(this.plugin, task.title, (title) => {
-			void this.mutate((data) => editTask(data, task.id, title));
+		new TextInputModal(this.plugin, task.title, async (title) => {
+			const result = await this.mutate((data) => editTask(data, task.id, title));
+			if (!result) throw new Error("Task update did not complete");
 		}).open();
 	}
 
 	openBoardTitleEditor() {
-		new TextInputModal(this.plugin, this.boardTitle, (title) => {
-			void this.plugin.renameBoard(this.sourcePath, this.boardId, title);
-		}, {
+		new TextInputModal(this.plugin, this.boardTitle, (title) =>
+			this.plugin.renameBoard(this.sourcePath, this.boardId, title), {
 			modalTitleKey: "modal.editTitle",
 			inputLabelKey: "modal.matrixTitle",
 			maxLength: 120,
+			multiline: false,
 		}).open();
 	}
 
@@ -523,6 +882,19 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 			cls: "qt-completed-count",
 			attr: { "aria-live": "polite" },
 		});
+		const scrollLabel = this.plugin.t(this.isCompletedScrollable ? "completed.showAll" : "completed.enableScroll");
+		const scrollToggle = createIconButton(
+			header,
+			this.isCompletedScrollable ? "maximize-2" : "minimize-2",
+			scrollLabel,
+			() => {
+				this.isCompletedScrollable = !this.isCompletedScrollable;
+				this.render();
+				focusAfterRender(this.containerEl, ".qt-completed-scroll-toggle");
+			},
+			"qt-completed-scroll-toggle",
+		);
+		scrollToggle.setAttribute("aria-pressed", String(this.isCompletedScrollable));
 
 		const controls = section.createDiv({ cls: "qt-filters" });
 		const quadrantSelect = controls.createEl("select", { attr: { "aria-label": this.plugin.t("completed.filterQuadrant") } });
@@ -550,7 +922,12 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		}
 		if (this.filters.period === "custom") this.renderCustomRange(controls);
 
-		const list = section.createEl("ul", { cls: "qt-completed-list" });
+		const list = section.createEl("ul", {
+			cls: `qt-completed-list${this.isCompletedScrollable ? " is-scrollable" : ""}`,
+			attr: this.isCompletedScrollable
+				? { tabindex: "0", "aria-label": this.plugin.t("completed.listLabel") }
+				: {},
+		});
 		if (!bounds.valid) {
 			list.createEl("li", { text: this.plugin.t("completed.invalidRange"), cls: "qt-empty qt-filter-error" });
 		} else if (tasks.length === 0) {
