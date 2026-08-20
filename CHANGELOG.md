@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.5.0 - 2026-08-20
 
 - Use growing task textareas on desktop and mobile, and close task editors only after an Enter-triggered save succeeds.
 - Add touch and pen drag handles with edge auto-scroll for quadrant lists and the surrounding note.
