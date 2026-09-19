@@ -35,13 +35,14 @@ test("editable quadrant labels wrap without displacing their action", () => {
 	assert.match(editButton, /flex:\s*0\s+0\s+28px\s*;/);
 });
 
-test("long active task titles stay clipped inside their rounded row", () => {
+test("long active task titles stay clipped inside their flat list row", () => {
 	const rowRule = stylesheet.match(/\.qt-task-row,\s*\.qt-completed-row\s*\{([^}]*)\}/);
 	assert.ok(rowRule, "Missing shared task-row CSS rule");
 	const row = rowRule[1];
 	const title = declarationsFor(".qt-task-row .qt-task-title");
 
-	assert.match(row, /border-radius:\s*[^;]+;/);
+	assert.match(row, /border-radius:\s*0\s*;/);
+	assert.match(row, /align-items:\s*flex-start\s*;/);
 	assert.match(row, /overflow:\s*hidden\s*;/);
 	assert.match(title, /max-width:\s*100%\s*;/);
 });
@@ -71,6 +72,7 @@ test("deadline units wrap as whole pieces and task buttons resist host theme dec
 	assert.match(button, /text-align:\s*left/);
 	assert.match(button, /background:\s*transparent/);
 	assert.match(button, /border:\s*0/);
+	assert.match(button, /min-height:\s*0/);
 });
 
 test("all stable tag palette pairs exceed normal-text contrast requirements", () => {

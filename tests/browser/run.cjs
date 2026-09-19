@@ -17,6 +17,18 @@ function contrast(first, second) {
 
 async function assertLayout(page, name) {
 	assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}: document overflow`);
+	for (const row of await page.locator(".qt-task-row, .qt-completed-row").evaluateAll(elements => elements.map(element => {
+		const box = element.querySelector(".qt-task-checkbox").getBoundingClientRect();
+		const title = element.querySelector(".qt-task-name, .qt-completed-title");
+		const text = title.getBoundingClientRect();
+		const firstLine = parseFloat(getComputedStyle(title).lineHeight);
+		const handle = element.querySelector(".qt-drag-handle")?.getBoundingClientRect();
+		return { gap: text.left - box.right, offset: Math.abs(box.top + box.height / 2 - text.top - firstLine / 2), trailing: !handle || handle.left >= text.right - 1 };
+	}))) {
+		assert.ok(row.gap >= 6 && row.gap <= 12, `${name}: checkbox sits next to title`);
+		assert.ok(row.offset <= 4, `${name}: checkbox aligns with title first line`);
+		assert.ok(row.trailing, `${name}: drag handle does not indent task content`);
+	}
 	for (const item of await page.locator(".qt-task-row button.qt-task-title").evaluateAll(elements => elements.map(element => {
 		const style = getComputedStyle(element);
 		return { background: style.backgroundColor, border: style.borderTopWidth, align: style.textAlign };
@@ -54,6 +66,7 @@ async function assertLayout(page, name) {
 		for (const [name, width, height, theme, lang, narrow] of [
 			["desktop", 1440, 1000, "light", "en", false], ["mobile", 390, 844, "dark", "zh", false],
 			["compact", 320, 740, "light", "zh", false], ["narrow-desktop", 1440, 1000, "dark", "zh", true],
+			["tablet", 768, 1024, "light", "en", false], ["small-desktop", 1024, 900, "dark", "zh", false],
 		]) {
 			const page = await browser.newPage({ viewport: { width, height }, isMobile: width < 500, hasTouch: width < 500 });
 			page.on("pageerror", error => errors.push(error.message));
@@ -75,7 +88,16 @@ async function assertLayout(page, name) {
 			assert.equal(await page.locator(".qt-completed-row .is-urgent").count(), 0);
 			assert.equal(await page.locator(".qt-completed-row .qt-due-muted").count(), 1);
 			assert.match(await page.locator('[data-task-id="task-1"] .qt-due-weekday').textContent(), /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/);
-			await page.screenshot({ path: path.join(output, `2.7.0-${name}.png`), fullPage: true });
+			await page.screenshot({ path: path.join(output, `2.7.1-${name}.png`), fullPage: true });
+			if (narrow) {
+				const tagged = page.locator('[data-task-id="task-7"]');
+				const tag = await tagged.locator(".qt-task-tags").boundingBox();
+				const due = await tagged.locator(".qt-task-due").boundingBox();
+				assert.ok(Math.abs(tag.y - due.y) <= 4, "short tags and deadline share a compact line");
+				const expanded = await page.addStyleTag({ content: ".qt-task-list { max-height: none; }" });
+				await page.locator(".qt-task-list").first().screenshot({ path: path.join(output, "2.7.1-task-layout.png") });
+				await expanded.evaluate(el => el.remove());
+			}
 			const quick = page.locator(".qt-quick-add").first();
 			assert.notEqual(await quick.locator(".qt-add-button").evaluate(el => getComputedStyle(el).backgroundColor), "rgba(0, 0, 0, 0)");
 			assert.equal(await quick.locator(".qt-due-time").isDisabled(), true);
@@ -114,7 +136,7 @@ async function assertLayout(page, name) {
 			await editor.locator(".qt-due-time").fill("00:00");
 			await editor.locator(".qt-due-time").dispatchEvent("change");
 			await editor.locator(".qt-tag-input").fill(Array.from({ length: 14 }, (_, index) => `标签${index}`).join(","));
-			await page.screenshot({ path: path.join(output, `2.7.0-${name}-editor.png`) });
+			await page.screenshot({ path: path.join(output, `2.7.1-${name}-editor.png`) });
 			await editor.locator(".qt-task-notes-input").press("Control+Enter");
 			await editor.waitFor({ state: "detached" });
 			await page.evaluate(() => window.matrixPreview.reload());

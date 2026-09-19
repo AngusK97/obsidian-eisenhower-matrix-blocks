@@ -688,9 +688,22 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 			cls: "qt-task-row",
 			attr: { draggable: "true", "data-task-id": task.id },
 		});
+		const checkbox = row.createEl("input", {
+			cls: "qt-task-checkbox",
+			attr: { type: "checkbox", "aria-label": this.plugin.t("task.complete", { title: task.title }) },
+		});
+		checkbox.addEventListener("change", () => void this.complete(task.id));
+		const title = row.createEl("button", {
+			cls: "qt-task-title",
+			attr: { type: "button", title: this.plugin.t("task.edit") },
+		});
+		title.createSpan({ text: task.title, cls: "qt-task-name" });
+		renderTaskDetails(title, task, this.plugin);
+		title.addEventListener("click", () => this.openEditor(task));
+		const actions = row.createDiv({ cls: "qt-task-actions" });
 		let suppressNextHandleClick = false;
 		const dragHandle = createIconButton(
-			row,
+			actions,
 			"grip-vertical",
 			this.plugin.t("task.drag", { title: task.title }),
 			(event) => {
@@ -715,19 +728,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		});
 		dragHandle.addEventListener("pointercancel", (event) => this.endPointerDrag(event, false));
 		dragHandle.addEventListener("lostpointercapture", (event) => this.endPointerDrag(event, false));
-		const checkbox = row.createEl("input", {
-			cls: "qt-task-checkbox",
-			attr: { type: "checkbox", "aria-label": this.plugin.t("task.complete", { title: task.title }) },
-		});
-		checkbox.addEventListener("change", () => void this.complete(task.id));
-		const title = row.createEl("button", {
-			cls: "qt-task-title",
-			attr: { type: "button", title: this.plugin.t("task.edit") },
-		});
-		title.createSpan({ text: task.title, cls: "qt-task-name" });
-		renderTaskDetails(title, task, this.plugin);
-		title.addEventListener("click", () => this.openEditor(task));
-		createIconButton(row, "more-horizontal", this.plugin.t("task.more"), (event) => this.openTaskMenu(event, task), "qt-task-more");
+		createIconButton(actions, "more-horizontal", this.plugin.t("task.more"), (event) => this.openTaskMenu(event, task), "qt-task-more");
 		row.addEventListener("dragstart", (event) => {
 			this.beginDrag(task.id, row, "mouse");
 			if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";

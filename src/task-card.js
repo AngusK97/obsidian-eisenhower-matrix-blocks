@@ -12,15 +12,16 @@ function growTextarea(input) {
 }
 
 function renderTaskDetails(parent, task, plugin) {
+	const due = getDueDateInfo(task.dueDate, task.completedAt);
+	const metadata = task.tags?.length || due ? parent.createSpan({ cls: "qt-task-meta" }) : null;
 	if (task.tags?.length) {
-		const tags = parent.createSpan({ cls: "qt-task-tags", attr: { "aria-label": plugin.t("task.tags") } });
+		const tags = metadata.createSpan({ cls: "qt-task-tags", attr: { "aria-label": plugin.t("task.tags") } });
 		for (const tag of task.tags) createTagChip(tags, tag);
 	}
-	const due = getDueDateInfo(task.dueDate, task.completedAt);
 	if (due) {
 		const relative = plugin.t(due.days < 0 ? "task.overdueDays" : due.days === 0 ? "task.dueToday" : "task.remainingDays", { count: Math.abs(due.days) });
 		const tone = getDueDateTone(due.days, task.completedAt);
-		const line = parent.createSpan({ cls: `qt-task-due qt-due-${tone}${due.urgent ? " is-urgent" : ""}` });
+		const line = metadata.createSpan({ cls: `qt-task-due qt-due-${tone}${due.urgent ? " is-urgent" : ""}` });
 		const dateUnit = line.createSpan({ cls: "qt-due-unit" });
 		const icon = dateUnit.createSpan({ cls: "qt-due-icon", attr: { "aria-hidden": "true" } });
 		setIcon(icon, due.urgent ? "alarm-clock" : "calendar");

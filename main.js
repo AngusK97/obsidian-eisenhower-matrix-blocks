@@ -1459,16 +1459,17 @@ var require_task_card = __commonJS({
       input.style.height = `${input.scrollHeight}px`;
     }
     function renderTaskDetails2(parent, task, plugin) {
-      var _a;
-      if ((_a = task.tags) == null ? void 0 : _a.length) {
-        const tags = parent.createSpan({ cls: "qt-task-tags", attr: { "aria-label": plugin.t("task.tags") } });
+      var _a, _b;
+      const due = getDueDateInfo(task.dueDate, task.completedAt);
+      const metadata = ((_a = task.tags) == null ? void 0 : _a.length) || due ? parent.createSpan({ cls: "qt-task-meta" }) : null;
+      if ((_b = task.tags) == null ? void 0 : _b.length) {
+        const tags = metadata.createSpan({ cls: "qt-task-tags", attr: { "aria-label": plugin.t("task.tags") } });
         for (const tag of task.tags) createTagChip(tags, tag);
       }
-      const due = getDueDateInfo(task.dueDate, task.completedAt);
       if (due) {
         const relative = plugin.t(due.days < 0 ? "task.overdueDays" : due.days === 0 ? "task.dueToday" : "task.remainingDays", { count: Math.abs(due.days) });
         const tone = getDueDateTone(due.days, task.completedAt);
-        const line = parent.createSpan({ cls: `qt-task-due qt-due-${tone}${due.urgent ? " is-urgent" : ""}` });
+        const line = metadata.createSpan({ cls: `qt-task-due qt-due-${tone}${due.urgent ? " is-urgent" : ""}` });
         const dateUnit = line.createSpan({ cls: "qt-due-unit" });
         const icon = dateUnit.createSpan({ cls: "qt-due-icon", attr: { "aria-hidden": "true" } });
         setIcon2(icon, due.urgent ? "alarm-clock" : "calendar");
@@ -2249,9 +2250,22 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
       cls: "qt-task-row",
       attr: { draggable: "true", "data-task-id": task.id }
     });
+    const checkbox = row.createEl("input", {
+      cls: "qt-task-checkbox",
+      attr: { type: "checkbox", "aria-label": this.plugin.t("task.complete", { title: task.title }) }
+    });
+    checkbox.addEventListener("change", () => void this.complete(task.id));
+    const title = row.createEl("button", {
+      cls: "qt-task-title",
+      attr: { type: "button", title: this.plugin.t("task.edit") }
+    });
+    title.createSpan({ text: task.title, cls: "qt-task-name" });
+    renderTaskDetails(title, task, this.plugin);
+    title.addEventListener("click", () => this.openEditor(task));
+    const actions = row.createDiv({ cls: "qt-task-actions" });
     let suppressNextHandleClick = false;
     const dragHandle = createIconButton(
-      row,
+      actions,
       "grip-vertical",
       this.plugin.t("task.drag", { title: task.title }),
       (event) => {
@@ -2278,19 +2292,7 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     });
     dragHandle.addEventListener("pointercancel", (event) => this.endPointerDrag(event, false));
     dragHandle.addEventListener("lostpointercapture", (event) => this.endPointerDrag(event, false));
-    const checkbox = row.createEl("input", {
-      cls: "qt-task-checkbox",
-      attr: { type: "checkbox", "aria-label": this.plugin.t("task.complete", { title: task.title }) }
-    });
-    checkbox.addEventListener("change", () => void this.complete(task.id));
-    const title = row.createEl("button", {
-      cls: "qt-task-title",
-      attr: { type: "button", title: this.plugin.t("task.edit") }
-    });
-    title.createSpan({ text: task.title, cls: "qt-task-name" });
-    renderTaskDetails(title, task, this.plugin);
-    title.addEventListener("click", () => this.openEditor(task));
-    createIconButton(row, "more-horizontal", this.plugin.t("task.more"), (event) => this.openTaskMenu(event, task), "qt-task-more");
+    createIconButton(actions, "more-horizontal", this.plugin.t("task.more"), (event) => this.openTaskMenu(event, task), "qt-task-more");
     row.addEventListener("dragstart", (event) => {
       var _a;
       this.beginDrag(task.id, row, "mouse");

@@ -23,6 +23,9 @@ const data = normalizeData({ version: 1, tasks: [
 	task("task-4", "只填写名称的旧任务", "schedule"),
 	task("task-5", "请同事确认交付材料", "delegate", date(7), "恰好 7 天：绿色。", null, null, ["协作", "工作"]),
 	task("task-6", "整理阅读清单", "eliminate", date(8), "超过 7 天：主题中性色。", null, null, ["生活", "读书"]),
+	task("task-7", "项目例会", "do", date(1), "", null, "14:30", ["P1"]),
+	task("task-8", "Week 2 Reading", "do", date(2), "", null, "09:00", ["学习"]),
+	task("task-9", "完成课程并提交证书", "do", date(2), "看教程，回答问题，提交证书", null, "09:00", ["学习"]),
 	...Array.from({ length: 12 }, (_, index) => task(`done-${index}`, `今天完成的任务 ${index + 1}`, "do", index === 0 ? date(-1) : null, index === 0 ? "已完成，即使逾期也不显示紧急闹钟。" : "", today.toISOString(), index === 0 ? "16:00" : null, index === 0 ? ["工作", "完成"] : [])),
 	task("old-1", "昨天完成的任务：切到全部才出现", "schedule", null, "用于验证默认今天筛选。", new Date(today.getTime() - 86400000).toISOString()),
 ] });

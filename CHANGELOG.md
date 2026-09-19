@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.7.1 - 2026-09-20
+
+- Redesign task rows as compact checklists: align checkboxes with title first lines and move drag/menu controls to the trailing edge, removing the hidden leading gutter.
+- Let colored tags and deadline units share a wrapping metadata band, with muted notes below and quiet straight dividers.
+- Apply the same alignment to completed tasks and neutralize host-theme button minimum heights for title-only tasks.
+- Preserve quadrant layout, date/time semantics, task data and all editing, completion and drag interactions.
+
 ## 2.7.0 - 2026-09-20
 
 - Add unlimited task tags with deterministic, accessible light/dark colors; add, remove and edit them in quick-add and the task editor, and show them in active/completed cards.
