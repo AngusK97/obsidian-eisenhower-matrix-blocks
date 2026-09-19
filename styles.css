@@ -1,4 +1,6 @@
 .qt-root {
+	container-type: inline-size;
+	container-name: qt-board;
 	--qt-do: var(--color-red);
 	--qt-schedule: var(--color-blue);
 	--qt-delegate: var(--color-yellow);
@@ -239,7 +241,8 @@
 }
 
 .qt-quick-details {
-	display: flex;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
 	grid-column: 1 / -1;
 	align-items: flex-start;
 	gap: 6px;
@@ -252,6 +255,8 @@
 	max-height: 120px;
 	font-size: var(--font-ui-smaller);
 }
+
+.qt-quick-tags { grid-column: 1 / -1; min-width: 0; }
 
 .qt-quick-error {
 	grid-column: 1 / -1;
@@ -272,10 +277,6 @@
 	font-variant-numeric: tabular-nums;
 }
 
-.qt-quick-details .qt-due-picker {
-	flex: 0 0 auto;
-}
-
 .qt-date-icon,
 .qt-date-icon svg {
 	display: block;
@@ -284,59 +285,74 @@
 	flex-shrink: 0;
 }
 
-.qt-date-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.qt-date-popover {
+.qt-deadline-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.qt-date-control, .qt-time-control { display: flex; align-items: center; min-width: 0; gap: 2px; }
+.qt-native-date, .qt-due-time {
 	box-sizing: border-box;
-	position: fixed;
-	z-index: var(--layer-popover, 1000);
-	width: 280px;
-	max-width: calc(100vw - 16px);
-	max-height: calc(100dvh - 16px);
-	overflow-y: auto;
-	padding: 12px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 8px;
-	background: var(--background-primary);
-	color: var(--text-normal);
-	box-shadow: var(--shadow-s);
-}
-
-.qt-date-heading {
-	margin-bottom: 8px;
-	color: var(--text-muted);
-	font-size: var(--font-ui-small);
-}
-
-.qt-date-input {
-	box-sizing: border-box;
-	width: 100%;
 	min-width: 0;
-	height: 44px;
-}
-
-.qt-date-shortcuts {
-	display: flex;
-	gap: 6px;
-	margin-top: 8px;
-}
-
-.qt-date-apply {
-	width: 100%;
-	min-height: 44px;
-	margin-top: 8px;
-}
-
-.qt-date-shortcuts button {
-	flex: 1;
-	min-width: 0;
-	min-height: 44px;
-	padding: 6px;
+	min-height: 36px;
+	max-width: 100%;
+	padding: 5px 6px;
+	font: inherit;
 	font-size: var(--font-ui-smaller);
+	color: var(--text-normal);
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+}
+.qt-native-date { width: 132px; }
+.qt-due-time { width: 100px; }
+.qt-date-control .qt-due-picker, .qt-time-control .qt-clear-time {
+	min-width: 28px; width: 28px; min-height: 36px; padding: 4px;
+	border: 0; background: transparent; box-shadow: none; color: var(--text-muted);
+}
+.qt-clear-time[hidden] { display: none; }
+.theme-dark .qt-native-date, .theme-dark .qt-due-time { color-scheme: dark; }
+
+.qt-tag-field {
+	display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+	min-width: 0; padding: 4px 6px;
+	border: 1px solid var(--background-modifier-border); border-radius: 6px;
+	background: var(--background-primary);
+}
+.qt-tag-field:focus-within { border-color: var(--interactive-accent); }
+.qt-tag-chips, .qt-task-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+.qt-tag-chips:empty { display: none; }
+.qt-tag-chips { max-height: min(24dvh, 180px); overflow-y: auto; }
+.qt-task-tags { margin-top: 6px; }
+.qt-tag {
+	display: inline-flex; align-items: center; gap: 3px;
+	min-width: 0; max-width: 100%; padding: 2px 7px; border-radius: 5px;
+	font-size: 12px; font-weight: 600; line-height: 1.6;
+	color: var(--qt-tag-fg); background: var(--qt-tag-bg);
+}
+.qt-tag-label { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.qt-tag-field .qt-tag-label { white-space: normal; overflow-wrap: anywhere; }
+.qt-tag-color-0 { --qt-tag-fg: #075985; --qt-tag-bg: #e0f2fe; }
+.qt-tag-color-1 { --qt-tag-fg: #115e59; --qt-tag-bg: #ccfbf1; }
+.qt-tag-color-2 { --qt-tag-fg: #166534; --qt-tag-bg: #dcfce7; }
+.qt-tag-color-3 { --qt-tag-fg: #854d0e; --qt-tag-bg: #fef9c3; }
+.qt-tag-color-4 { --qt-tag-fg: #9a3412; --qt-tag-bg: #ffedd5; }
+.qt-tag-color-5 { --qt-tag-fg: #9d174d; --qt-tag-bg: #fce7f3; }
+.qt-tag-color-6 { --qt-tag-fg: #6b21a8; --qt-tag-bg: #f3e8ff; }
+.qt-tag-color-7 { --qt-tag-fg: #3730a3; --qt-tag-bg: #e0e7ff; }
+.theme-dark .qt-tag-color-0 { --qt-tag-fg: #bae6fd; --qt-tag-bg: #0c4a6e; }
+.theme-dark .qt-tag-color-1 { --qt-tag-fg: #99f6e4; --qt-tag-bg: #134e4a; }
+.theme-dark .qt-tag-color-2 { --qt-tag-fg: #bbf7d0; --qt-tag-bg: #14532d; }
+.theme-dark .qt-tag-color-3 { --qt-tag-fg: #fef08a; --qt-tag-bg: #713f12; }
+.theme-dark .qt-tag-color-4 { --qt-tag-fg: #fed7aa; --qt-tag-bg: #7c2d12; }
+.theme-dark .qt-tag-color-5 { --qt-tag-fg: #fbcfe8; --qt-tag-bg: #831843; }
+.theme-dark .qt-tag-color-6 { --qt-tag-fg: #e9d5ff; --qt-tag-bg: #581c87; }
+.theme-dark .qt-tag-color-7 { --qt-tag-fg: #c7d2fe; --qt-tag-bg: #312e81; }
+.qt-tag .qt-tag-remove {
+	flex: 0 0 24px; min-width: 24px; min-height: 28px; height: 28px; padding: 0;
+	border: 0; box-shadow: none; background: transparent; color: inherit;
+	font-size: 17px; line-height: 1; cursor: pointer;
+}
+.qt-tag-field .qt-tag-input {
+	flex: 1; width: 100%; min-width: 100px; min-height: 28px; height: 28px; max-height: 28px;
+	padding: 4px 2px; border: 0; box-shadow: none; background: transparent;
+	font: inherit; font-size: var(--font-ui-smaller); line-height: 20px; resize: none;
 }
 
 .qt-task-editor .qt-modal-field {
@@ -547,7 +563,7 @@
 	cursor: pointer;
 }
 
-.qt-task-title {
+.qt-root button.qt-task-title {
 	display: block;
 	height: auto;
 	white-space: normal;
@@ -563,6 +579,7 @@
 	font-size: var(--font-ui-small);
 	font-weight: var(--font-normal);
 	text-align: left;
+	justify-content: flex-start;
 	cursor: text;
 }
 
@@ -573,11 +590,12 @@
 
 .qt-task-due {
 	display: flex;
-	align-items: baseline;
-	gap: 5px;
-	margin-top: 4px;
-	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 6px;
+	margin-top: 6px;
+	color: var(--text-normal);
+	font-size: 12px;
 	font-variant-numeric: tabular-nums;
 	line-height: 1.5;
 }
@@ -586,14 +604,22 @@
 	color: var(--text-error, var(--color-red));
 }
 
+.qt-task-due.qt-due-green { color: #187747; }
+.theme-dark .qt-task-due.qt-due-green { color: #75d69b; }
+.theme-dark .qt-task-due.qt-due-neutral { color: #eeeef0; }
+.qt-task-due.qt-due-muted { color: var(--text-muted); }
+.qt-due-unit, .qt-due-unit time { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.qt-due-clock, .qt-due-relative { white-space: nowrap; }
+.qt-due-weekday { font-size: 11px; opacity: .85; }
+.qt-due-relative { padding: 1px 5px; border-radius: 4px; background: color-mix(in srgb, currentColor 10%, transparent); }
+
 .qt-due-date {
 	white-space: nowrap;
 }
 
 .qt-due-icon {
 	flex: 0 0 13px;
-	align-self: flex-start;
-	margin-top: 2px;
+	display: inline-flex;
 }
 
 .qt-due-icon svg {
@@ -627,7 +653,7 @@
 	word-break: break-word;
 }
 
-.qt-task-title:hover {
+.qt-root button.qt-task-title:hover {
 	background: transparent;
 	color: var(--text-normal);
 }
@@ -810,6 +836,11 @@
 	font-weight: var(--font-semibold);
 }
 
+/* A narrow Obsidian pane needs a single column even inside a wide desktop window. */
+@container qt-board (max-width: 620px) {
+	.qt-matrix { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 720px) {
 	.qt-root {
 		margin: 12px 0;
@@ -862,10 +893,14 @@
 
 	.qt-quick-add textarea,
 	.qt-due-picker,
+	.qt-native-date,
+	.qt-due-time,
 	.qt-filters select,
 	.qt-custom-range input {
 		min-height: 44px;
 	}
+	.qt-tag .qt-tag-remove { min-width: 32px; min-height: 44px; height: 44px; }
+	.qt-tag-field .qt-tag-input { min-height: 36px; height: 36px; max-height: 36px; }
 
 	.qt-periods {
 		width: 100%;

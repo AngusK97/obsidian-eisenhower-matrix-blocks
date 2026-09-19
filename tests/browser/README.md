@@ -19,8 +19,12 @@ workspace/Vault events and real Obsidian theme inheritance require app/device
 verification. Icon drawings here are illustrative, not official Obsidian icons.
 
 Recommended viewports: desktop 1440×1000, mobile 390×844, compact 320×740, with
-light/dark themes. Fixtures use the current local date: overdue, today, +2 days,
-exactly +3 days, empty details, long text, 12 completed today and one yesterday.
+light/dark themes, plus a narrow desktop note pane. Fixtures use the current local
+date: overdue, today, exactly +3/+7/+8 days, optional 24-hour time, colorful tags,
+empty details, long text, 12 completed today and one yesterday. QA also applies
+hostile host-theme button styling, verifies full metadata units and checks tag
+contrast. Native picker API invocation is tested, but the OS calendar popup and
+real mobile keyboards still need device acceptance.
 
 For browser automation, `window.matrixPreview` provides `renderer`, `getData()`,
 `getMarkdown()`, `reload()` (recreate the renderer from its saved Markdown), and

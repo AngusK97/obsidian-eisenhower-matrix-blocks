@@ -1,7 +1,8 @@
 "use strict";
 
 const { createEmptyData, isQuadrant, normalizeData } = require("./core");
-const { normalizeDueDate } = require("./task-details");
+const { normalizeDueDate, normalizeDueTime } = require("./task-details");
+const { isValidTags } = require("./task-tags");
 
 const START_MARKER = "<!-- quadrant-tasks:start -->";
 const END_MARKER = "<!-- quadrant-tasks:end -->";
@@ -129,7 +130,9 @@ function parseTaskLine(line, currentQuadrant, metadata, options) {
 		completedAt,
 		order: Number.isFinite(metadata?.order) ? metadata.order : options.fallbackOrder,
 		dueDate: metadata?.dueDate,
+		dueTime: metadata?.dueTime,
 		notes: metadata?.notes,
+		tags: metadata?.tags,
 	};
 }
 
@@ -200,6 +203,12 @@ function parseTaskMarkdown(content, options = {}) {
 			if (metadata?.notes != null && typeof metadata.notes !== "string") {
 				issues.push(`第 ${index + 1} 行的任务备注必须是文本`);
 			}
+			if (metadata?.dueTime != null && metadata.dueTime !== "" && (!normalizeDueTime(metadata.dueTime) || !normalizeDueDate(metadata.dueDate))) {
+				issues.push(`第 ${index + 1} 行的任务截止时间无效或缺少截止日期`);
+			}
+			if (metadata && Object.prototype.hasOwnProperty.call(metadata, "tags") && !isValidTags(metadata.tags)) {
+				issues.push(`第 ${index + 1} 行的任务标签必须是文本数组`);
+			}
 		}
 		if (!task) {
 			issues.push(`第 ${index + 1} 行的任务缺少标题或有效象限`);
@@ -238,7 +247,9 @@ function taskMetadata(task) {
 		order: task.order,
 	};
 	if (task.dueDate) metadata.dueDate = task.dueDate;
+	if (task.dueTime) metadata.dueTime = task.dueTime;
 	if (task.notes) metadata.notes = task.notes;
+	if (task.tags.length) metadata.tags = task.tags;
 	// JSON escapes newlines; escaping angle brackets also keeps notes from ending
 	// the HTML comment or impersonating a managed-block boundary.
 	const json = JSON.stringify(metadata).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");

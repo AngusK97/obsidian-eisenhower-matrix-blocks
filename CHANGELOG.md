@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.7.0 - 2026-09-20
+
+- Add unlimited task tags with deterministic, accessible light/dark colors; add, remove and edit them in quick-add and the task editor, and show them in active/completed cards.
+- Add optional 24-hour deadline time. Dates show English weekday abbreviations; unset time stays absent, and clearing a date also clears its time.
+- Rebuild deadline presentation as complete wrapping units: date/weekday, optional time and relative days. Remove redundant "0 days" for today's deadlines.
+- Unfinished deadlines up to 3 days away (inclusive, including overdue) are red; 4–7 days are green; later dates use normal light/dark text. Completed deadlines remain muted.
+- Open the platform's native date picker directly, retaining an accessible native date input when programmatic opening is unavailable. Native appearance varies by OS/webview.
+- Isolate task content from host-theme button decoration and preserve in-flight deadline draft edits atomically.
+- **Update all devices to 2.7.0 before editing tags or times.** Older versions can discard the new metadata on save.
+
 ## 2.6.0 - 2026-09-20
 
 - Default completed history to today and a bounded, scrollable list; keep all-date and full-height options available.

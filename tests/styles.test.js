@@ -62,3 +62,26 @@ test("completed scroll mode has a bounded focusable list", () => {
 	assert.match(list, /overflow-y:\s*auto\s*;/);
 	assert.match(list, /overscroll-behavior:\s*contain\s*;/);
 });
+
+test("deadline units wrap as whole pieces and task buttons resist host theme decoration", () => {
+	assert.match(stylesheet, /@container qt-board \(max-width: 620px\)/);
+	assert.match(declarationsFor(".qt-task-due"), /flex-wrap:\s*wrap/);
+	assert.match(declarationsFor(".qt-due-clock, .qt-due-relative"), /white-space:\s*nowrap/);
+	const button = declarationsFor(".qt-root button.qt-task-title");
+	assert.match(button, /text-align:\s*left/);
+	assert.match(button, /background:\s*transparent/);
+	assert.match(button, /border:\s*0/);
+});
+
+test("all stable tag palette pairs exceed normal-text contrast requirements", () => {
+	const luminance = hex => {
+		const rgb = hex.match(/[a-f\d]{2}/gi).map(pair => parseInt(pair, 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+		return .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2];
+	};
+	const pairs = [...stylesheet.matchAll(/--qt-tag-fg:\s*(#[a-f\d]{6});\s*--qt-tag-bg:\s*(#[a-f\d]{6})/gi)];
+	assert.equal(pairs.length, 16);
+	for (const [, foreground, background] of pairs) {
+		const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+		assert.ok((values[0] + .05) / (values[1] + .05) >= 4.5, `${foreground} on ${background}`);
+	}
+});

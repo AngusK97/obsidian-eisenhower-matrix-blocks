@@ -15,15 +15,15 @@ const date = (offset) => {
 	value.setDate(value.getDate() + offset);
 	return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 };
-const task = (id, title, quadrant, dueDate = null, notes = "", completedAt = null) => ({ id, title, quadrant, dueDate, notes, completedAt, createdAt: today.toISOString(), order: Number(id.replace(/\D/g, "")) || 0 });
+const task = (id, title, quadrant, dueDate = null, notes = "", completedAt = null, dueTime = null, tags = []) => ({ id, title, quadrant, dueDate, dueTime, tags, notes, completedAt, createdAt: today.toISOString(), order: Number(id.replace(/\D/g, "")) || 0 });
 const data = normalizeData({ version: 1, tasks: [
-	task("task-1", "完善矩阵插件，准备手机端验收", "do", date(0), "确认编辑、日期选择、备注显示和完成列表都保持一致。"),
-	task("task-2", "长标题：对照移动端上的每一项实际操作，确认任务文本能够完整换行并且保持圆角边界清晰", "do", date(-1), "这是一条很长很长的备注，用于检查窄屏截断。\n完整内容应该保留在编辑弹窗中，不应因为界面截断而丢失。"),
-	task("task-3", "为下周的项目演示安排时间", "schedule", date(3), "距离截止日期恰好 3 天，不应标红。"),
+	task("task-1", "完善矩阵插件，准备手机端验收", "do", date(0), "确认编辑、日期选择、备注显示和完成列表都保持一致。", null, "09:30", ["产品", "手机验收", "工作"]),
+	task("task-2", "长标题：对照移动端上的每一项实际操作，确认任务文本能够完整换行并且保持圆角边界清晰", "do", date(-1), "这是一条很长很长的备注，用于检查窄屏截断。\n完整内容应该保留在编辑弹窗中，不应因为界面截断而丢失。", null, "23:59", ["工作", "一个很长很长很长很长很长的标签用来检查截断"]),
+	task("task-3", "为下周的项目演示安排时间", "schedule", date(3), "距离截止日期恰好 3 天，显示红色。", null, "00:00", ["会议", "产品"]),
 	task("task-4", "只填写名称的旧任务", "schedule"),
-	task("task-5", "请同事确认交付材料", "delegate", date(2), "发出后等待反馈。"),
-	task("task-6", "整理阅读清单", "eliminate", null, "不紧急：有空再做。"),
-	...Array.from({ length: 12 }, (_, index) => task(`done-${index}`, `今天完成的任务 ${index + 1}`, "do", index === 0 ? date(-1) : null, index === 0 ? "已完成，即使逾期也不显示紧急闹钟。" : "", today.toISOString())),
+	task("task-5", "请同事确认交付材料", "delegate", date(7), "恰好 7 天：绿色。", null, null, ["协作", "工作"]),
+	task("task-6", "整理阅读清单", "eliminate", date(8), "超过 7 天：主题中性色。", null, null, ["生活", "读书"]),
+	...Array.from({ length: 12 }, (_, index) => task(`done-${index}`, `今天完成的任务 ${index + 1}`, "do", index === 0 ? date(-1) : null, index === 0 ? "已完成，即使逾期也不显示紧急闹钟。" : "", today.toISOString(), index === 0 ? "16:00" : null, index === 0 ? ["工作", "完成"] : [])),
 	task("old-1", "昨天完成的任务：切到全部才出现", "schedule", null, "用于验证默认今天筛选。", new Date(today.getTime() - 86400000).toISOString()),
 ] });
 const boardId = "board-browser-qa";

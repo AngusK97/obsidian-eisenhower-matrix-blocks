@@ -27,9 +27,43 @@ var require_task_details = __commonJS({
       const [year, month, day] = date.split("-").map(Number);
       const today = calendarDay(now.getFullYear(), now.getMonth() + 1, now.getDate());
       const days = Math.round((calendarDay(year, month, day) - today) / DAY_MS);
-      return { date, days, urgent: !completedAt && days < 3 };
+      return { date, days, urgent: !completedAt && days <= 3 };
     }
-    module2.exports = { getDueDateInfo, normalizeDueDate };
+    function normalizeDueTime(value) {
+      return typeof value === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value) ? value : null;
+    }
+    function getDueDateTone(days, completedAt) {
+      if (completedAt) return "muted";
+      if (days <= 3) return "red";
+      return days <= 7 ? "green" : "neutral";
+    }
+    module2.exports = { getDueDateInfo, getDueDateTone, normalizeDueDate, normalizeDueTime };
+  }
+});
+
+// src/task-tags.js
+var require_task_tags = __commonJS({
+  "src/task-tags.js"(exports2, module2) {
+    "use strict";
+    function isValidTags(value) {
+      return Array.isArray(value) && value.every((tag) => typeof tag === "string");
+    }
+    function normalizeTag(value) {
+      return value.trim().replace(/^#+/, "").trim().normalize("NFC");
+    }
+    function normalizeTags(value) {
+      if (!isValidTags(value)) return [];
+      return [...new Set(value.map(normalizeTag).filter(Boolean))];
+    }
+    function getTagColorIndex(value) {
+      const tag = typeof value === "string" ? normalizeTag(value) : "";
+      let hash = 2166136261;
+      for (let index = 0; index < tag.length; index += 1) {
+        hash = Math.imul(hash ^ tag.charCodeAt(index), 16777619) >>> 0;
+      }
+      return hash % 8;
+    }
+    module2.exports = { getTagColorIndex, isValidTags, normalizeTags };
   }
 });
 
@@ -37,7 +71,8 @@ var require_task_details = __commonJS({
 var require_core = __commonJS({
   "src/core.js"(exports2, module2) {
     "use strict";
-    var { normalizeDueDate } = require_task_details();
+    var { normalizeDueDate, normalizeDueTime } = require_task_details();
+    var { isValidTags, normalizeTags } = require_task_tags();
     var DATA_VERSION = 1;
     var QUADRANTS2 = ["do", "schedule", "delegate", "eliminate"];
     function createEmptyData2() {
@@ -67,7 +102,9 @@ var require_core = __commonJS({
           completedAt: isValidDate(candidate.completedAt) ? new Date(candidate.completedAt).toISOString() : null,
           order: Number.isFinite(candidate.order) ? candidate.order : tasks.length,
           dueDate: normalizeDueDate(candidate.dueDate),
-          notes: typeof candidate.notes === "string" ? candidate.notes : ""
+          dueTime: normalizeDueDate(candidate.dueDate) ? normalizeDueTime(candidate.dueTime) : null,
+          notes: typeof candidate.notes === "string" ? candidate.notes : "",
+          tags: normalizeTags(candidate.tags)
         });
       }
       return { version: DATA_VERSION, tasks };
@@ -90,6 +127,10 @@ var require_core = __commonJS({
         throw new Error("Invalid due date");
       }
       if (options.notes != null && typeof options.notes !== "string") throw new Error("Invalid notes");
+      if (options.dueTime != null && options.dueTime !== "" && (!normalizeDueTime(options.dueTime) || !normalizeDueDate(options.dueDate))) {
+        throw new Error("Invalid due time or missing due date");
+      }
+      if (Object.prototype.hasOwnProperty.call(options, "tags") && !isValidTags(options.tags)) throw new Error("Invalid tags");
       const now = options.now instanceof Date ? options.now : /* @__PURE__ */ new Date();
       const idFactory = options.idFactory || defaultIdFactory;
       const existingTasks = getActiveTasks2(data, quadrant);
@@ -101,7 +142,9 @@ var require_core = __commonJS({
         completedAt: null,
         order: 0,
         dueDate: normalizeDueDate(options.dueDate),
-        notes: (_a = options.notes) != null ? _a : ""
+        dueTime: normalizeDueTime(options.dueTime),
+        notes: (_a = options.notes) != null ? _a : "",
+        tags: normalizeTags(options.tags)
       };
       data.tasks.push(task);
       setTaskOrder([task, ...existingTasks]);
@@ -113,11 +156,19 @@ var require_core = __commonJS({
       if (!normalizedTitle) return null;
       if (details.dueDate != null && details.dueDate !== "" && !normalizeDueDate(details.dueDate)) return null;
       if (details.notes != null && typeof details.notes !== "string") return null;
+      if (details.dueTime != null && details.dueTime !== "" && !normalizeDueTime(details.dueTime)) return null;
+      if (Object.prototype.hasOwnProperty.call(details, "tags") && !isValidTags(details.tags)) return null;
       const task = data.tasks.find((item) => item.id === taskId);
       if (!task) return null;
+      const hasDueDate = Object.prototype.hasOwnProperty.call(details, "dueDate");
+      const dueDate = hasDueDate ? normalizeDueDate(details.dueDate) : task.dueDate;
+      if (!dueDate && !hasDueDate && normalizeDueTime(details.dueTime)) return null;
       task.title = normalizedTitle;
-      if (Object.prototype.hasOwnProperty.call(details, "dueDate")) task.dueDate = normalizeDueDate(details.dueDate);
+      if (hasDueDate) task.dueDate = dueDate;
+      if (!dueDate) task.dueTime = null;
+      else if (Object.prototype.hasOwnProperty.call(details, "dueTime")) task.dueTime = normalizeDueTime(details.dueTime);
       if (Object.prototype.hasOwnProperty.call(details, "notes")) task.notes = (_a = details.notes) != null ? _a : "";
+      if (Object.prototype.hasOwnProperty.call(details, "tags")) task.tags = normalizeTags(details.tags);
       return task;
     }
     function moveTask2(data, taskId, quadrant) {
@@ -252,7 +303,8 @@ var require_markdown_store = __commonJS({
   "src/markdown-store.js"(exports2, module2) {
     "use strict";
     var { createEmptyData: createEmptyData2, isQuadrant, normalizeData: normalizeData2 } = require_core();
-    var { normalizeDueDate } = require_task_details();
+    var { normalizeDueDate, normalizeDueTime } = require_task_details();
+    var { isValidTags } = require_task_tags();
     var START_MARKER = "<!-- quadrant-tasks:start -->";
     var END_MARKER = "<!-- quadrant-tasks:end -->";
     var META_PREFIX = "<!-- quadrant-task ";
@@ -359,7 +411,9 @@ var require_markdown_store = __commonJS({
         completedAt,
         order: Number.isFinite(metadata == null ? void 0 : metadata.order) ? metadata.order : options.fallbackOrder,
         dueDate: metadata == null ? void 0 : metadata.dueDate,
-        notes: metadata == null ? void 0 : metadata.notes
+        dueTime: metadata == null ? void 0 : metadata.dueTime,
+        notes: metadata == null ? void 0 : metadata.notes,
+        tags: metadata == null ? void 0 : metadata.tags
       };
     }
     function parseTaskMarkdown2(content, options = {}) {
@@ -426,6 +480,12 @@ var require_markdown_store = __commonJS({
           if ((metadata == null ? void 0 : metadata.notes) != null && typeof metadata.notes !== "string") {
             issues.push(`\u7B2C ${index + 1} \u884C\u7684\u4EFB\u52A1\u5907\u6CE8\u5FC5\u987B\u662F\u6587\u672C`);
           }
+          if ((metadata == null ? void 0 : metadata.dueTime) != null && metadata.dueTime !== "" && (!normalizeDueTime(metadata.dueTime) || !normalizeDueDate(metadata.dueDate))) {
+            issues.push(`\u7B2C ${index + 1} \u884C\u7684\u4EFB\u52A1\u622A\u6B62\u65F6\u95F4\u65E0\u6548\u6216\u7F3A\u5C11\u622A\u6B62\u65E5\u671F`);
+          }
+          if (metadata && Object.prototype.hasOwnProperty.call(metadata, "tags") && !isValidTags(metadata.tags)) {
+            issues.push(`\u7B2C ${index + 1} \u884C\u7684\u4EFB\u52A1\u6807\u7B7E\u5FC5\u987B\u662F\u6587\u672C\u6570\u7EC4`);
+          }
         }
         if (!task) {
           issues.push(`\u7B2C ${index + 1} \u884C\u7684\u4EFB\u52A1\u7F3A\u5C11\u6807\u9898\u6216\u6709\u6548\u8C61\u9650`);
@@ -461,7 +521,9 @@ var require_markdown_store = __commonJS({
         order: task.order
       };
       if (task.dueDate) metadata.dueDate = task.dueDate;
+      if (task.dueTime) metadata.dueTime = task.dueTime;
       if (task.notes) metadata.notes = task.notes;
+      if (task.tags.length) metadata.tags = task.tags;
       const json = JSON.stringify(metadata).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
       return `${META_PREFIX}${json}${META_SUFFIX}`;
     }
@@ -888,7 +950,13 @@ var require_i18n = __commonJS({
         "task.applyDate": "\u786E\u8BA4\u65E5\u671F",
         "task.previousMonth": "\u4E0A\u4E2A\u6708",
         "task.nextMonth": "\u4E0B\u4E2A\u6708",
-        "task.dueToday": "\u4ECA\u5929\u5230\u671F \xB7 0 \u5929",
+        "task.dueToday": "\u4ECA\u5929\u5230\u671F",
+        "task.dueTime": "\u622A\u6B62\u65F6\u95F4\uFF08\u9009\u586B\uFF09",
+        "task.timeOptional": "\u65F6\u95F4\uFF08\u9009\u586B\uFF09",
+        "task.clearTime": "\u6E05\u9664\u622A\u6B62\u65F6\u95F4",
+        "task.tags": "\u6807\u7B7E",
+        "task.tagsPlaceholder": "\u6807\u7B7E\uFF0C\u56DE\u8F66\u6216\u9017\u53F7\u6DFB\u52A0",
+        "task.removeTag": "\u79FB\u9664\u6807\u7B7E\uFF1A{tag}",
         "task.remainingDays": "\u8FD8\u5269 {count} \u5929",
         "task.overdueDays": "\u5DF2\u903E\u671F {count} \u5929",
         "task.saveFailed": "\u672A\u80FD\u4FDD\u5B58\uFF0C\u5DF2\u4FDD\u7559\u8F93\u5165\u5185\u5BB9\uFF0C\u8BF7\u91CD\u8BD5\u3002",
@@ -978,7 +1046,13 @@ var require_i18n = __commonJS({
         "task.applyDate": "Apply date",
         "task.previousMonth": "Previous month",
         "task.nextMonth": "Next month",
-        "task.dueToday": "Due today \xB7 0 days",
+        "task.dueToday": "Due today",
+        "task.dueTime": "Due time (optional)",
+        "task.timeOptional": "Time (optional)",
+        "task.clearTime": "Clear due time",
+        "task.tags": "Tags",
+        "task.tagsPlaceholder": "Tags \xB7 Enter or comma to add",
+        "task.removeTag": "Remove tag: {tag}",
         "task.remainingDays": "{count} days left",
         "task.overdueDays": "{count} days overdue",
         "task.saveFailed": "Could not save. Your input has been kept; please retry.",
@@ -1058,159 +1132,219 @@ var require_i18n = __commonJS({
   }
 });
 
+// src/tag-input.js
+var require_tag_input = __commonJS({
+  "src/tag-input.js"(exports2, module2) {
+    "use strict";
+    var { normalizeTags, getTagColorIndex } = require_task_tags();
+    function createTagChip(parent, tag) {
+      const chip = parent.createSpan({ cls: `qt-tag qt-tag-color-${getTagColorIndex(tag)}`, attr: { title: tag } });
+      chip.createSpan({ cls: "qt-tag-label", text: `#${tag}` });
+      return chip;
+    }
+    function createTagInput(parent, plugin, initialTags, onChange) {
+      let tags = normalizeTags(initialTags);
+      let disabled = false;
+      const root = parent.createDiv({ cls: "qt-tag-field" });
+      const chips = root.createDiv({ cls: "qt-tag-chips" });
+      const input = root.createEl("textarea", {
+        cls: "qt-tag-input",
+        attr: { rows: "1", "aria-label": plugin.t("task.tags"), placeholder: plugin.t("task.tagsPlaceholder") }
+      });
+      const split = (value) => value.split(/[,，\r\n]+/);
+      const getValue = () => normalizeTags([...tags, ...split(input.value)]);
+      const render = () => {
+        chips.empty();
+        for (const tag of tags) {
+          const chip = createTagChip(chips, tag);
+          const remove = chip.createEl("button", {
+            cls: "qt-tag-remove",
+            text: "\xD7",
+            attr: { type: "button", "aria-label": plugin.t("task.removeTag", { tag }) }
+          });
+          remove.disabled = disabled;
+          remove.addEventListener("click", () => {
+            if (disabled) return;
+            tags = tags.filter((value) => value !== tag);
+            render();
+            onChange(getValue());
+            input.focus();
+          });
+        }
+      };
+      const commit = () => {
+        if (disabled) return;
+        tags = getValue();
+        input.value = "";
+        render();
+        onChange(getValue());
+      };
+      const onInput = (event) => {
+        if (disabled || event.isComposing) return;
+        if (/[,，\r\n]/.test(input.value)) {
+          const parts = split(input.value);
+          input.value = parts.pop();
+          tags = normalizeTags([...tags, ...parts]);
+          render();
+        }
+        onChange(getValue());
+      };
+      const onKey = (event) => {
+        if (event.key !== "Enter" || event.isComposing || event.keyCode === 229) return;
+        event.preventDefault();
+        event.stopPropagation();
+        commit();
+      };
+      input.addEventListener("input", onInput);
+      input.addEventListener("compositionend", onInput);
+      input.addEventListener("keydown", onKey);
+      render();
+      return {
+        getValue,
+        setValue(value) {
+          tags = normalizeTags(value);
+          input.value = "";
+          render();
+        },
+        setDisabled(value) {
+          disabled = value;
+          input.disabled = value;
+          render();
+        },
+        destroy() {
+          input.removeEventListener("input", onInput);
+          input.removeEventListener("compositionend", onInput);
+          input.removeEventListener("keydown", onKey);
+        }
+      };
+    }
+    module2.exports = { createTagInput, createTagChip };
+  }
+});
+
 // src/task-fields.js
 var require_task_fields = __commonJS({
   "src/task-fields.js"(exports2, module2) {
     "use strict";
     var { Modal: Modal2, setIcon: setIcon2 } = require("obsidian");
-    var { normalizeDueDate } = require_task_details();
-    function localDateString(date) {
-      return `${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-    }
+    var { normalizeDueDate, normalizeDueTime } = require_task_details();
+    var { createTagInput } = require_tag_input();
     function autoSize(textarea) {
       textarea.style.height = "auto";
       textarea.style.height = `${textarea.scrollHeight}px`;
     }
+    function validateNativeField(input, normalize) {
+      var _a, _b, _c;
+      const valid = !((_a = input.validity) == null ? void 0 : _a.badInput) && ((_b = input.validity) == null ? void 0 : _b.valid) !== false && (!input.value || Boolean(normalize(input.value)));
+      if (!valid) {
+        (_c = input.reportValidity) == null ? void 0 : _c.call(input);
+        input.focus();
+      }
+      return valid;
+    }
     function createDueDateControl(parent, plugin, initialValue, onChange) {
-      let value = normalizeDueDate(initialValue);
-      let popup = null;
-      let cleanup = () => {
-      };
-      const doc = parent.ownerDocument;
-      const button = parent.createEl("button", {
-        cls: "qt-due-picker",
-        attr: { type: "button", "aria-haspopup": "dialog", "aria-expanded": "false" }
+      const wrapper = parent.createDiv({ cls: "qt-date-control" });
+      const input = wrapper.createEl("input", {
+        cls: "qt-native-date",
+        attr: { type: "date", "aria-label": plugin.t("task.dueDate"), min: "0001-01-01", max: "9999-12-31" }
       });
-      const icon = button.createSpan({ cls: "qt-date-icon" });
-      setIcon2(icon, "calendar-days");
-      const label = button.createSpan({ cls: "qt-date-label" });
-      const setValue = (nextValue) => {
-        value = normalizeDueDate(nextValue);
-        label.textContent = value || plugin.t("task.noDueDate");
-        button.setAttribute("aria-label", `${plugin.t("task.dueDate")}: ${label.textContent}`);
-        button.setAttribute("title", `${plugin.t("task.dueDate")}: ${label.textContent}`);
+      const button = wrapper.createEl("button", {
+        cls: "qt-due-picker",
+        attr: { type: "button", "aria-label": plugin.t("task.dueDate"), title: plugin.t("task.dueDate") }
+      });
+      setIcon2(button, "calendar-days");
+      const getValue = () => normalizeDueDate(input.value);
+      const setValue = (value) => {
+        input.value = normalizeDueDate(value) || "";
       };
-      const close = (restoreFocus = false) => {
-        if (!popup) return;
-        cleanup();
-        popup.remove();
-        popup = null;
-        button.setAttribute("aria-expanded", "false");
-        if (restoreFocus) button.focus();
-      };
-      const choose = (nextValue) => {
-        setValue(nextValue);
-        close(true);
-        onChange(value);
+      const change = () => {
+        var _a;
+        if (!((_a = input.validity) == null ? void 0 : _a.badInput)) onChange(getValue());
       };
       const open = () => {
-        if (popup) {
-          close(true);
-          return;
-        }
-        if (!doc) return;
-        const host = parent.closest(".modal") || doc.body;
-        popup = host.createDiv({ cls: "qt-date-popover", attr: { role: "dialog", "aria-label": plugin.t("task.dueDate") } });
-        popup.createDiv({ cls: "qt-date-heading", text: plugin.t("task.dueDate") });
-        const input = popup.createEl("input", {
-          cls: "qt-date-input",
-          attr: { type: "date", "aria-label": plugin.t("task.dueDate"), min: "0001-01-01", max: "9999-12-31" }
-        });
-        input.value = value || "";
-        const applyDate = () => {
-          var _a, _b;
-          if (((_a = input.validity) == null ? void 0 : _a.badInput) || input.value && !normalizeDueDate(input.value)) {
-            input.setAttribute("aria-invalid", "true");
-            (_b = input.reportValidity) == null ? void 0 : _b.call(input);
-            return;
-          }
-          choose(input.value);
-        };
-        input.addEventListener("input", () => input.setAttribute("aria-invalid", "false"));
-        input.addEventListener("keydown", (event) => {
-          if (event.key !== "Enter" || event.isComposing || event.keyCode === 229) return;
-          event.preventDefault();
-          event.stopPropagation();
-          applyDate();
-        });
-        const apply = popup.createEl("button", {
-          cls: "qt-date-apply mod-cta",
-          text: plugin.t("task.applyDate"),
-          attr: { type: "button" }
-        });
-        apply.addEventListener("click", applyDate);
-        const shortcuts = popup.createDiv({ cls: "qt-date-shortcuts" });
-        for (const [key, offset] of [["today", 0], ["tomorrow", 1], ["clearDate", null]]) {
-          const shortcut = shortcuts.createEl("button", {
-            cls: offset === null ? "qt-date-clear" : `qt-date-${key}`,
-            text: plugin.t(`task.${key}`),
-            attr: { type: "button" }
-          });
-          shortcut.addEventListener("click", () => {
-            if (offset === null) {
-              choose(null);
-              return;
-            }
-            const date = /* @__PURE__ */ new Date();
-            date.setDate(date.getDate() + offset);
-            choose(localDateString(date));
-          });
-        }
-        button.setAttribute("aria-expanded", "true");
-        const view = doc.defaultView;
-        const viewport = view.visualViewport;
-        const position = () => {
-          if (!popup) return;
-          const left = (viewport == null ? void 0 : viewport.offsetLeft) || 0;
-          const top = (viewport == null ? void 0 : viewport.offsetTop) || 0;
-          const width = (viewport == null ? void 0 : viewport.width) || view.innerWidth;
-          const height = (viewport == null ? void 0 : viewport.height) || view.innerHeight;
-          popup.style.maxWidth = `${Math.max(0, width - 16)}px`;
-          popup.style.maxHeight = `${Math.max(0, height - 16)}px`;
-          popup.style.overflowY = "auto";
-          const anchor = button.getBoundingClientRect();
-          const bounds = popup.getBoundingClientRect();
-          popup.style.left = `${Math.max(left + 8, Math.min(anchor.left, left + width - bounds.width - 8))}px`;
-          const preferredTop = anchor.bottom + 6 + bounds.height <= top + height - 8 ? anchor.bottom + 6 : anchor.top - bounds.height - 6;
-          popup.style.top = `${Math.max(top + 8, Math.min(preferredTop, top + height - bounds.height - 8))}px`;
-        };
-        position();
-        const onPointerDown = (event) => {
-          if (!popup.contains(event.target) && !button.contains(event.target)) close();
-        };
-        const onFocus = (event) => {
-          if (!popup.contains(event.target) && !button.contains(event.target)) close();
-        };
-        const onKeyDown = (event) => {
-          if (event.key !== "Escape") return;
-          event.preventDefault();
-          event.stopPropagation();
-          close(true);
-        };
-        doc.addEventListener("pointerdown", onPointerDown, true);
-        doc.addEventListener("keydown", onKeyDown, true);
-        doc.addEventListener("focusin", onFocus);
-        doc.addEventListener("scroll", position, true);
-        view.addEventListener("resize", position);
-        viewport == null ? void 0 : viewport.addEventListener("resize", position);
-        viewport == null ? void 0 : viewport.addEventListener("scroll", position);
-        cleanup = () => {
-          doc.removeEventListener("pointerdown", onPointerDown, true);
-          doc.removeEventListener("keydown", onKeyDown, true);
-          doc.removeEventListener("focusin", onFocus);
-          doc.removeEventListener("scroll", position, true);
-          view.removeEventListener("resize", position);
-          viewport == null ? void 0 : viewport.removeEventListener("resize", position);
-          viewport == null ? void 0 : viewport.removeEventListener("scroll", position);
-        };
+        var _a;
+        if (input.disabled) return;
         input.focus();
+        try {
+          (_a = input.showPicker) == null ? void 0 : _a.call(input);
+        } catch (e) {
+        }
       };
+      input.addEventListener("change", change);
       button.addEventListener("click", open);
-      setValue(value);
-      return { getValue: () => value, setValue, destroy: () => {
-        close();
-        button.removeEventListener("click", open);
-      } };
+      setValue(initialValue);
+      return {
+        getValue,
+        setValue,
+        validate: () => validateNativeField(input, normalizeDueDate),
+        setDisabled(disabled) {
+          input.disabled = disabled;
+          button.disabled = disabled;
+        },
+        destroy() {
+          input.removeEventListener("change", change);
+          button.removeEventListener("click", open);
+        }
+      };
+    }
+    function createDeadlineFields(parent, plugin, initialValue = {}, onChange = () => {
+    }) {
+      const wrapper = parent.createDiv({ cls: "qt-deadline-fields" });
+      let disabled = false;
+      const date = createDueDateControl(wrapper, plugin, initialValue.dueDate, (value) => {
+        if (!value) time.value = "";
+        updateDisabled();
+        onChange(getValue());
+      });
+      const timeWrapper = wrapper.createDiv({ cls: "qt-time-control" });
+      const time = timeWrapper.createEl("input", {
+        cls: "qt-due-time",
+        attr: { type: "time", step: "60", "aria-label": plugin.t("task.dueTime"), title: plugin.t("task.timeOptional") }
+      });
+      const clear = timeWrapper.createEl("button", {
+        cls: "qt-clear-time",
+        attr: { type: "button", "aria-label": plugin.t("task.clearTime"), title: plugin.t("task.clearTime") }
+      });
+      setIcon2(clear, "x");
+      const getValue = () => ({ dueDate: date.getValue(), dueTime: date.getValue() ? normalizeDueTime(time.value) : null });
+      const updateDisabled = () => {
+        date.setDisabled(disabled);
+        time.disabled = disabled || !date.getValue();
+        clear.disabled = disabled || !date.getValue() || !time.value;
+      };
+      const setValue = (value = {}) => {
+        date.setValue(value.dueDate);
+        time.value = date.getValue() ? normalizeDueTime(value.dueTime) || "" : "";
+        updateDisabled();
+      };
+      const change = () => {
+        var _a;
+        updateDisabled();
+        if (!((_a = time.validity) == null ? void 0 : _a.badInput)) onChange(getValue());
+      };
+      const clearTime = () => {
+        time.value = "";
+        updateDisabled();
+        onChange(getValue());
+        time.focus();
+      };
+      time.addEventListener("change", change);
+      clear.addEventListener("click", clearTime);
+      setValue(initialValue);
+      return {
+        getValue,
+        setValue,
+        validate: () => date.validate() && (!date.getValue() || validateNativeField(time, normalizeDueTime)),
+        setDisabled(value) {
+          disabled = value;
+          updateDisabled();
+        },
+        destroy() {
+          date.destroy();
+          time.removeEventListener("change", change);
+          clear.removeEventListener("click", clearTime);
+        }
+      };
     }
     var TaskEditorModal2 = class extends Modal2 {
       constructor(plugin, task, onSave) {
@@ -1239,7 +1373,10 @@ var require_task_fields = __commonJS({
         const title = createTextarea("modal.taskContent", "qt-task-name-input", this.task.title, 1);
         const dueField = this.contentEl.createDiv({ cls: "qt-modal-field" });
         dueField.createSpan({ cls: "qt-field-label", text: t("task.dueDate") });
-        this.dueControl = createDueDateControl(dueField, this.plugin, this.task.dueDate, () => {
+        this.dueControl = createDeadlineFields(dueField, this.plugin, this.task);
+        const tagsField = this.contentEl.createDiv({ cls: "qt-modal-field" });
+        tagsField.createSpan({ cls: "qt-field-label", text: t("task.tags") });
+        this.tagControl = createTagInput(tagsField, this.plugin, this.task.tags || [], () => {
         });
         const notes = createTextarea("task.notes", "qt-task-notes-input", this.task.notes, 3);
         notes.setAttribute("placeholder", t("task.notesPlaceholder"));
@@ -1257,12 +1394,16 @@ var require_task_fields = __commonJS({
             title.focus();
             return;
           }
+          if (!this.dueControl.validate()) return;
           submitting = true;
           error.textContent = "";
-          const fields = [title, notes, dueField.querySelector("button"), save];
+          const details = { ...this.dueControl.getValue(), notes: notes.value, tags: this.tagControl.getValue() };
+          const fields = [title, notes, save];
           for (const field of fields) field.disabled = true;
+          this.dueControl.setDisabled(true);
+          this.tagControl.setDisabled(true);
           try {
-            const result = await this.onSave(taskTitle, { dueDate: this.dueControl.getValue(), notes: notes.value });
+            const result = await this.onSave(taskTitle, details);
             if (result === false) throw new Error("Task save rejected");
             this.close();
           } catch (e) {
@@ -1270,6 +1411,8 @@ var require_task_fields = __commonJS({
           } finally {
             submitting = false;
             for (const field of fields) field.disabled = false;
+            this.dueControl.setDisabled(false);
+            this.tagControl.setDisabled(false);
           }
         };
         for (const input of [title, notes]) {
@@ -1292,12 +1435,13 @@ var require_task_fields = __commonJS({
         });
       }
       onClose() {
-        var _a;
+        var _a, _b;
         (_a = this.dueControl) == null ? void 0 : _a.destroy();
+        (_b = this.tagControl) == null ? void 0 : _b.destroy();
         this.contentEl.empty();
       }
     };
-    module2.exports = { TaskEditorModal: TaskEditorModal2, createDueDateControl };
+    module2.exports = { TaskEditorModal: TaskEditorModal2, createDueDateControl, createDeadlineFields };
   }
 });
 
@@ -1307,22 +1451,33 @@ var require_task_card = __commonJS({
     "use strict";
     var { setIcon: setIcon2 } = require("obsidian");
     var { addTask } = require_core();
-    var { getDueDateInfo } = require_task_details();
-    var { createDueDateControl } = require_task_fields();
+    var { getDueDateInfo, getDueDateTone } = require_task_details();
+    var { createDeadlineFields } = require_task_fields();
+    var { createTagInput, createTagChip } = require_tag_input();
     function growTextarea(input) {
       input.style.height = "auto";
       input.style.height = `${input.scrollHeight}px`;
     }
     function renderTaskDetails2(parent, task, plugin) {
+      var _a;
+      if ((_a = task.tags) == null ? void 0 : _a.length) {
+        const tags = parent.createSpan({ cls: "qt-task-tags", attr: { "aria-label": plugin.t("task.tags") } });
+        for (const tag of task.tags) createTagChip(tags, tag);
+      }
       const due = getDueDateInfo(task.dueDate, task.completedAt);
       if (due) {
         const relative = plugin.t(due.days < 0 ? "task.overdueDays" : due.days === 0 ? "task.dueToday" : "task.remainingDays", { count: Math.abs(due.days) });
-        const line = parent.createSpan({ cls: `qt-task-due${due.urgent ? " is-urgent" : ""}` });
-        const icon = line.createSpan({ cls: "qt-due-icon", attr: { "aria-hidden": "true" } });
+        const tone = getDueDateTone(due.days, task.completedAt);
+        const line = parent.createSpan({ cls: `qt-task-due qt-due-${tone}${due.urgent ? " is-urgent" : ""}` });
+        const dateUnit = line.createSpan({ cls: "qt-due-unit" });
+        const icon = dateUnit.createSpan({ cls: "qt-due-icon", attr: { "aria-hidden": "true" } });
         setIcon2(icon, due.urgent ? "alarm-clock" : "calendar");
-        const time = line.createEl("time", { attr: { datetime: due.date } });
+        const time = dateUnit.createEl("time", { attr: { datetime: due.date + (task.dueTime ? `T${task.dueTime}` : "") } });
         time.createSpan({ text: due.date, cls: "qt-due-date" });
-        time.createSpan({ text: ` \xB7 ${relative}` });
+        const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(/* @__PURE__ */ new Date(`${due.date}T12:00:00Z`));
+        time.createSpan({ text: weekday, cls: "qt-due-weekday" });
+        if (task.dueTime) line.createSpan({ text: task.dueTime, cls: "qt-due-clock" });
+        line.createSpan({ text: relative, cls: "qt-due-relative" });
       }
       if (task.notes) parent.createSpan({
         cls: "qt-task-notes",
@@ -1333,7 +1488,7 @@ var require_task_card = __commonJS({
       const { plugin } = renderer;
       let draft = renderer.quickAddDrafts.get(quadrant);
       if (!draft) {
-        draft = { title: "", dueDate: null, notes: "", submitting: false, error: false };
+        draft = { title: "", dueDate: null, dueTime: null, tags: [], notes: "", submitting: false, error: false };
         renderer.quickAddDrafts.set(quadrant, draft);
       }
       const form = section.createDiv({ cls: "qt-quick-add" });
@@ -1349,8 +1504,8 @@ var require_task_card = __commonJS({
       setIcon2(button, "plus");
       button.disabled = draft.submitting;
       const details = form.createDiv({ cls: "qt-quick-details" });
-      const dateControl = createDueDateControl(details, plugin, draft.dueDate, (value) => {
-        draft.dueDate = value;
+      const dateControl = createDeadlineFields(details, plugin, draft, (value) => {
+        Object.assign(draft, value);
       });
       renderer.quickAddControls.push(dateControl);
       const notes = details.createEl("textarea", {
@@ -1358,6 +1513,11 @@ var require_task_card = __commonJS({
         attr: { rows: "1", placeholder: plugin.t("task.notesPlaceholder"), "aria-label": plugin.t("task.notes") }
       });
       notes.value = draft.notes;
+      const tagHost = form.createDiv({ cls: "qt-quick-tags" });
+      const tagControl = createTagInput(tagHost, plugin, draft.tags, (value) => {
+        draft.tags = value;
+      });
+      renderer.quickAddControls.push(tagControl);
       for (const [input, key] of [[title, "title"], [notes, "notes"]]) {
         input.addEventListener("input", () => {
           draft[key] = input.value;
@@ -1375,15 +1535,21 @@ var require_task_card = __commonJS({
           title.focus();
           return;
         }
+        if (!dateControl.validate()) return;
         draft.submitting = true;
         button.disabled = true;
-        const snapshot = { title: title.value, dueDate: dateControl.getValue(), notes: notes.value };
+        const snapshot = { title: title.value, ...dateControl.getValue(), notes: notes.value, tags: tagControl.getValue() };
         try {
           const task = await renderer.mutate((data) => addTask(data, value, quadrant, snapshot));
           if (!task) throw new Error("Task creation did not complete");
-          for (const key of ["title", "dueDate", "notes"]) {
-            if (draft[key] === snapshot[key]) draft[key] = key === "dueDate" ? null : "";
+          for (const key of ["title", "notes"]) {
+            if (draft[key] === snapshot[key]) draft[key] = "";
           }
+          if (draft.dueDate === snapshot.dueDate && draft.dueTime === snapshot.dueTime) {
+            draft.dueDate = null;
+            draft.dueTime = null;
+          }
+          if (JSON.stringify(draft.tags) === JSON.stringify(snapshot.tags)) draft.tags = [];
           draft.error = false;
         } catch (error) {
           draft.error = true;

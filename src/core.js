@@ -1,6 +1,7 @@
 "use strict";
 
-const { normalizeDueDate } = require("./task-details");
+const { normalizeDueDate, normalizeDueTime } = require("./task-details");
+const { isValidTags, normalizeTags } = require("./task-tags");
 
 const DATA_VERSION = 1;
 const QUADRANTS = ["do", "schedule", "delegate", "eliminate"];
@@ -41,7 +42,9 @@ function normalizeData(raw) {
 				: null,
 			order: Number.isFinite(candidate.order) ? candidate.order : tasks.length,
 			dueDate: normalizeDueDate(candidate.dueDate),
+			dueTime: normalizeDueDate(candidate.dueDate) ? normalizeDueTime(candidate.dueTime) : null,
 			notes: typeof candidate.notes === "string" ? candidate.notes : "",
+			tags: normalizeTags(candidate.tags),
 		});
 	}
 
@@ -67,6 +70,10 @@ function addTask(data, title, quadrant, options = {}) {
 		throw new Error("Invalid due date");
 	}
 	if (options.notes != null && typeof options.notes !== "string") throw new Error("Invalid notes");
+	if (options.dueTime != null && options.dueTime !== "" && (!normalizeDueTime(options.dueTime) || !normalizeDueDate(options.dueDate))) {
+		throw new Error("Invalid due time or missing due date");
+	}
+	if (Object.prototype.hasOwnProperty.call(options, "tags") && !isValidTags(options.tags)) throw new Error("Invalid tags");
 
 	const now = options.now instanceof Date ? options.now : new Date();
 	const idFactory = options.idFactory || defaultIdFactory;
@@ -79,7 +86,9 @@ function addTask(data, title, quadrant, options = {}) {
 		completedAt: null,
 		order: 0,
 		dueDate: normalizeDueDate(options.dueDate),
+		dueTime: normalizeDueTime(options.dueTime),
 		notes: options.notes ?? "",
+		tags: normalizeTags(options.tags),
 	};
 	data.tasks.push(task);
 	setTaskOrder([task, ...existingTasks]);
@@ -91,11 +100,19 @@ function editTask(data, taskId, title, details = {}) {
 	if (!normalizedTitle) return null;
 	if (details.dueDate != null && details.dueDate !== "" && !normalizeDueDate(details.dueDate)) return null;
 	if (details.notes != null && typeof details.notes !== "string") return null;
+	if (details.dueTime != null && details.dueTime !== "" && !normalizeDueTime(details.dueTime)) return null;
+	if (Object.prototype.hasOwnProperty.call(details, "tags") && !isValidTags(details.tags)) return null;
 	const task = data.tasks.find((item) => item.id === taskId);
 	if (!task) return null;
+	const hasDueDate = Object.prototype.hasOwnProperty.call(details, "dueDate");
+	const dueDate = hasDueDate ? normalizeDueDate(details.dueDate) : task.dueDate;
+	if (!dueDate && !hasDueDate && normalizeDueTime(details.dueTime)) return null;
 	task.title = normalizedTitle;
-	if (Object.prototype.hasOwnProperty.call(details, "dueDate")) task.dueDate = normalizeDueDate(details.dueDate);
+	if (hasDueDate) task.dueDate = dueDate;
+	if (!dueDate) task.dueTime = null;
+	else if (Object.prototype.hasOwnProperty.call(details, "dueTime")) task.dueTime = normalizeDueTime(details.dueTime);
 	if (Object.prototype.hasOwnProperty.call(details, "notes")) task.notes = details.notes ?? "";
+	if (Object.prototype.hasOwnProperty.call(details, "tags")) task.tags = normalizeTags(details.tags);
 	return task;
 }
 

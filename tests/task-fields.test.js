@@ -60,22 +60,28 @@ class Modal {
 const originalLoad = Module._load;
 Module._load = function(request, parent, isMain) {
 	if (request === "obsidian") return { Modal, setIcon: (el, name) => { el.icon = name; } };
+	if (request === "./tag-input") return { createTagInput(parent, plugin, initialTags) {
+		const input = parent.createEl("input", { cls: "qt-tags-test-input" });
+		input.value = (initialTags || []).join(",");
+		return { getValue: () => input.value.split(",").map(value => value.trim()).filter(Boolean),
+			setDisabled: disabled => { input.disabled = disabled; }, destroy() {} };
+	} };
 	return originalLoad.call(this, request, parent, isMain);
 };
-let TaskEditorModal, createDueDateControl;
-try { ({ TaskEditorModal, createDueDateControl } = require("../src/task-fields")); }
+let TaskEditorModal, createDueDateControl, createDeadlineFields;
+try { ({ TaskEditorModal, createDueDateControl, createDeadlineFields } = require("../src/task-fields")); }
 finally { Module._load = originalLoad; }
 const plugin = { app: {}, t: key => key };
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
 test("task editor initializes title separately from the modal heading and preserves all fields", async () => {
 	let saved;
-	const modal = new TaskEditorModal(plugin, { title: "Original", dueDate: "2026-09-20", notes: "Line one\nLine two" }, async (...args) => { saved = args; });
+	const modal = new TaskEditorModal(plugin, { title: "Original", dueDate: "2026-09-20", dueTime: "00:00", notes: "Line one\nLine two", tags: ["Work"] }, async (...args) => { saved = args; });
 	modal.onOpen();
 	assert.equal(modal.contentEl.querySelector(".qt-task-name-input").value, "Original");
 	assert.equal(modal.contentEl.querySelector(".qt-task-notes-input").value, "Line one\nLine two");
 	modal.contentEl.querySelector(".mod-cta").dispatch("click"); await flush();
-	assert.deepEqual(saved, ["Original", { dueDate: "2026-09-20", notes: "Line one\nLine two" }]);
+	assert.deepEqual(saved, ["Original", { dueDate: "2026-09-20", dueTime: "00:00", notes: "Line one\nLine two", tags: ["Work"] }]);
 	assert.equal(modal.closed, true);
 });
 
@@ -116,79 +122,74 @@ test("save failure retains draft, exposes retryable error, and empty titles do n
 	modal.close();
 });
 
-test("date picker changes and clears optional dates, closes and restores trigger focus", () => {
+test("native date calendar opens directly and valid edits persist without a second popup", () => {
 	const localDoc = createDocument(); const parent = localDoc.body.createDiv(); const changes = [];
 	const picker = createDueDateControl(parent, plugin, "2026-09-20", value => changes.push(value));
-	const trigger = parent.querySelector(".qt-due-picker"); trigger.dispatch("click");
-	const input = localDoc.body.querySelector(".qt-date-input"); assert.equal(input.value, "2026-09-20");
+	const input = parent.querySelector(".qt-native-date");
+	assert.equal(input.getAttribute("type"), "date"); assert.equal(input.value, "2026-09-20");
+	let opened = false; input.showPicker = () => { opened = true; };
+	parent.querySelector(".qt-due-picker").dispatch("click"); assert.equal(opened, true);
+	assert.equal(localDoc.body.querySelector(".qt-date-popover"), null);
 	input.value = "2026-10-01"; input.dispatch("change");
-	localDoc.body.querySelector(".qt-date-apply").dispatch("click");
 	assert.equal(picker.getValue(), "2026-10-01"); assert.deepEqual(changes, ["2026-10-01"]);
-	assert.equal(localDoc.body.querySelector(".qt-date-popover"), null); assert.equal(localDoc.activeElement, trigger);
-	trigger.dispatch("click"); localDoc.body.querySelector(".qt-date-clear").dispatch("click");
-	assert.equal(picker.getValue(), null); assert.deepEqual(changes, ["2026-10-01", null]);
-	picker.destroy();
+	input.value = ""; input.dispatch("change"); assert.equal(picker.getValue(), null);
+	picker.destroy(); assert.equal(input.listeners.get("change").size, 0);
 });
 
-test("segmented date edits stay pending until explicit confirmation and Escape discards them", () => {
-	const localDoc = createDocument(); const parent = localDoc.body.createDiv(); const changes = [];
-	const picker = createDueDateControl(parent, plugin, "2026-09-20", value => changes.push(value));
-	const trigger = parent.querySelector(".qt-due-picker"); trigger.dispatch("click");
-	const input = localDoc.body.querySelector(".qt-date-input");
-	input.value = "0002-09-20"; input.dispatch("change");
-	assert.equal(picker.getValue(), "2026-09-20"); assert.deepEqual(changes, []);
-	assert.ok(localDoc.body.querySelector(".qt-date-popover"));
-	localDoc.dispatch("keydown", { key: "Escape" });
-	trigger.dispatch("click");
-	const reopened = localDoc.body.querySelector(".qt-date-input"); assert.equal(reopened.value, "2026-09-20");
-	reopened.value = "2027-09-20";
-	reopened.dispatch("keydown", { key: "Enter", isComposing: true }); assert.deepEqual(changes, []);
-	reopened.dispatch("keydown", { key: "Enter" });
-	assert.equal(picker.getValue(), "2027-09-20"); assert.deepEqual(changes, ["2027-09-20"]);
-	assert.equal(localDoc.body.querySelector(".qt-date-popover"), null);
-	picker.destroy();
-});
-
-test("Escape and outside pointer close popup, destroy cleans document listeners", () => {
-	const localDoc = createDocument(); const parent = localDoc.body.createDiv();
-	const picker = createDueDateControl(parent, plugin, null, () => {}); const trigger = parent.querySelector(".qt-due-picker");
-	trigger.dispatch("click"); localDoc.dispatch("keydown", { key: "Escape" });
-	assert.equal(localDoc.body.querySelector(".qt-date-popover"), null);
-	trigger.dispatch("click"); localDoc.dispatch("pointerdown", { target: localDoc.body });
-	assert.equal(localDoc.body.querySelector(".qt-date-popover"), null);
-	trigger.dispatch("click"); picker.destroy();
-	assert.equal(localDoc.body.querySelector(".qt-date-popover"), null);
-	assert.equal(localDoc.listeners.get("keydown").size, 0);
-	assert.equal(localDoc.listeners.get("pointerdown").size, 0);
-});
-
-test("relative shortcuts use local calendar dates and popup fits a narrow viewport", () => {
+test("unsupported or rejected showPicker preserves visible keyboard-accessible date input", () => {
 	const localDoc = createDocument(); const parent = localDoc.body.createDiv();
 	const picker = createDueDateControl(parent, plugin, null, () => {});
-	const trigger = parent.querySelector(".qt-due-picker");
-	const format = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-	const today = new Date(); const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
-	trigger.dispatch("click");
-	const popup = localDoc.body.querySelector(".qt-date-popover");
-	assert.equal(popup.style.left, "32px");
-	localDoc.body.querySelector(".qt-date-today").dispatch("click"); assert.equal(picker.getValue(), format(today));
-	trigger.dispatch("click"); localDoc.body.querySelector(".qt-date-tomorrow").dispatch("click");
-	assert.equal(picker.getValue(), format(tomorrow));
+	const input = parent.querySelector(".qt-native-date"); const button = parent.querySelector(".qt-due-picker");
+	button.dispatch("click"); assert.equal(localDoc.activeElement, input);
+	input.showPicker = () => { throw new Error("NotAllowedError"); };
+	assert.doesNotThrow(() => button.dispatch("click")); assert.equal(localDoc.activeElement, input);
+	assert.notEqual(input.getAttribute("tabindex"), "-1"); assert.equal(input.getAttribute("aria-label"), "task.dueDate");
 	picker.destroy();
 });
 
-test("popup stays inside modal focus scope and adapts to keyboard viewport resizing", () => {
-	const localDoc = createDocument(); const modal = localDoc.body.createDiv({ cls: "modal" }); const parent = modal.createDiv();
-	localDoc.defaultView.visualViewport = new Element("viewport", localDoc);
-	Object.assign(localDoc.defaultView.visualViewport, { width: 320, height: 600, offsetLeft: 0, offsetTop: 0 });
-	const picker = createDueDateControl(parent, plugin, null, () => {});
-	parent.querySelector(".qt-due-picker").dispatch("click");
-	assert.equal(modal.querySelector(".qt-date-popover").parentElement, modal);
-	localDoc.defaultView.visualViewport.height = 140;
-	localDoc.defaultView.visualViewport.dispatch("resize");
-	const popup = modal.querySelector(".qt-date-popover");
-	assert.ok(popup, "opening the keyboard must not dismiss the date picker");
-	assert.equal(popup.style.maxHeight, "124px");
-	assert.equal(popup.style.top, "8px");
-	picker.destroy();
+test("deadline time is optional, accepts midnight and end-of-day, and clears with date", () => {
+	const parent = createDocument().body.createDiv(); const changes = [];
+	const fields = createDeadlineFields(parent, plugin, {}, value => changes.push(value));
+	const date = parent.querySelector(".qt-native-date"); const time = parent.querySelector(".qt-due-time");
+	assert.deepEqual(fields.getValue(), { dueDate: null, dueTime: null }); assert.equal(time.disabled, true);
+	date.value = "2026-09-20"; date.dispatch("change"); assert.equal(time.disabled, false);
+	time.value = "00:00"; time.dispatch("change"); assert.equal(fields.getValue().dueTime, "00:00");
+	time.value = "23:59"; time.dispatch("change"); assert.equal(fields.getValue().dueTime, "23:59");
+	parent.querySelector(".qt-clear-time").dispatch("click"); assert.equal(fields.getValue().dueTime, null);
+	fields.setValue({ dueDate: "2026-09-21", dueTime: "12:34" }); assert.equal(time.value, "12:34");
+	date.value = ""; date.dispatch("change"); assert.equal(time.value, ""); assert.equal(time.disabled, true);
+	assert.deepEqual(changes.at(-1), { dueDate: null, dueTime: null }); fields.destroy();
+});
+
+test("deadline fields disable every control and retain optional-time disabled state on unlock", () => {
+	const parent = createDocument().body.createDiv(); const fields = createDeadlineFields(parent, plugin, {}, () => {});
+	fields.setDisabled(true);
+	for (const control of [...parent.querySelectorAll("input"), ...parent.querySelectorAll("button")]) assert.equal(control.disabled, true);
+	fields.setDisabled(false); assert.equal(parent.querySelector(".qt-native-date").disabled, false);
+	assert.equal(parent.querySelector(".qt-due-time").disabled, true); fields.destroy();
+});
+
+test("editor saves pending tags and disables date time and tags during submission", async () => {
+	let saved, finish;
+	const modal = new TaskEditorModal(plugin, { title: "Task", dueDate: "2026-09-20", dueTime: "23:59" }, (...args) => {
+		saved = args; return new Promise(resolve => { finish = resolve; });
+	});
+	modal.onOpen(); modal.contentEl.querySelector(".qt-tags-test-input").value = "Work, Pending";
+	modal.contentEl.querySelector(".mod-cta").dispatch("click");
+	assert.deepEqual(saved[1].tags, ["Work", "Pending"]); assert.equal(saved[1].dueTime, "23:59");
+	for (const selector of [".qt-native-date", ".qt-due-time", ".qt-tags-test-input"]) assert.equal(modal.contentEl.querySelector(selector).disabled, true);
+	finish(); await flush(); assert.equal(modal.closed, true);
+});
+
+test("incomplete native date or time fields block save instead of silently discarding the deadline", () => {
+	let calls = 0;
+	const modal = new TaskEditorModal(plugin, { title: "Task", dueDate: "2026-09-20" }, () => { calls++; });
+	modal.onOpen();
+	const date = modal.contentEl.querySelector(".qt-native-date");
+	const time = modal.contentEl.querySelector(".qt-due-time");
+	date.validity = { badInput: true, valid: false };
+	modal.contentEl.querySelector(".mod-cta").dispatch("click"); assert.equal(calls, 0);
+	date.validity = { valid: true }; time.validity = { badInput: true, valid: false };
+	modal.contentEl.querySelector(".mod-cta").dispatch("click"); assert.equal(calls, 0);
+	assert.equal(doc.activeElement, time); modal.close();
 });

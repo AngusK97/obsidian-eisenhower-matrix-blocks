@@ -85,9 +85,9 @@ test("moving, reordering, completing, editing completed, restoring and undoing d
 	assert.deepEqual(mergeTaskData(createEmptyData(), data), data);
 });
 
-test("due date presentation marks only incomplete tasks less than three calendar days away", () => {
+test("due date presentation marks only incomplete tasks within three calendar days", () => {
 	const now = new Date(2026, 8, 20, 23, 59);
-	for (const [date, days, urgent] of [["2026-09-19", -1, true], ["2026-09-20", 0, true], ["2026-09-21", 1, true], ["2026-09-22", 2, true], ["2026-09-23", 3, false]]) {
+	for (const [date, days, urgent] of [["2026-09-19", -1, true], ["2026-09-20", 0, true], ["2026-09-21", 1, true], ["2026-09-22", 2, true], ["2026-09-23", 3, true], ["2026-09-24", 4, false]]) {
 		assert.deepEqual(getDueDateInfo(date, null, now), { date, days, urgent });
 		assert.equal(getDueDateInfo(date, "2026-09-19T10:00:00Z", now).urgent, false);
 	}

@@ -25,7 +25,17 @@ function getDueDateInfo(dueDate, completedAt, now = new Date()) {
 	const [year, month, day] = date.split("-").map(Number);
 	const today = calendarDay(now.getFullYear(), now.getMonth() + 1, now.getDate());
 	const days = Math.round((calendarDay(year, month, day) - today) / DAY_MS);
-	return { date, days, urgent: !completedAt && days < 3 };
+	return { date, days, urgent: !completedAt && days <= 3 };
 }
 
-module.exports = { getDueDateInfo, normalizeDueDate };
+function normalizeDueTime(value) {
+	return typeof value === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value) ? value : null;
+}
+
+function getDueDateTone(days, completedAt) {
+	if (completedAt) return "muted";
+	if (days <= 3) return "red";
+	return days <= 7 ? "green" : "neutral";
+}
+
+module.exports = { getDueDateInfo, getDueDateTone, normalizeDueDate, normalizeDueTime };

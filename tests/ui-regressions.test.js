@@ -383,6 +383,55 @@ test("task cards display deadline, relative days, urgent state and plaintext not
 	assert.equal(task.title, "Details");
 });
 
+test("deadline separates full date/weekday, optional time, and relative label into unbroken units", () => {
+	const { container, renderer } = createRenderer(createEmptyData());
+	renderer.data.tasks = [{ id: "details", title: "Deadline", quadrant: "do", dueDate: "2026-09-22", dueTime: "18:30", tags: ["旅行", "Work"], notes: "", completedAt: null, order: 0 }];
+	renderer.render();
+	assert.equal(container.querySelector(".qt-due-date").textContent, "2026-09-22");
+	assert.equal(container.querySelector(".qt-due-weekday").textContent, "Tue");
+	assert.equal(container.querySelector(".qt-due-clock").textContent, "18:30");
+	assert.ok(container.querySelector(".qt-due-relative"));
+	assert.equal(container.querySelectorAll(".qt-tag").length, 2);
+	renderer.data.tasks[0].dueTime = null; renderer.render();
+	assert.equal(container.querySelector(".qt-due-clock"), null);
+});
+
+test("quick add persists time and all tags including pending input across failed saves", async () => {
+	const { container, renderer } = createRenderer(createEmptyData());
+	const form = container.querySelector(".qt-quick-add");
+	const title = form.querySelector("textarea"); title.value = "Tagged"; title.dispatch("input");
+	const date = form.querySelector(".qt-native-date"); date.value = "2026-09-22"; date.dispatch("change");
+	const time = form.querySelector(".qt-due-time"); time.value = "00:00"; time.dispatch("change");
+	const tags = form.querySelector(".qt-tag-input"); tags.value = "旅行,第二项"; tags.dispatch("input");
+	renderer.mutate = async () => null;
+	form.querySelector(".qt-add-button").dispatch("click");
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(container.querySelector(".qt-due-time").value, "00:00");
+	assert.equal(container.querySelectorAll(".qt-tag").length, 2);
+	let result;
+	renderer.mutate = async fn => { result = fn(renderer.data); return result; };
+	container.querySelector(".qt-add-button").dispatch("click");
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(result.dueTime, "00:00");
+	assert.deepEqual(result.tags, ["旅行", "第二项"]);
+	assert.equal(container.querySelector(".qt-due-time").value, "");
+});
+
+test("editing only time during a pending quick-add save preserves its date as a pair", async () => {
+	const { container, renderer } = createRenderer(createEmptyData());
+	const form = container.querySelector(".qt-quick-add");
+	const title = form.querySelector("textarea"); title.value = "First"; title.dispatch("input");
+	const date = form.querySelector(".qt-native-date"); date.value = "2026-09-22"; date.dispatch("change");
+	const time = form.querySelector(".qt-due-time"); time.value = "10:00"; time.dispatch("change");
+	let finish;
+	renderer.mutate = async fn => { const task = fn(renderer.data); await new Promise(resolve => { finish = resolve; }); return task; };
+	form.querySelector(".qt-add-button").dispatch("click");
+	time.value = "18:30"; time.dispatch("change");
+	finish(); await new Promise(resolve => setImmediate(resolve));
+	assert.equal(container.querySelector(".qt-native-date").value, "2026-09-22");
+	assert.equal(container.querySelector(".qt-due-time").value, "18:30");
+});
+
 test("quick add accepts title only and preserves all draft fields on save failure", async () => {
 	const { container, renderer } = createRenderer(createEmptyData());
 	const form = container.querySelector(".qt-quick-add");

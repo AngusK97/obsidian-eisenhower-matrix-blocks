@@ -1,136 +1,91 @@
 "use strict";
 
 const { Modal, setIcon } = require("obsidian");
-const { normalizeDueDate } = require("./task-details");
-
-function localDateString(date) {
-	return `${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
+const { normalizeDueDate, normalizeDueTime } = require("./task-details");
+const { createTagInput } = require("./tag-input");
 
 function autoSize(textarea) {
 	textarea.style.height = "auto";
 	textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
-/** A native calendar field with explicit, cross-platform relative-date shortcuts. */
+function validateNativeField(input, normalize) {
+	const valid = !input.validity?.badInput && input.validity?.valid !== false && (!input.value || Boolean(normalize(input.value)));
+	if (!valid) { input.reportValidity?.(); input.focus(); }
+	return valid;
+}
+
+/** Use the host's real calendar, preserving a visible input on every platform. */
 function createDueDateControl(parent, plugin, initialValue, onChange) {
-	let value = normalizeDueDate(initialValue);
-	let popup = null;
-	let cleanup = () => {};
-	const doc = parent.ownerDocument;
-	const button = parent.createEl("button", {
-		cls: "qt-due-picker", attr: { type: "button", "aria-haspopup": "dialog", "aria-expanded": "false" },
+	const wrapper = parent.createDiv({ cls: "qt-date-control" });
+	const input = wrapper.createEl("input", {
+		cls: "qt-native-date", attr: { type: "date", "aria-label": plugin.t("task.dueDate"), min: "0001-01-01", max: "9999-12-31" },
 	});
-	const icon = button.createSpan({ cls: "qt-date-icon" });
-	setIcon(icon, "calendar-days");
-	const label = button.createSpan({ cls: "qt-date-label" });
-	const setValue = nextValue => {
-		value = normalizeDueDate(nextValue);
-		label.textContent = value || plugin.t("task.noDueDate");
-		button.setAttribute("aria-label", `${plugin.t("task.dueDate")}: ${label.textContent}`);
-		button.setAttribute("title", `${plugin.t("task.dueDate")}: ${label.textContent}`);
-	};
-	const close = (restoreFocus = false) => {
-		if (!popup) return;
-		cleanup();
-		popup.remove();
-		popup = null;
-		button.setAttribute("aria-expanded", "false");
-		if (restoreFocus) button.focus();
-	};
-	const choose = nextValue => {
-		setValue(nextValue);
-		close(true);
-		onChange(value);
+	const button = wrapper.createEl("button", {
+		cls: "qt-due-picker", attr: { type: "button", "aria-label": plugin.t("task.dueDate"), title: plugin.t("task.dueDate") },
+	});
+	setIcon(button, "calendar-days");
+	const getValue = () => normalizeDueDate(input.value);
+	const setValue = value => { input.value = normalizeDueDate(value) || ""; };
+	const change = () => {
+		if (!input.validity?.badInput) onChange(getValue());
 	};
 	const open = () => {
-		if (popup) { close(true); return; }
-		if (!doc) return;
-		// Keep the popup within Obsidian's modal focus scope when editing a task.
-		const host = parent.closest(".modal") || doc.body;
-		popup = host.createDiv({ cls: "qt-date-popover", attr: { role: "dialog", "aria-label": plugin.t("task.dueDate") } });
-		popup.createDiv({ cls: "qt-date-heading", text: plugin.t("task.dueDate") });
-		const input = popup.createEl("input", {
-			cls: "qt-date-input", attr: { type: "date", "aria-label": plugin.t("task.dueDate"), min: "0001-01-01", max: "9999-12-31" },
-		});
-		input.value = value || "";
-		// Native segmented inputs emit change while the year is still being typed.
-		// Commit only on explicit confirmation, not on those intermediate values.
-		const applyDate = () => {
-			if (input.validity?.badInput || (input.value && !normalizeDueDate(input.value))) {
-				input.setAttribute("aria-invalid", "true");
-				input.reportValidity?.();
-				return;
-			}
-			choose(input.value);
-		};
-		input.addEventListener("input", () => input.setAttribute("aria-invalid", "false"));
-		input.addEventListener("keydown", event => {
-			if (event.key !== "Enter" || event.isComposing || event.keyCode === 229) return;
-			event.preventDefault(); event.stopPropagation(); applyDate();
-		});
-		const apply = popup.createEl("button", {
-			cls: "qt-date-apply mod-cta", text: plugin.t("task.applyDate"), attr: { type: "button" },
-		});
-		apply.addEventListener("click", applyDate);
-		const shortcuts = popup.createDiv({ cls: "qt-date-shortcuts" });
-		for (const [key, offset] of [["today", 0], ["tomorrow", 1], ["clearDate", null]]) {
-			const shortcut = shortcuts.createEl("button", {
-				cls: offset === null ? "qt-date-clear" : `qt-date-${key}`,
-				text: plugin.t(`task.${key}`), attr: { type: "button" },
-			});
-			shortcut.addEventListener("click", () => {
-				if (offset === null) { choose(null); return; }
-				const date = new Date(); date.setDate(date.getDate() + offset);
-				choose(localDateString(date));
-			});
-		}
-		button.setAttribute("aria-expanded", "true");
-		const view = doc.defaultView;
-		const viewport = view.visualViewport;
-		const position = () => {
-			if (!popup) return;
-			const left = viewport?.offsetLeft || 0;
-			const top = viewport?.offsetTop || 0;
-			const width = viewport?.width || view.innerWidth;
-			const height = viewport?.height || view.innerHeight;
-			popup.style.maxWidth = `${Math.max(0, width - 16)}px`;
-			popup.style.maxHeight = `${Math.max(0, height - 16)}px`;
-			popup.style.overflowY = "auto";
-			const anchor = button.getBoundingClientRect();
-			const bounds = popup.getBoundingClientRect();
-			popup.style.left = `${Math.max(left + 8, Math.min(anchor.left, left + width - bounds.width - 8))}px`;
-			const preferredTop = anchor.bottom + 6 + bounds.height <= top + height - 8 ? anchor.bottom + 6 : anchor.top - bounds.height - 6;
-			popup.style.top = `${Math.max(top + 8, Math.min(preferredTop, top + height - bounds.height - 8))}px`;
-		};
-		position();
-		const onPointerDown = event => { if (!popup.contains(event.target) && !button.contains(event.target)) close(); };
-		const onFocus = event => { if (!popup.contains(event.target) && !button.contains(event.target)) close(); };
-		const onKeyDown = event => {
-			if (event.key !== "Escape") return;
-			event.preventDefault(); event.stopPropagation(); close(true);
-		};
-		doc.addEventListener("pointerdown", onPointerDown, true);
-		doc.addEventListener("keydown", onKeyDown, true);
-		doc.addEventListener("focusin", onFocus);
-		doc.addEventListener("scroll", position, true);
-		view.addEventListener("resize", position);
-		viewport?.addEventListener("resize", position);
-		viewport?.addEventListener("scroll", position);
-		cleanup = () => {
-			doc.removeEventListener("pointerdown", onPointerDown, true);
-			doc.removeEventListener("keydown", onKeyDown, true);
-			doc.removeEventListener("focusin", onFocus);
-			doc.removeEventListener("scroll", position, true);
-			view.removeEventListener("resize", position);
-			viewport?.removeEventListener("resize", position);
-			viewport?.removeEventListener("scroll", position);
-		};
+		if (input.disabled) return;
 		input.focus();
+		// showPicker must run synchronously inside this user gesture. Some webviews
+		// reject it; the native, keyboard-accessible field remains usable then.
+		try { input.showPicker?.(); } catch { /* Keep native text entry available. */ }
 	};
+	input.addEventListener("change", change);
 	button.addEventListener("click", open);
-	setValue(value);
-	return { getValue: () => value, setValue, destroy: () => { close(); button.removeEventListener("click", open); } };
+	setValue(initialValue);
+	return {
+		getValue, setValue,
+		validate: () => validateNativeField(input, normalizeDueDate),
+		setDisabled(disabled) { input.disabled = disabled; button.disabled = disabled; },
+		destroy() { input.removeEventListener("change", change); button.removeEventListener("click", open); },
+	};
+}
+
+/** A calendar deadline can optionally include local wall-clock time. */
+function createDeadlineFields(parent, plugin, initialValue = {}, onChange = () => {}) {
+	const wrapper = parent.createDiv({ cls: "qt-deadline-fields" });
+	let disabled = false;
+	const date = createDueDateControl(wrapper, plugin, initialValue.dueDate, value => {
+		if (!value) time.value = "";
+		updateDisabled(); onChange(getValue());
+	});
+	const timeWrapper = wrapper.createDiv({ cls: "qt-time-control" });
+	const time = timeWrapper.createEl("input", {
+		cls: "qt-due-time", attr: { type: "time", step: "60", "aria-label": plugin.t("task.dueTime"), title: plugin.t("task.timeOptional") },
+	});
+	const clear = timeWrapper.createEl("button", {
+		cls: "qt-clear-time", attr: { type: "button", "aria-label": plugin.t("task.clearTime"), title: plugin.t("task.clearTime") },
+	});
+	setIcon(clear, "x");
+	const getValue = () => ({ dueDate: date.getValue(), dueTime: date.getValue() ? normalizeDueTime(time.value) : null });
+	const updateDisabled = () => {
+		date.setDisabled(disabled);
+		time.disabled = disabled || !date.getValue();
+		clear.disabled = disabled || !date.getValue() || !time.value;
+	};
+	const setValue = (value = {}) => {
+		date.setValue(value.dueDate);
+		time.value = date.getValue() ? normalizeDueTime(value.dueTime) || "" : "";
+		updateDisabled();
+	};
+	const change = () => { updateDisabled(); if (!time.validity?.badInput) onChange(getValue()); };
+	const clearTime = () => { time.value = ""; updateDisabled(); onChange(getValue()); time.focus(); };
+	time.addEventListener("change", change);
+	clear.addEventListener("click", clearTime);
+	setValue(initialValue);
+	return {
+		getValue, setValue,
+		validate: () => date.validate() && (!date.getValue() || validateNativeField(time, normalizeDueTime)),
+		setDisabled(value) { disabled = value; updateDisabled(); },
+		destroy() { date.destroy(); time.removeEventListener("change", change); clear.removeEventListener("click", clearTime); },
+	};
 }
 
 class TaskEditorModal extends Modal {
@@ -156,7 +111,10 @@ class TaskEditorModal extends Modal {
 		const title = createTextarea("modal.taskContent", "qt-task-name-input", this.task.title, 1);
 		const dueField = this.contentEl.createDiv({ cls: "qt-modal-field" });
 		dueField.createSpan({ cls: "qt-field-label", text: t("task.dueDate") });
-		this.dueControl = createDueDateControl(dueField, this.plugin, this.task.dueDate, () => {});
+		this.dueControl = createDeadlineFields(dueField, this.plugin, this.task);
+		const tagsField = this.contentEl.createDiv({ cls: "qt-modal-field" });
+		tagsField.createSpan({ cls: "qt-field-label", text: t("task.tags") });
+		this.tagControl = createTagInput(tagsField, this.plugin, this.task.tags || [], () => {});
 		const notes = createTextarea("task.notes", "qt-task-notes-input", this.task.notes, 3);
 		notes.setAttribute("placeholder", t("task.notesPlaceholder"));
 		const error = this.contentEl.createDiv({ cls: "qt-task-save-error", attr: { role: "alert" } });
@@ -168,12 +126,15 @@ class TaskEditorModal extends Modal {
 			if (submitting) return;
 			const taskTitle = title.value.replace(/\s*[\r\n]+\s*/g, " ").trim();
 			if (!taskTitle) { title.addClass("qt-input-error"); title.setAttribute("aria-invalid", "true"); title.focus(); return; }
+			if (!this.dueControl.validate()) return;
 			submitting = true;
 			error.textContent = "";
-			const fields = [title, notes, dueField.querySelector("button"), save];
+			const details = { ...this.dueControl.getValue(), notes: notes.value, tags: this.tagControl.getValue() };
+			const fields = [title, notes, save];
 			for (const field of fields) field.disabled = true;
+			this.dueControl.setDisabled(true); this.tagControl.setDisabled(true);
 			try {
-				const result = await this.onSave(taskTitle, { dueDate: this.dueControl.getValue(), notes: notes.value });
+				const result = await this.onSave(taskTitle, details);
 				if (result === false) throw new Error("Task save rejected");
 				this.close();
 			} catch {
@@ -181,6 +142,7 @@ class TaskEditorModal extends Modal {
 			} finally {
 				submitting = false;
 				for (const field of fields) field.disabled = false;
+				this.dueControl.setDisabled(false); this.tagControl.setDisabled(false);
 			}
 		};
 		for (const input of [title, notes]) {
@@ -198,8 +160,9 @@ class TaskEditorModal extends Modal {
 
 	onClose() {
 		this.dueControl?.destroy();
+		this.tagControl?.destroy();
 		this.contentEl.empty();
 	}
 }
 
-module.exports = { TaskEditorModal, createDueDateControl };
+module.exports = { TaskEditorModal, createDueDateControl, createDeadlineFields };

@@ -60,8 +60,8 @@ Each matrix belongs to the note that contains it:
 
 | Workflow | Behavior |
 |---|---|
-| Add | Add a title, optional due date and notes in any quadrant. Only a title is required; new tasks appear at the top. |
-| Edit | Click any active or completed task to edit its title, date and multiline notes. Enter in the title saves; Ctrl/Cmd+Enter in notes saves. |
+| Add | Add a title, optional deadline/time, tags and notes in any quadrant. Only a title is required; new tasks appear at the top. |
+| Edit | Click any active or completed task to edit all fields. Enter in the title saves; Ctrl/Cmd+Enter in notes saves; Enter in tags adds a tag. |
 | Move and order | Drag tasks between quadrants or above and below one another. Touch and pen use the drag handle; the task menu remains available on every device. |
 | Complete | Check a task to move it into the unified completed list with an exact completion timestamp. |
 | Restore | Uncheck a completed task to return it to its source quadrant. |
@@ -72,9 +72,13 @@ Each matrix belongs to the note that contains it:
 
 ## Markdown-backed by design
 
-Due dates use your device's local calendar. Cards show the exact date, days remaining (or overdue), and a one-line notes preview. An incomplete task due in fewer than 3 days—including overdue tasks—has a red alarm icon; completed tasks never show urgency. The date popover offers Today, Tomorrow and Clear; confirm a custom date with Apply date or Enter.
+Due dates use your device's local calendar. Cards show the complete date and weekday (Mon–Sun), optional 24-hour time, days remaining and a one-line notes preview. These are separate wrapping units, not one long sentence. Incomplete deadlines up to 3 days away (including overdue) are red with an alarm; 4–7 days are green, later dates use normal text, and completed dates remain muted.
 
-Existing tasks need no migration. **Update every device to 2.6.0 or later before editing tasks with dates or notes:** older plugin versions may strip these new fields when saving the board.
+The date control directly opens the native browser/system calendar; its appearance follows your platform. Optional time ranges from 00:00 to 23:59; unset time is not displayed. Clearing the date also clears its time.
+
+Tags have no count limit. Enter, comma or newline adds tags; the final unconfirmed entry is also saved. Remove tags with their × button. Each normalized tag maps deterministically to the same color on every device, with separate readable light/dark palettes. Tags are task-local text, not entries in Obsidian's global tag index.
+
+Existing tasks need no migration. **Update every device to 2.7.0 or later before editing tags or times:** older plugin versions may strip these new fields when saving the board.
 
 ![The rendered matrix beside its readable Markdown source](https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/markdown-source.png)
 
