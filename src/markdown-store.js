@@ -1,6 +1,7 @@
 "use strict";
 
 const { createEmptyData, isQuadrant, normalizeData } = require("./core");
+const { normalizeDueDate } = require("./task-details");
 
 const START_MARKER = "<!-- quadrant-tasks:start -->";
 const END_MARKER = "<!-- quadrant-tasks:end -->";
@@ -127,6 +128,8 @@ function parseTaskLine(line, currentQuadrant, metadata, options) {
 		createdAt: validIso(metadata?.createdAt) ? new Date(metadata.createdAt).toISOString() : now.toISOString(),
 		completedAt,
 		order: Number.isFinite(metadata?.order) ? metadata.order : options.fallbackOrder,
+		dueDate: metadata?.dueDate,
+		notes: metadata?.notes,
 	};
 }
 
@@ -191,6 +194,12 @@ function parseTaskMarkdown(content, options = {}) {
 		if (nextLine.trim().startsWith(META_PREFIX)) {
 			index += 1;
 			if (!metadata) issues.push(`第 ${index + 1} 行的任务元数据不是有效 JSON`);
+			if (metadata?.dueDate != null && metadata.dueDate !== "" && !normalizeDueDate(metadata.dueDate)) {
+				issues.push(`第 ${index + 1} 行的任务截止日期无效`);
+			}
+			if (metadata?.notes != null && typeof metadata.notes !== "string") {
+				issues.push(`第 ${index + 1} 行的任务备注必须是文本`);
+			}
 		}
 		if (!task) {
 			issues.push(`第 ${index + 1} 行的任务缺少标题或有效象限`);
@@ -221,13 +230,19 @@ function formatLocalDate(isoValue) {
 }
 
 function taskMetadata(task) {
-	return `${META_PREFIX}${JSON.stringify({
+	const metadata = {
 		id: task.id,
 		quadrant: task.quadrant,
 		createdAt: task.createdAt,
 		completedAt: task.completedAt || null,
 		order: task.order,
-	})}${META_SUFFIX}`;
+	};
+	if (task.dueDate) metadata.dueDate = task.dueDate;
+	if (task.notes) metadata.notes = task.notes;
+	// JSON escapes newlines; escaping angle brackets also keeps notes from ending
+	// the HTML comment or impersonating a managed-block boundary.
+	const json = JSON.stringify(metadata).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
+	return `${META_PREFIX}${json}${META_SUFFIX}`;
 }
 
 function renderManagedBlock(data, newline = "\n") {

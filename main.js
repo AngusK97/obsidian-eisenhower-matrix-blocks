@@ -4,10 +4,40 @@ var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 
+// src/task-details.js
+var require_task_details = __commonJS({
+  "src/task-details.js"(exports2, module2) {
+    "use strict";
+    var DAY_MS = 24 * 60 * 60 * 1e3;
+    function calendarDay(year, month, day) {
+      const value = /* @__PURE__ */ new Date(0);
+      value.setUTCFullYear(year, month - 1, day);
+      return value;
+    }
+    function normalizeDueDate(value) {
+      if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+      const [year, month, day] = value.split("-").map(Number);
+      if (year < 1) return null;
+      const parsed = calendarDay(year, month, day);
+      return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day ? value : null;
+    }
+    function getDueDateInfo(dueDate, completedAt, now = /* @__PURE__ */ new Date()) {
+      const date = normalizeDueDate(dueDate);
+      if (!date || !(now instanceof Date) || Number.isNaN(now.getTime())) return null;
+      const [year, month, day] = date.split("-").map(Number);
+      const today = calendarDay(now.getFullYear(), now.getMonth() + 1, now.getDate());
+      const days = Math.round((calendarDay(year, month, day) - today) / DAY_MS);
+      return { date, days, urgent: !completedAt && days < 3 };
+    }
+    module2.exports = { getDueDateInfo, normalizeDueDate };
+  }
+});
+
 // src/core.js
 var require_core = __commonJS({
   "src/core.js"(exports2, module2) {
     "use strict";
+    var { normalizeDueDate } = require_task_details();
     var DATA_VERSION = 1;
     var QUADRANTS2 = ["do", "schedule", "delegate", "eliminate"];
     function createEmptyData2() {
@@ -35,7 +65,9 @@ var require_core = __commonJS({
           quadrant: candidate.quadrant,
           createdAt: isValidDate(candidate.createdAt) ? new Date(candidate.createdAt).toISOString() : (/* @__PURE__ */ new Date(0)).toISOString(),
           completedAt: isValidDate(candidate.completedAt) ? new Date(candidate.completedAt).toISOString() : null,
-          order: Number.isFinite(candidate.order) ? candidate.order : tasks.length
+          order: Number.isFinite(candidate.order) ? candidate.order : tasks.length,
+          dueDate: normalizeDueDate(candidate.dueDate),
+          notes: typeof candidate.notes === "string" ? candidate.notes : ""
         });
       }
       return { version: DATA_VERSION, tasks };
@@ -49,10 +81,15 @@ var require_core = __commonJS({
     function setTaskOrder(tasks) {
       for (let index = 0; index < tasks.length; index += 1) tasks[index].order = index;
     }
-    function addTask2(data, title, quadrant, options = {}) {
+    function addTask(data, title, quadrant, options = {}) {
+      var _a;
       const normalizedTitle = typeof title === "string" ? title.trim() : "";
       if (!normalizedTitle) throw new Error("Task title is required");
       if (!isQuadrant(quadrant)) throw new Error("Invalid quadrant");
+      if (options.dueDate != null && options.dueDate !== "" && !normalizeDueDate(options.dueDate)) {
+        throw new Error("Invalid due date");
+      }
+      if (options.notes != null && typeof options.notes !== "string") throw new Error("Invalid notes");
       const now = options.now instanceof Date ? options.now : /* @__PURE__ */ new Date();
       const idFactory = options.idFactory || defaultIdFactory;
       const existingTasks = getActiveTasks2(data, quadrant);
@@ -62,18 +99,25 @@ var require_core = __commonJS({
         quadrant,
         createdAt: now.toISOString(),
         completedAt: null,
-        order: 0
+        order: 0,
+        dueDate: normalizeDueDate(options.dueDate),
+        notes: (_a = options.notes) != null ? _a : ""
       };
       data.tasks.push(task);
       setTaskOrder([task, ...existingTasks]);
       return task;
     }
-    function editTask2(data, taskId, title) {
+    function editTask2(data, taskId, title, details = {}) {
+      var _a;
       const normalizedTitle = typeof title === "string" ? title.trim() : "";
       if (!normalizedTitle) return null;
+      if (details.dueDate != null && details.dueDate !== "" && !normalizeDueDate(details.dueDate)) return null;
+      if (details.notes != null && typeof details.notes !== "string") return null;
       const task = data.tasks.find((item) => item.id === taskId);
       if (!task) return null;
       task.title = normalizedTitle;
+      if (Object.prototype.hasOwnProperty.call(details, "dueDate")) task.dueDate = normalizeDueDate(details.dueDate);
+      if (Object.prototype.hasOwnProperty.call(details, "notes")) task.notes = (_a = details.notes) != null ? _a : "";
       return task;
     }
     function moveTask2(data, taskId, quadrant) {
@@ -185,7 +229,7 @@ var require_core = __commonJS({
     module2.exports = {
       DATA_VERSION,
       QUADRANTS: QUADRANTS2,
-      addTask: addTask2,
+      addTask,
       completeTask: completeTask2,
       completionBounds: completionBounds2,
       createEmptyData: createEmptyData2,
@@ -208,6 +252,7 @@ var require_markdown_store = __commonJS({
   "src/markdown-store.js"(exports2, module2) {
     "use strict";
     var { createEmptyData: createEmptyData2, isQuadrant, normalizeData: normalizeData2 } = require_core();
+    var { normalizeDueDate } = require_task_details();
     var START_MARKER = "<!-- quadrant-tasks:start -->";
     var END_MARKER = "<!-- quadrant-tasks:end -->";
     var META_PREFIX = "<!-- quadrant-task ";
@@ -312,7 +357,9 @@ var require_markdown_store = __commonJS({
         quadrant,
         createdAt: validIso(metadata == null ? void 0 : metadata.createdAt) ? new Date(metadata.createdAt).toISOString() : now.toISOString(),
         completedAt,
-        order: Number.isFinite(metadata == null ? void 0 : metadata.order) ? metadata.order : options.fallbackOrder
+        order: Number.isFinite(metadata == null ? void 0 : metadata.order) ? metadata.order : options.fallbackOrder,
+        dueDate: metadata == null ? void 0 : metadata.dueDate,
+        notes: metadata == null ? void 0 : metadata.notes
       };
     }
     function parseTaskMarkdown2(content, options = {}) {
@@ -373,6 +420,12 @@ var require_markdown_store = __commonJS({
         if (nextLine.trim().startsWith(META_PREFIX)) {
           index += 1;
           if (!metadata) issues.push(`\u7B2C ${index + 1} \u884C\u7684\u4EFB\u52A1\u5143\u6570\u636E\u4E0D\u662F\u6709\u6548 JSON`);
+          if ((metadata == null ? void 0 : metadata.dueDate) != null && metadata.dueDate !== "" && !normalizeDueDate(metadata.dueDate)) {
+            issues.push(`\u7B2C ${index + 1} \u884C\u7684\u4EFB\u52A1\u622A\u6B62\u65E5\u671F\u65E0\u6548`);
+          }
+          if ((metadata == null ? void 0 : metadata.notes) != null && typeof metadata.notes !== "string") {
+            issues.push(`\u7B2C ${index + 1} \u884C\u7684\u4EFB\u52A1\u5907\u6CE8\u5FC5\u987B\u662F\u6587\u672C`);
+          }
         }
         if (!task) {
           issues.push(`\u7B2C ${index + 1} \u884C\u7684\u4EFB\u52A1\u7F3A\u5C11\u6807\u9898\u6216\u6709\u6548\u8C61\u9650`);
@@ -400,13 +453,17 @@ var require_markdown_store = __commonJS({
       return `${year}-${month}-${day}`;
     }
     function taskMetadata(task) {
-      return `${META_PREFIX}${JSON.stringify({
+      const metadata = {
         id: task.id,
         quadrant: task.quadrant,
         createdAt: task.createdAt,
         completedAt: task.completedAt || null,
         order: task.order
-      })}${META_SUFFIX}`;
+      };
+      if (task.dueDate) metadata.dueDate = task.dueDate;
+      if (task.notes) metadata.notes = task.notes;
+      const json = JSON.stringify(metadata).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
+      return `${META_PREFIX}${json}${META_SUFFIX}`;
     }
     function renderManagedBlock(data, newline = "\n") {
       const normalized = normalizeData2(data);
@@ -821,12 +878,26 @@ var require_i18n = __commonJS({
         "stats.active": "{count} \u9879\u8FDB\u884C\u4E2D",
         "stats.completed": "{count} \u9879\u5DF2\u5B8C\u6210",
         "task.add": "\u6DFB\u52A0\u4EFB\u52A1",
+        "task.dueDate": "\u622A\u6B62\u65E5\u671F",
+        "task.noDueDate": "\u622A\u6B62\u65E5\u671F",
+        "task.notes": "\u5907\u6CE8",
+        "task.notesPlaceholder": "\u5907\u6CE8\uFF08\u9009\u586B\uFF09",
+        "task.today": "\u4ECA\u5929",
+        "task.tomorrow": "\u660E\u5929",
+        "task.clearDate": "\u6E05\u9664\u65E5\u671F",
+        "task.applyDate": "\u786E\u8BA4\u65E5\u671F",
+        "task.previousMonth": "\u4E0A\u4E2A\u6708",
+        "task.nextMonth": "\u4E0B\u4E2A\u6708",
+        "task.dueToday": "\u4ECA\u5929\u5230\u671F \xB7 0 \u5929",
+        "task.remainingDays": "\u8FD8\u5269 {count} \u5929",
+        "task.overdueDays": "\u5DF2\u903E\u671F {count} \u5929",
+        "task.saveFailed": "\u672A\u80FD\u4FDD\u5B58\uFF0C\u5DF2\u4FDD\u7559\u8F93\u5165\u5185\u5BB9\uFF0C\u8BF7\u91CD\u8BD5\u3002",
         "task.addTo": "\u6DFB\u52A0\u5230{quadrant}",
         "task.empty": "\u6682\u65E0\u4EFB\u52A1",
         "task.complete": "\u5B8C\u6210\u4EFB\u52A1\uFF1A{title}",
         "task.edit": "\u7F16\u8F91\u4EFB\u52A1",
         "task.more": "\u66F4\u591A\u64CD\u4F5C",
-        "task.drag": "\u62D6\u52A8\u4EFB\u52A1\uFF1A{title}",
+        "task.drag": "\u62D6\u52A8\u6216\u6253\u5F00\u4EFB\u52A1\u64CD\u4F5C\uFF1A{title}",
         "task.menuEdit": "\u7F16\u8F91",
         "task.moveUp": "\u4E0A\u79FB",
         "task.moveDown": "\u4E0B\u79FB",
@@ -897,12 +968,26 @@ var require_i18n = __commonJS({
         "stats.active": "{count} active",
         "stats.completed": "{count} completed",
         "task.add": "Add task",
+        "task.dueDate": "Due date",
+        "task.noDueDate": "Due date",
+        "task.notes": "Notes",
+        "task.notesPlaceholder": "Notes (optional)",
+        "task.today": "Today",
+        "task.tomorrow": "Tomorrow",
+        "task.clearDate": "Clear date",
+        "task.applyDate": "Apply date",
+        "task.previousMonth": "Previous month",
+        "task.nextMonth": "Next month",
+        "task.dueToday": "Due today \xB7 0 days",
+        "task.remainingDays": "{count} days left",
+        "task.overdueDays": "{count} days overdue",
+        "task.saveFailed": "Could not save. Your input has been kept; please retry.",
         "task.addTo": "Add to {quadrant}",
         "task.empty": "No tasks",
         "task.complete": "Complete task: {title}",
         "task.edit": "Edit task",
         "task.more": "More actions",
-        "task.drag": "Drag task: {title}",
+        "task.drag": "Drag or open task actions: {title}",
         "task.menuEdit": "Edit",
         "task.moveUp": "Move up",
         "task.moveDown": "Move down",
@@ -973,6 +1058,352 @@ var require_i18n = __commonJS({
   }
 });
 
+// src/task-fields.js
+var require_task_fields = __commonJS({
+  "src/task-fields.js"(exports2, module2) {
+    "use strict";
+    var { Modal: Modal2, setIcon: setIcon2 } = require("obsidian");
+    var { normalizeDueDate } = require_task_details();
+    function localDateString(date) {
+      return `${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    }
+    function autoSize(textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+    function createDueDateControl(parent, plugin, initialValue, onChange) {
+      let value = normalizeDueDate(initialValue);
+      let popup = null;
+      let cleanup = () => {
+      };
+      const doc = parent.ownerDocument;
+      const button = parent.createEl("button", {
+        cls: "qt-due-picker",
+        attr: { type: "button", "aria-haspopup": "dialog", "aria-expanded": "false" }
+      });
+      const icon = button.createSpan({ cls: "qt-date-icon" });
+      setIcon2(icon, "calendar-days");
+      const label = button.createSpan({ cls: "qt-date-label" });
+      const setValue = (nextValue) => {
+        value = normalizeDueDate(nextValue);
+        label.textContent = value || plugin.t("task.noDueDate");
+        button.setAttribute("aria-label", `${plugin.t("task.dueDate")}: ${label.textContent}`);
+        button.setAttribute("title", `${plugin.t("task.dueDate")}: ${label.textContent}`);
+      };
+      const close = (restoreFocus = false) => {
+        if (!popup) return;
+        cleanup();
+        popup.remove();
+        popup = null;
+        button.setAttribute("aria-expanded", "false");
+        if (restoreFocus) button.focus();
+      };
+      const choose = (nextValue) => {
+        setValue(nextValue);
+        close(true);
+        onChange(value);
+      };
+      const open = () => {
+        if (popup) {
+          close(true);
+          return;
+        }
+        if (!doc) return;
+        const host = parent.closest(".modal") || doc.body;
+        popup = host.createDiv({ cls: "qt-date-popover", attr: { role: "dialog", "aria-label": plugin.t("task.dueDate") } });
+        popup.createDiv({ cls: "qt-date-heading", text: plugin.t("task.dueDate") });
+        const input = popup.createEl("input", {
+          cls: "qt-date-input",
+          attr: { type: "date", "aria-label": plugin.t("task.dueDate"), min: "0001-01-01", max: "9999-12-31" }
+        });
+        input.value = value || "";
+        const applyDate = () => {
+          var _a, _b;
+          if (((_a = input.validity) == null ? void 0 : _a.badInput) || input.value && !normalizeDueDate(input.value)) {
+            input.setAttribute("aria-invalid", "true");
+            (_b = input.reportValidity) == null ? void 0 : _b.call(input);
+            return;
+          }
+          choose(input.value);
+        };
+        input.addEventListener("input", () => input.setAttribute("aria-invalid", "false"));
+        input.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" || event.isComposing || event.keyCode === 229) return;
+          event.preventDefault();
+          event.stopPropagation();
+          applyDate();
+        });
+        const apply = popup.createEl("button", {
+          cls: "qt-date-apply mod-cta",
+          text: plugin.t("task.applyDate"),
+          attr: { type: "button" }
+        });
+        apply.addEventListener("click", applyDate);
+        const shortcuts = popup.createDiv({ cls: "qt-date-shortcuts" });
+        for (const [key, offset] of [["today", 0], ["tomorrow", 1], ["clearDate", null]]) {
+          const shortcut = shortcuts.createEl("button", {
+            cls: offset === null ? "qt-date-clear" : `qt-date-${key}`,
+            text: plugin.t(`task.${key}`),
+            attr: { type: "button" }
+          });
+          shortcut.addEventListener("click", () => {
+            if (offset === null) {
+              choose(null);
+              return;
+            }
+            const date = /* @__PURE__ */ new Date();
+            date.setDate(date.getDate() + offset);
+            choose(localDateString(date));
+          });
+        }
+        button.setAttribute("aria-expanded", "true");
+        const view = doc.defaultView;
+        const viewport = view.visualViewport;
+        const position = () => {
+          if (!popup) return;
+          const left = (viewport == null ? void 0 : viewport.offsetLeft) || 0;
+          const top = (viewport == null ? void 0 : viewport.offsetTop) || 0;
+          const width = (viewport == null ? void 0 : viewport.width) || view.innerWidth;
+          const height = (viewport == null ? void 0 : viewport.height) || view.innerHeight;
+          popup.style.maxWidth = `${Math.max(0, width - 16)}px`;
+          popup.style.maxHeight = `${Math.max(0, height - 16)}px`;
+          popup.style.overflowY = "auto";
+          const anchor = button.getBoundingClientRect();
+          const bounds = popup.getBoundingClientRect();
+          popup.style.left = `${Math.max(left + 8, Math.min(anchor.left, left + width - bounds.width - 8))}px`;
+          const preferredTop = anchor.bottom + 6 + bounds.height <= top + height - 8 ? anchor.bottom + 6 : anchor.top - bounds.height - 6;
+          popup.style.top = `${Math.max(top + 8, Math.min(preferredTop, top + height - bounds.height - 8))}px`;
+        };
+        position();
+        const onPointerDown = (event) => {
+          if (!popup.contains(event.target) && !button.contains(event.target)) close();
+        };
+        const onFocus = (event) => {
+          if (!popup.contains(event.target) && !button.contains(event.target)) close();
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== "Escape") return;
+          event.preventDefault();
+          event.stopPropagation();
+          close(true);
+        };
+        doc.addEventListener("pointerdown", onPointerDown, true);
+        doc.addEventListener("keydown", onKeyDown, true);
+        doc.addEventListener("focusin", onFocus);
+        doc.addEventListener("scroll", position, true);
+        view.addEventListener("resize", position);
+        viewport == null ? void 0 : viewport.addEventListener("resize", position);
+        viewport == null ? void 0 : viewport.addEventListener("scroll", position);
+        cleanup = () => {
+          doc.removeEventListener("pointerdown", onPointerDown, true);
+          doc.removeEventListener("keydown", onKeyDown, true);
+          doc.removeEventListener("focusin", onFocus);
+          doc.removeEventListener("scroll", position, true);
+          view.removeEventListener("resize", position);
+          viewport == null ? void 0 : viewport.removeEventListener("resize", position);
+          viewport == null ? void 0 : viewport.removeEventListener("scroll", position);
+        };
+        input.focus();
+      };
+      button.addEventListener("click", open);
+      setValue(value);
+      return { getValue: () => value, setValue, destroy: () => {
+        close();
+        button.removeEventListener("click", open);
+      } };
+    }
+    var TaskEditorModal2 = class extends Modal2 {
+      constructor(plugin, task, onSave) {
+        super(plugin.app);
+        this.plugin = plugin;
+        this.task = { ...task };
+        this.onSave = onSave;
+      }
+      onOpen() {
+        var _a, _b, _c;
+        const t = (key) => this.plugin.t(key);
+        this.setTitle(t("modal.editTask"));
+        this.contentEl.addClass("qt-task-editor");
+        const createTextarea = (labelKey, className, value, rows) => {
+          const label = this.contentEl.createEl("label", { cls: "qt-modal-field" });
+          label.createSpan({ cls: "qt-field-label", text: t(labelKey) });
+          const input = label.createEl("textarea", { cls: `qt-modal-input qt-task-textarea ${className}`, attr: { rows: String(rows), "aria-label": t(labelKey) } });
+          input.value = value || "";
+          input.addEventListener("input", () => {
+            input.removeClass("qt-input-error");
+            input.setAttribute("aria-invalid", "false");
+            autoSize(input);
+          });
+          return input;
+        };
+        const title = createTextarea("modal.taskContent", "qt-task-name-input", this.task.title, 1);
+        const dueField = this.contentEl.createDiv({ cls: "qt-modal-field" });
+        dueField.createSpan({ cls: "qt-field-label", text: t("task.dueDate") });
+        this.dueControl = createDueDateControl(dueField, this.plugin, this.task.dueDate, () => {
+        });
+        const notes = createTextarea("task.notes", "qt-task-notes-input", this.task.notes, 3);
+        notes.setAttribute("placeholder", t("task.notesPlaceholder"));
+        const error = this.contentEl.createDiv({ cls: "qt-task-save-error", attr: { role: "alert" } });
+        const actions = this.contentEl.createDiv({ cls: "modal-button-container" });
+        const cancel = actions.createEl("button", { text: t("common.cancel"), attr: { type: "button" } });
+        const save = actions.createEl("button", { cls: "mod-cta", text: t("common.save"), attr: { type: "button" } });
+        let submitting = false;
+        const submit = async () => {
+          if (submitting) return;
+          const taskTitle = title.value.replace(/\s*[\r\n]+\s*/g, " ").trim();
+          if (!taskTitle) {
+            title.addClass("qt-input-error");
+            title.setAttribute("aria-invalid", "true");
+            title.focus();
+            return;
+          }
+          submitting = true;
+          error.textContent = "";
+          const fields = [title, notes, dueField.querySelector("button"), save];
+          for (const field of fields) field.disabled = true;
+          try {
+            const result = await this.onSave(taskTitle, { dueDate: this.dueControl.getValue(), notes: notes.value });
+            if (result === false) throw new Error("Task save rejected");
+            this.close();
+          } catch (e) {
+            error.textContent = t("task.saveFailed");
+          } finally {
+            submitting = false;
+            for (const field of fields) field.disabled = false;
+          }
+        };
+        for (const input of [title, notes]) {
+          input.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter" || event.isComposing || event.keyCode === 229) return;
+            if (input === notes && !event.ctrlKey && !event.metaKey) return;
+            event.preventDefault();
+            event.stopPropagation();
+            void submit();
+          });
+        }
+        cancel.addEventListener("click", () => this.close());
+        save.addEventListener("click", () => void submit());
+        const schedule = ((_c = (_b = (_a = this.contentEl.ownerDocument) == null ? void 0 : _a.defaultView) == null ? void 0 : _b.requestAnimationFrame) == null ? void 0 : _c.bind(this.contentEl.ownerDocument.defaultView)) || ((callback) => callback());
+        schedule(() => {
+          autoSize(title);
+          autoSize(notes);
+          title.focus();
+          title.select();
+        });
+      }
+      onClose() {
+        var _a;
+        (_a = this.dueControl) == null ? void 0 : _a.destroy();
+        this.contentEl.empty();
+      }
+    };
+    module2.exports = { TaskEditorModal: TaskEditorModal2, createDueDateControl };
+  }
+});
+
+// src/task-card.js
+var require_task_card = __commonJS({
+  "src/task-card.js"(exports2, module2) {
+    "use strict";
+    var { setIcon: setIcon2 } = require("obsidian");
+    var { addTask } = require_core();
+    var { getDueDateInfo } = require_task_details();
+    var { createDueDateControl } = require_task_fields();
+    function growTextarea(input) {
+      input.style.height = "auto";
+      input.style.height = `${input.scrollHeight}px`;
+    }
+    function renderTaskDetails2(parent, task, plugin) {
+      const due = getDueDateInfo(task.dueDate, task.completedAt);
+      if (due) {
+        const relative = plugin.t(due.days < 0 ? "task.overdueDays" : due.days === 0 ? "task.dueToday" : "task.remainingDays", { count: Math.abs(due.days) });
+        const line = parent.createSpan({ cls: `qt-task-due${due.urgent ? " is-urgent" : ""}` });
+        const icon = line.createSpan({ cls: "qt-due-icon", attr: { "aria-hidden": "true" } });
+        setIcon2(icon, due.urgent ? "alarm-clock" : "calendar");
+        const time = line.createEl("time", { attr: { datetime: due.date } });
+        time.createSpan({ text: due.date, cls: "qt-due-date" });
+        time.createSpan({ text: ` \xB7 ${relative}` });
+      }
+      if (task.notes) parent.createSpan({
+        cls: "qt-task-notes",
+        text: task.notes.replace(/\s+/g, " ")
+      });
+    }
+    function renderQuickAdd2(section, renderer, quadrant, quadrantName) {
+      const { plugin } = renderer;
+      let draft = renderer.quickAddDrafts.get(quadrant);
+      if (!draft) {
+        draft = { title: "", dueDate: null, notes: "", submitting: false, error: false };
+        renderer.quickAddDrafts.set(quadrant, draft);
+      }
+      const form = section.createDiv({ cls: "qt-quick-add" });
+      const title = form.createEl("textarea", {
+        cls: "qt-task-textarea",
+        attr: { rows: "1", placeholder: plugin.t("task.add"), "aria-label": plugin.t("task.addTo", { quadrant: quadrantName }) }
+      });
+      title.value = draft.title;
+      const button = form.createEl("button", {
+        cls: "clickable-icon qt-icon-button qt-add-button",
+        attr: { type: "button", "aria-label": plugin.t("task.addTo", { quadrant: quadrantName }) }
+      });
+      setIcon2(button, "plus");
+      button.disabled = draft.submitting;
+      const details = form.createDiv({ cls: "qt-quick-details" });
+      const dateControl = createDueDateControl(details, plugin, draft.dueDate, (value) => {
+        draft.dueDate = value;
+      });
+      renderer.quickAddControls.push(dateControl);
+      const notes = details.createEl("textarea", {
+        cls: "qt-quick-notes qt-task-textarea",
+        attr: { rows: "1", placeholder: plugin.t("task.notesPlaceholder"), "aria-label": plugin.t("task.notes") }
+      });
+      notes.value = draft.notes;
+      for (const [input, key] of [[title, "title"], [notes, "notes"]]) {
+        input.addEventListener("input", () => {
+          draft[key] = input.value;
+          input.removeClass("qt-input-error");
+          growTextarea(input);
+        });
+        if (input.value) (globalThis.requestAnimationFrame || ((callback) => callback()))(() => growTextarea(input));
+      }
+      if (draft.error) form.createDiv({ cls: "qt-quick-error", text: plugin.t("task.saveFailed"), attr: { role: "alert" } });
+      const submit = async () => {
+        if (draft.submitting) return;
+        const value = title.value.replace(/\s*[\r\n]+\s*/g, " ").trim();
+        if (!value) {
+          title.addClass("qt-input-error");
+          title.focus();
+          return;
+        }
+        draft.submitting = true;
+        button.disabled = true;
+        const snapshot = { title: title.value, dueDate: dateControl.getValue(), notes: notes.value };
+        try {
+          const task = await renderer.mutate((data) => addTask(data, value, quadrant, snapshot));
+          if (!task) throw new Error("Task creation did not complete");
+          for (const key of ["title", "dueDate", "notes"]) {
+            if (draft[key] === snapshot[key]) draft[key] = key === "dueDate" ? null : "";
+          }
+          draft.error = false;
+        } catch (error) {
+          draft.error = true;
+        } finally {
+          draft.submitting = false;
+          renderer.render();
+        }
+      };
+      button.addEventListener("click", () => void submit());
+      for (const input of [title, notes]) input.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" || event.isComposing || event.keyCode === 229 || input === notes && !event.ctrlKey && !event.metaKey) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void submit();
+      });
+    }
+    module2.exports = { renderTaskDetails: renderTaskDetails2, renderQuickAdd: renderQuickAdd2 };
+  }
+});
+
 // src/drag-scroll.js
 var require_drag_scroll = __commonJS({
   "src/drag-scroll.js"(exports2, module2) {
@@ -1022,7 +1453,6 @@ var {
 } = obsidian;
 var {
   QUADRANTS,
-  addTask,
   completeTask,
   completionBounds,
   createEmptyData,
@@ -1053,6 +1483,8 @@ var {
 } = require_board_store();
 var { normalizeLanguageMode, resolveLanguage, translate } = require_i18n();
 var { parseTaskMarkdown } = require_markdown_store();
+var { TaskEditorModal } = require_task_fields();
+var { renderTaskDetails, renderQuickAdd } = require_task_card();
 var {
   canScrollElement,
   getEdgeScrollVelocity,
@@ -1250,7 +1682,11 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     this.quadrantLabels = parsed.quadrantLabels;
     this.data = parsed.data;
     this.issues = parsed.issues;
-    this.filters = { quadrant: "all", period: "all", startDate: "", endDate: "" };
+    this.filters = { quadrant: "all", period: "today", startDate: "", endDate: "" };
+    this.quickAddDrafts = /* @__PURE__ */ new Map();
+    this.quickAddControls = [];
+    this.calendarDay = (/* @__PURE__ */ new Date()).toDateString();
+    this.handleDayChange = () => this.refreshCalendarDay();
     this.draggedTaskId = null;
     this.dragSourceRow = null;
     this.dragInputType = null;
@@ -1267,30 +1703,42 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     this.handleVisibilityChange = () => {
       var _a;
       if ((_a = this.getOwnerDocument()) == null ? void 0 : _a.hidden) this.finishDrag(false);
+      else this.refreshCalendarDay();
     };
     this.isCollapsed = false;
-    this.isCompletedScrollable = false;
+    this.isCompletedScrollable = true;
   }
   onload() {
-    var _a;
+    var _a, _b, _c, _d;
     this.plugin.boardRenderers.add(this);
     const document2 = this.getOwnerDocument();
     document2 == null ? void 0 : document2.addEventListener("dragover", this.handleDocumentDragOver, true);
     document2 == null ? void 0 : document2.addEventListener("visibilitychange", this.handleVisibilityChange);
     (_a = document2 == null ? void 0 : document2.defaultView) == null ? void 0 : _a.addEventListener("blur", this.handleDragInterruption);
+    (_b = document2 == null ? void 0 : document2.defaultView) == null ? void 0 : _b.addEventListener("focus", this.handleDayChange);
+    this.calendarTimer = (_d = (_c = document2 == null ? void 0 : document2.defaultView) == null ? void 0 : _c.setInterval) == null ? void 0 : _d.call(_c, this.handleDayChange, 6e4);
     this.render();
   }
   onunload() {
-    var _a;
+    var _a, _b, _c;
+    for (const control of this.quickAddControls) control.destroy();
     const document2 = this.getOwnerDocument();
     document2 == null ? void 0 : document2.removeEventListener("dragover", this.handleDocumentDragOver, true);
     document2 == null ? void 0 : document2.removeEventListener("visibilitychange", this.handleVisibilityChange);
     (_a = document2 == null ? void 0 : document2.defaultView) == null ? void 0 : _a.removeEventListener("blur", this.handleDragInterruption);
+    (_b = document2 == null ? void 0 : document2.defaultView) == null ? void 0 : _b.removeEventListener("focus", this.handleDayChange);
+    if (this.calendarTimer != null) (_c = document2 == null ? void 0 : document2.defaultView) == null ? void 0 : _c.clearInterval(this.calendarTimer);
     this.finishDrag(false);
     this.plugin.boardRenderers.delete(this);
   }
   getOwnerDocument() {
     return this.containerEl.ownerDocument || globalThis.document || null;
+  }
+  refreshCalendarDay(now = /* @__PURE__ */ new Date()) {
+    const day = now.toDateString();
+    if (day === this.calendarDay || this.draggedTaskId) return;
+    this.calendarDay = day;
+    this.render();
   }
   setBoardData(data, title = this.boardTitle, quadrantLabels = this.quadrantLabels) {
     this.data = cloneData(data);
@@ -1309,6 +1757,8 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     return (outcome == null ? void 0 : outcome.result) || null;
   }
   render() {
+    for (const control of this.quickAddControls) control.destroy();
+    this.quickAddControls = [];
     const container = this.containerEl;
     container.empty();
     container.addClass("qt-root", "qt-embed");
@@ -1607,51 +2057,7 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
       () => this.openQuadrantLabelsEditor(quadrant),
       "qt-quadrant-edit"
     );
-    const quickAdd = section.createDiv({ cls: "qt-quick-add" });
-    const input = quickAdd.createEl("textarea", {
-      cls: "qt-task-textarea",
-      attr: {
-        rows: "1",
-        placeholder: this.plugin.t("task.add"),
-        "aria-label": this.plugin.t("task.addTo", { quadrant: quadrantName })
-      }
-    });
-    let isSubmitting = false;
-    const submit = async () => {
-      if (isSubmitting) return;
-      const titleText = normalizeTaskTitle(input.value);
-      if (!titleText) {
-        input.addClass("qt-input-error");
-        return;
-      }
-      isSubmitting = true;
-      try {
-        const task = await this.mutate((data) => addTask(data, titleText, quadrant));
-        if (task) {
-          input.value = "";
-          autoSizeTaskTextarea(input);
-        }
-      } finally {
-        isSubmitting = false;
-      }
-    };
-    input.addEventListener("input", () => {
-      input.removeClass("qt-input-error");
-      autoSizeTaskTextarea(input);
-    });
-    input.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" || event.isComposing) return;
-      event.preventDefault();
-      event.stopPropagation();
-      void submit();
-    });
-    createIconButton(
-      quickAdd,
-      "plus",
-      this.plugin.t("task.addTo", { quadrant: quadrantName }),
-      () => void submit(),
-      "qt-add-button"
-    );
+    renderQuickAdd(section, this, quadrant, quadrantName);
     const list = section.createEl("ul", { cls: "qt-task-list" });
     if (tasks.length === 0) list.createEl("li", { text: this.plugin.t("task.empty"), cls: "qt-empty" });
     else for (const task of tasks) this.renderActiveTask(list, task);
@@ -1712,12 +2118,13 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     });
     checkbox.addEventListener("change", () => void this.complete(task.id));
     const title = row.createEl("button", {
-      text: task.title,
       cls: "qt-task-title",
       attr: { type: "button", title: this.plugin.t("task.edit") }
     });
+    title.createSpan({ text: task.title, cls: "qt-task-name" });
+    renderTaskDetails(title, task, this.plugin);
     title.addEventListener("click", () => this.openEditor(task));
-    createIconButton(row, "more-horizontal", this.plugin.t("task.more"), (event) => this.openTaskMenu(event, task));
+    createIconButton(row, "more-horizontal", this.plugin.t("task.more"), (event) => this.openTaskMenu(event, task), "qt-task-more");
     row.addEventListener("dragstart", (event) => {
       var _a;
       this.beginDrag(task.id, row, "mouse");
@@ -1747,8 +2154,8 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     });
   }
   openEditor(task) {
-    new TextInputModal(this.plugin, task.title, async (title) => {
-      const result = await this.mutate((data) => editTask(data, task.id, title));
+    new TaskEditorModal(this.plugin, task, async (title, details) => {
+      const result = await this.mutate((data) => editTask(data, task.id, title, details));
       if (!result) throw new Error("Task update did not complete");
     }).open();
   }
@@ -1910,7 +2317,10 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     checkbox.checked = true;
     checkbox.addEventListener("change", () => void this.restore(task.id));
     const content = row.createDiv({ cls: "qt-completed-content" });
-    content.createDiv({ text: task.title, cls: "qt-completed-title" });
+    const edit = content.createEl("button", { cls: "qt-task-title qt-completed-edit", attr: { type: "button", title: this.plugin.t("task.edit") } });
+    edit.createSpan({ text: task.title, cls: "qt-completed-title" });
+    renderTaskDetails(edit, task, this.plugin);
+    edit.addEventListener("click", () => this.openEditor(task));
     const metadata = content.createDiv({ cls: "qt-completed-meta" });
     metadata.createSpan({ text: this.getQuadrantName(task.quadrant), cls: `qt-badge qt-badge-${task.quadrant}` });
     metadata.createEl("time", { text: formatCompletedAt(task.completedAt, this.plugin.language), attr: { datetime: task.completedAt } });

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eisenhower Matrix — actual renderer QA</title>
+  <link rel="stylesheet" href="/shell.css">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="markdown-reading-view">
+    <div class="markdown-preview-view">
+      <article class="markdown-preview-sizer">
+        <header class="preview-intro"><span>Renderer QA · simulated Obsidian shell</span><button id="theme" type="button">Light / Dark</button></header>
+        <h1>项目与行动</h1>
+        <p>上方的笔记正文。矩阵是独立的任务区域，下面仍可继续书写笔记。</p>
+        <div id="board"></div>
+        <h2>接下来的想法</h2>
+        <p>这里只运行真实插件渲染器，不会读写你的 Obsidian Vault。浏览器刷新会重置测试数据。</p>
+      </article>
+    </div>
+  </main>
+  <div id="toast" role="status"></div>
+  <script src="/preview.js"></script>
+</body>
+</html>

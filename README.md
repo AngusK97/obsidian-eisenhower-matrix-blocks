@@ -60,17 +60,21 @@ Each matrix belongs to the note that contains it:
 
 | Workflow | Behavior |
 |---|---|
-| Add | Add a task directly to any quadrant. Growing inputs keep long text visible, and new tasks appear at the top. |
-| Edit | Click a task title to edit it in a growing text field without opening another view. |
+| Add | Add a title, optional due date and notes in any quadrant. Only a title is required; new tasks appear at the top. |
+| Edit | Click any active or completed task to edit its title, date and multiline notes. Enter in the title saves; Ctrl/Cmd+Enter in notes saves. |
 | Move and order | Drag tasks between quadrants or above and below one another. Touch and pen use the drag handle; the task menu remains available on every device. |
 | Complete | Check a task to move it into the unified completed list with an exact completion timestamp. |
 | Restore | Uncheck a completed task to return it to its source quadrant. |
-| Filter | Filter completed tasks by source quadrant and by today, 7 days, 30 days, or a custom date range. |
-| Manage space | Collapse the whole matrix to a count summary, or limit the completed list to a scrollable region. |
+| Filter | Completed history defaults to today; choose all dates, 7 days, 30 days, or a custom range and source quadrant. |
+| Manage space | Collapse the whole matrix to a count summary. Completed history defaults to bounded scrolling; toggle to full height when needed. |
 | Rename | Give every embedded matrix its own title; `Matrix` is the default. |
 | Customize quadrants | Edit each quadrant title and subtitle independently, or restore its language-aware defaults. |
 
 ## Markdown-backed by design
+
+Due dates use your device's local calendar. Cards show the exact date, days remaining (or overdue), and a one-line notes preview. An incomplete task due in fewer than 3 days—including overdue tasks—has a red alarm icon; completed tasks never show urgency. The date popover offers Today, Tomorrow and Clear; confirm a custom date with Apply date or Enter.
+
+Existing tasks need no migration. **Update every device to 2.6.0 or later before editing tasks with dates or notes:** older plugin versions may strip these new fields when saving the board.
 
 ![The rendered matrix beside its readable Markdown source](https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/markdown-source.png)
 

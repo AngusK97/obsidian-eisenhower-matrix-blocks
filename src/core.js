@@ -1,5 +1,7 @@
 "use strict";
 
+const { normalizeDueDate } = require("./task-details");
+
 const DATA_VERSION = 1;
 const QUADRANTS = ["do", "schedule", "delegate", "eliminate"];
 
@@ -38,6 +40,8 @@ function normalizeData(raw) {
 				? new Date(candidate.completedAt).toISOString()
 				: null,
 			order: Number.isFinite(candidate.order) ? candidate.order : tasks.length,
+			dueDate: normalizeDueDate(candidate.dueDate),
+			notes: typeof candidate.notes === "string" ? candidate.notes : "",
 		});
 	}
 
@@ -59,6 +63,10 @@ function addTask(data, title, quadrant, options = {}) {
 	const normalizedTitle = typeof title === "string" ? title.trim() : "";
 	if (!normalizedTitle) throw new Error("Task title is required");
 	if (!isQuadrant(quadrant)) throw new Error("Invalid quadrant");
+	if (options.dueDate != null && options.dueDate !== "" && !normalizeDueDate(options.dueDate)) {
+		throw new Error("Invalid due date");
+	}
+	if (options.notes != null && typeof options.notes !== "string") throw new Error("Invalid notes");
 
 	const now = options.now instanceof Date ? options.now : new Date();
 	const idFactory = options.idFactory || defaultIdFactory;
@@ -70,18 +78,24 @@ function addTask(data, title, quadrant, options = {}) {
 		createdAt: now.toISOString(),
 		completedAt: null,
 		order: 0,
+		dueDate: normalizeDueDate(options.dueDate),
+		notes: options.notes ?? "",
 	};
 	data.tasks.push(task);
 	setTaskOrder([task, ...existingTasks]);
 	return task;
 }
 
-function editTask(data, taskId, title) {
+function editTask(data, taskId, title, details = {}) {
 	const normalizedTitle = typeof title === "string" ? title.trim() : "";
 	if (!normalizedTitle) return null;
+	if (details.dueDate != null && details.dueDate !== "" && !normalizeDueDate(details.dueDate)) return null;
+	if (details.notes != null && typeof details.notes !== "string") return null;
 	const task = data.tasks.find((item) => item.id === taskId);
 	if (!task) return null;
 	task.title = normalizedTitle;
+	if (Object.prototype.hasOwnProperty.call(details, "dueDate")) task.dueDate = normalizeDueDate(details.dueDate);
+	if (Object.prototype.hasOwnProperty.call(details, "notes")) task.notes = details.notes ?? "";
 	return task;
 }
 

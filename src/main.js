@@ -16,7 +16,6 @@ const {
 } = obsidian;
 const {
 	QUADRANTS,
-	addTask,
 	completeTask,
 	completionBounds,
 	createEmptyData,
@@ -47,6 +46,8 @@ const {
 } = require("./board-store");
 const { normalizeLanguageMode, resolveLanguage, translate } = require("./i18n");
 const { parseTaskMarkdown } = require("./markdown-store");
+const { TaskEditorModal } = require("./task-fields");
+const { renderTaskDetails, renderQuickAdd } = require("./task-card");
 const {
 	canScrollElement,
 	getEdgeScrollVelocity,
@@ -258,7 +259,11 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		this.quadrantLabels = parsed.quadrantLabels;
 		this.data = parsed.data;
 		this.issues = parsed.issues;
-		this.filters = { quadrant: "all", period: "all", startDate: "", endDate: "" };
+		this.filters = { quadrant: "all", period: "today", startDate: "", endDate: "" };
+		this.quickAddDrafts = new Map();
+		this.quickAddControls = [];
+		this.calendarDay = new Date().toDateString();
+		this.handleDayChange = () => this.refreshCalendarDay();
 		this.draggedTaskId = null;
 		this.dragSourceRow = null;
 		this.dragInputType = null;
@@ -274,9 +279,10 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		this.handleDragInterruption = () => this.finishDrag(false);
 		this.handleVisibilityChange = () => {
 			if (this.getOwnerDocument()?.hidden) this.finishDrag(false);
+			else this.refreshCalendarDay();
 		};
 		this.isCollapsed = false;
-		this.isCompletedScrollable = false;
+		this.isCompletedScrollable = true;
 	}
 
 	onload() {
@@ -285,20 +291,32 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		document?.addEventListener("dragover", this.handleDocumentDragOver, true);
 		document?.addEventListener("visibilitychange", this.handleVisibilityChange);
 		document?.defaultView?.addEventListener("blur", this.handleDragInterruption);
+		document?.defaultView?.addEventListener("focus", this.handleDayChange);
+		this.calendarTimer = document?.defaultView?.setInterval?.(this.handleDayChange, 60000);
 		this.render();
 	}
 
 	onunload() {
+		for (const control of this.quickAddControls) control.destroy();
 		const document = this.getOwnerDocument();
 		document?.removeEventListener("dragover", this.handleDocumentDragOver, true);
 		document?.removeEventListener("visibilitychange", this.handleVisibilityChange);
 		document?.defaultView?.removeEventListener("blur", this.handleDragInterruption);
+		document?.defaultView?.removeEventListener("focus", this.handleDayChange);
+		if (this.calendarTimer != null) document?.defaultView?.clearInterval(this.calendarTimer);
 		this.finishDrag(false);
 		this.plugin.boardRenderers.delete(this);
 	}
 
 	getOwnerDocument() {
 		return this.containerEl.ownerDocument || globalThis.document || null;
+	}
+
+	refreshCalendarDay(now = new Date()) {
+		const day = now.toDateString();
+		if (day === this.calendarDay || this.draggedTaskId) return;
+		this.calendarDay = day;
+		this.render();
 	}
 
 	setBoardData(data, title = this.boardTitle, quadrantLabels = this.quadrantLabels) {
@@ -321,6 +339,8 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 	}
 
 	render() {
+		for (const control of this.quickAddControls) control.destroy();
+		this.quickAddControls = [];
 		const container = this.containerEl;
 		container.empty();
 		container.addClass("qt-root", "qt-embed");
@@ -640,51 +660,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 			"qt-quadrant-edit",
 		);
 
-		const quickAdd = section.createDiv({ cls: "qt-quick-add" });
-		const input = quickAdd.createEl("textarea", {
-			cls: "qt-task-textarea",
-			attr: {
-				rows: "1",
-				placeholder: this.plugin.t("task.add"),
-				"aria-label": this.plugin.t("task.addTo", { quadrant: quadrantName }),
-			},
-		});
-		let isSubmitting = false;
-		const submit = async () => {
-			if (isSubmitting) return;
-			const titleText = normalizeTaskTitle(input.value);
-			if (!titleText) {
-				input.addClass("qt-input-error");
-				return;
-			}
-			isSubmitting = true;
-			try {
-				const task = await this.mutate((data) => addTask(data, titleText, quadrant));
-				if (task) {
-					input.value = "";
-					autoSizeTaskTextarea(input);
-				}
-			} finally {
-				isSubmitting = false;
-			}
-		};
-		input.addEventListener("input", () => {
-			input.removeClass("qt-input-error");
-			autoSizeTaskTextarea(input);
-		});
-		input.addEventListener("keydown", (event) => {
-			if (event.key !== "Enter" || event.isComposing) return;
-			event.preventDefault();
-			event.stopPropagation();
-			void submit();
-		});
-		createIconButton(
-			quickAdd,
-			"plus",
-			this.plugin.t("task.addTo", { quadrant: quadrantName }),
-			() => void submit(),
-			"qt-add-button",
-		);
+		renderQuickAdd(section, this, quadrant, quadrantName);
 
 		const list = section.createEl("ul", { cls: "qt-task-list" });
 		if (tasks.length === 0) list.createEl("li", { text: this.plugin.t("task.empty"), cls: "qt-empty" });
@@ -745,12 +721,13 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		});
 		checkbox.addEventListener("change", () => void this.complete(task.id));
 		const title = row.createEl("button", {
-			text: task.title,
 			cls: "qt-task-title",
 			attr: { type: "button", title: this.plugin.t("task.edit") },
 		});
+		title.createSpan({ text: task.title, cls: "qt-task-name" });
+		renderTaskDetails(title, task, this.plugin);
 		title.addEventListener("click", () => this.openEditor(task));
-		createIconButton(row, "more-horizontal", this.plugin.t("task.more"), (event) => this.openTaskMenu(event, task));
+		createIconButton(row, "more-horizontal", this.plugin.t("task.more"), (event) => this.openTaskMenu(event, task), "qt-task-more");
 		row.addEventListener("dragstart", (event) => {
 			this.beginDrag(task.id, row, "mouse");
 			if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
@@ -779,8 +756,8 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 	}
 
 	openEditor(task) {
-		new TextInputModal(this.plugin, task.title, async (title) => {
-			const result = await this.mutate((data) => editTask(data, task.id, title));
+		new TaskEditorModal(this.plugin, task, async (title, details) => {
+			const result = await this.mutate((data) => editTask(data, task.id, title, details));
 			if (!result) throw new Error("Task update did not complete");
 		}).open();
 	}
@@ -966,7 +943,10 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		checkbox.checked = true;
 		checkbox.addEventListener("change", () => void this.restore(task.id));
 		const content = row.createDiv({ cls: "qt-completed-content" });
-		content.createDiv({ text: task.title, cls: "qt-completed-title" });
+		const edit = content.createEl("button", { cls: "qt-task-title qt-completed-edit", attr: { type: "button", title: this.plugin.t("task.edit") } });
+		edit.createSpan({ text: task.title, cls: "qt-completed-title" });
+		renderTaskDetails(edit, task, this.plugin);
+		edit.addEventListener("click", () => this.openEditor(task));
 		const metadata = content.createDiv({ cls: "qt-completed-meta" });
 		metadata.createSpan({ text: this.getQuadrantName(task.quadrant), cls: `qt-badge qt-badge-${task.quadrant}` });
 		metadata.createEl("time", { text: formatCompletedAt(task.completedAt, this.plugin.language), attr: { datetime: task.completedAt } });

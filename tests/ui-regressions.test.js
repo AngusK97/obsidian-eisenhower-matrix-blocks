@@ -78,6 +78,10 @@ class FakeElement {
 		this.listeners.set(type, listeners);
 	}
 
+	removeEventListener(type, listener) {
+		this.listeners.set(type, (this.listeners.get(type) || []).filter((item) => item !== listener));
+	}
+
 	dispatch(type, event = {}) {
 		const dispatched = {
 			preventDefault() { this.defaultPrevented = true; },
@@ -124,6 +128,11 @@ class FakeElement {
 
 	get textContent() {
 		return this.text + this.children.map((child) => child.textContent).join("");
+	}
+
+	set textContent(value) {
+		this.children = [];
+		this.text = value;
 	}
 
 	focus() {}
@@ -334,15 +343,136 @@ test("completed list toggles a keyboard-scrollable bounded mode and keeps it aft
 	completeTask(data, completed.id, new Date("2026-08-20T08:00:00.000Z"));
 	const { container, renderer } = createRenderer(data);
 	const toggle = container
-		.querySelectorAll('[aria-pressed="false"]')
+		.querySelectorAll('[aria-pressed="true"]')
 		.find((element) => !element.parentElement?.hasClass("qt-periods"));
 	assert.ok(toggle, "the completed section should expose a scroll-mode toggle");
+	assert.equal(container.querySelector(".qt-completed-list").getAttribute("tabindex"), "0");
 	toggle.dispatch("click");
+	assert.equal(container.querySelector(".qt-completed-list").getAttribute("tabindex"), null);
+	container.querySelector(".qt-completed-scroll-toggle").dispatch("click");
 
 	assert.ok(container.querySelector('[aria-pressed="true"]'));
 	assert.equal(container.querySelector(".qt-completed-list").getAttribute("tabindex"), "0");
 	renderer.setBoardData(data);
 	assert.ok(container.querySelector('[aria-pressed="true"]'), "refreshing note data should preserve completed-list scroll mode");
+});
+
+test("completed defaults to today and excludes older completions", () => {
+	const data = createEmptyData();
+	const today = addTask(data, "Today task", "do");
+	const old = addTask(data, "Old task", "do");
+	completeTask(data, today.id, new Date());
+	completeTask(data, old.id, new Date(2020, 0, 1));
+	const { container, renderer } = createRenderer(data);
+	assert.equal(renderer.filters.period, "today");
+	assert.match(container.querySelector(".qt-completed-list").textContent, /Today task/);
+	assert.doesNotMatch(container.querySelector(".qt-completed-list").textContent, /Old task/);
+});
+
+test("task cards display deadline, relative days, urgent state and plaintext notes", () => {
+	const data = createEmptyData();
+	const task = addTask(data, "Details", "do");
+	const { container, renderer } = createRenderer(data);
+	renderer.data.tasks[0].dueDate = "2020-01-01";
+	renderer.data.tasks[0].notes = "<b>plain text</b>\nsecond line";
+	renderer.render();
+	assert.match(container.querySelector(".qt-task-due").textContent, /2020-01-01.*overdue/);
+	assert.ok(container.querySelector(".is-urgent"));
+	assert.equal(container.querySelector(".qt-task-notes").textContent, "<b>plain text</b> second line");
+	assert.equal(container.querySelector("b"), null);
+	assert.equal(task.title, "Details");
+});
+
+test("quick add accepts title only and preserves all draft fields on save failure", async () => {
+	const { container, renderer } = createRenderer(createEmptyData());
+	const form = container.querySelector(".qt-quick-add");
+	const title = form.querySelector("textarea");
+	const notes = form.querySelector(".qt-quick-notes");
+	assert.ok(form.querySelector(".qt-due-picker"));
+	assert.ok(notes);
+	title.value = "A new task";
+	title.dispatch("input");
+	notes.value = "Keep this draft";
+	notes.dispatch("input");
+	renderer.mutate = async () => null;
+	form.querySelector(".qt-add-button").dispatch("click");
+	await new Promise((resolve) => setImmediate(resolve));
+	renderer.render();
+	assert.equal(container.querySelector("textarea").value, "A new task");
+	assert.equal(container.querySelector(".qt-quick-notes").value, "Keep this draft");
+	let result;
+	renderer.mutate = async (mutator) => { result = mutator(renderer.data); return result; };
+	container.querySelector(".qt-quick-notes").value = "";
+	container.querySelector(".qt-quick-notes").dispatch("input");
+	container.querySelector(".qt-add-button").dispatch("click");
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.equal(result.title, "A new task");
+	assert.equal(result.dueDate, null);
+	assert.equal(result.notes, "");
+	assert.equal(container.querySelector("textarea").value, "");
+});
+
+test("completed task details remain editable without urgent styling", () => {
+	const data = createEmptyData();
+	const task = addTask(data, "Done", "do", { dueDate: "2020-01-01", notes: "Details" });
+	completeTask(data, task.id);
+	const { container, renderer } = createRenderer(data);
+	assert.equal(container.querySelector(".is-urgent"), null);
+	let opened = null;
+	renderer.openEditor = (value) => { opened = value; };
+	container.querySelector(".qt-completed-edit").dispatch("click");
+	assert.equal(opened.id, task.id);
+	assert.equal(opened.notes, "Details");
+});
+
+test("calendar rollover refreshes once and keeps quick-add drafts", () => {
+	const { container, renderer } = createRenderer(createEmptyData());
+	const title = container.querySelector("textarea");
+	title.value = "Keep draft at midnight";
+	title.dispatch("input");
+	renderer.calendarDay = new Date(2020, 0, 1).toDateString();
+	renderer.refreshCalendarDay(new Date(2020, 0, 2));
+	const refreshed = container.querySelector("textarea");
+	assert.notEqual(refreshed, title);
+	assert.equal(refreshed.value, "Keep draft at midnight");
+	renderer.refreshCalendarDay(new Date(2020, 0, 2));
+	assert.equal(container.querySelector("textarea"), refreshed);
+});
+
+test("quick-add remains single-flight across a renderer refresh and preserves newer typing", async () => {
+	const { container, renderer } = createRenderer(createEmptyData());
+	let resolveSave;
+	let count = 0;
+	renderer.mutate = async (mutator) => {
+		count += 1;
+		const task = mutator(renderer.data);
+		renderer.setBoardData(renderer.data);
+		await new Promise((resolve) => { resolveSave = resolve; });
+		return task;
+	};
+	let title = container.querySelector("textarea");
+	title.value = "First";
+	title.dispatch("input");
+	title.dispatch("keydown", { key: "Enter" });
+	title = container.querySelector("textarea");
+	title.value = "Second draft";
+	title.dispatch("input");
+	title.dispatch("keydown", { key: "Enter" });
+	assert.equal(count, 1);
+	resolveSave();
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.equal(container.querySelector("textarea").value, "Second draft");
+});
+
+test("quick-add ignores the IME keyCode fallback used by Safari", () => {
+	const { container, renderer } = createRenderer(createEmptyData());
+	let count = 0;
+	renderer.mutate = async () => { count += 1; return null; };
+	const title = container.querySelector("textarea");
+	title.value = "中文候选词";
+	title.dispatch("input");
+	title.dispatch("keydown", { key: "Enter", isComposing: false, keyCode: 229 });
+	assert.equal(count, 0);
 });
 
 test("pointer drag clears its last target after leaving the matrix", () => {

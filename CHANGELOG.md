@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.6.0 - 2026-09-20
+
+- Default completed history to today and a bounded, scrollable list; keep all-date and full-height options available.
+- Add optional deadlines and multiline notes to quick-add and the task editor, including completed tasks.
+- Show dates, calendar-day countdowns and truncated notes below task titles. Incomplete tasks due in fewer than three days (including overdue tasks) show a red alarm icon.
+- Add a compact native date picker with Today, Tomorrow, Clear and explicit confirmation for keyboard date entry.
+- Preserve quick-add drafts across refreshes and failed saves; refresh date-sensitive views when the local calendar day changes.
+- Preserve optional metadata through moves, completion, restoration, deletion undo and Markdown sync. Older tasks need no migration.
+- **Update all devices before editing detailed tasks.** Older plugin versions may discard the new metadata when rewriting a board.
+
+Validation: automated core/storage/UI regressions and actual-renderer desktop/390px/320px browser QA. Real Obsidian mobile keyboard and OS date-picker behavior still needs device acceptance.
+
 ## 2.5.0 - 2026-08-20
 
 - Use growing task textareas on desktop and mobile, and close task editors only after an Enter-triggered save succeeds.
