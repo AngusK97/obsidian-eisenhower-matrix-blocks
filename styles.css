@@ -236,8 +236,16 @@
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) 36px;
 	gap: 6px;
-	padding: 0 12px 10px;
+	padding: 0 12px 12px;
 	align-items: start;
+}
+
+/* Keep the functional boundary outside the independently scrolling task list. */
+.qt-root .qt-task-divider {
+	flex: 0 0 auto;
+	height: 0;
+	margin: 0 12px 12px;
+	border-top: 1px solid var(--background-modifier-border);
 }
 
 .qt-quick-details {

@@ -524,6 +524,19 @@ test("quick-add ignores the IME keyCode fallback used by Safari", () => {
 	assert.equal(count, 0);
 });
 
+test("empty quadrants keep a decorative boundary outside the task list", () => {
+	const { container } = createRenderer(createEmptyData());
+	const dividers = container.querySelectorAll(".qt-task-divider");
+	assert.equal(dividers.length, 4);
+	for (const divider of dividers) {
+		const siblings = divider.parentElement.children;
+		const index = siblings.indexOf(divider);
+		assert.equal(siblings[index - 1].hasClass("qt-quick-add"), true);
+		assert.equal(siblings[index + 1].hasClass("qt-task-list"), true);
+		assert.equal(divider.getAttribute("aria-hidden"), "true");
+	}
+});
+
 test("pointer drag clears its last target after leaving the matrix", () => {
 	const data = createEmptyData();
 	addTask(data, "Move me", "do", { idFactory: () => "active" });

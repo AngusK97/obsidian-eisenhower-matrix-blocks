@@ -14,6 +14,14 @@ function declarationsFor(selector) {
 	return match[1];
 }
 
+test("quick-add boundary has a fixed theme divider and balanced breathing room", () => {
+	const divider = declarationsFor(".qt-root .qt-task-divider");
+	assert.match(divider, /border-top:\s*1px solid var\(--background-modifier-border\)/);
+	assert.match(divider, /margin:\s*0 12px 12px/);
+	assert.match(divider, /flex:\s*0 0 auto/);
+	assert.match(declarationsFor(".qt-quick-add"), /padding:\s*0 12px 12px/);
+});
+
 test("active task titles wrap and grow with long content", () => {
 	const declarations = declarationsFor(".qt-task-row .qt-task-title");
 

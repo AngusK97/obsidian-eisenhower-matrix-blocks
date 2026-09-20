@@ -29,9 +29,24 @@ async function assertLayout(page, name) {
 		assert.notEqual(card.background, "rgba(0, 0, 0, 0)");
 		if (card.gap !== null) assert.ok(card.gap >= 9 && card.gap <= 11, `${name}: cards need a distinct 10px gap`);
 	}
-	const formGap = await page.locator(".qt-quadrant").first().evaluate(section =>
-		section.querySelector(".qt-task-row").getBoundingClientRect().top - section.querySelector(".qt-quick-add").getBoundingClientRect().bottom);
-	assert.ok(Math.abs(formGap) <= 1, `${name}: host ul margin must not add blank space after form padding`);
+	for (const boundary of await page.locator(".qt-quadrant").evaluateAll(sections => sections.map(section => {
+		const form = section.querySelector(".qt-quick-add"), divider = section.querySelector(".qt-task-divider"), list = section.querySelector(".qt-task-list");
+		if (!divider) return null;
+		const bounds = divider.getBoundingClientRect();
+		const top = bounds.top;
+		const below = list.getBoundingClientRect().top - bounds.bottom;
+		const above = bounds.top - form.getBoundingClientRect().bottom + parseFloat(getComputedStyle(form).paddingBottom);
+		const savedScroll = list.scrollTop;
+		list.scrollTop = 60;
+		const stationary = divider.getBoundingClientRect().top === top;
+		list.scrollTop = savedScroll;
+		return { below, above, stationary, outside: divider.nextElementSibling === list, line: getComputedStyle(divider).borderTopWidth };
+	}))) {
+		assert.ok(boundary, `${name}: quick-add needs a separate list boundary`);
+		assert.equal(boundary.line, "1px");
+		assert.ok(Math.abs(boundary.above - 12) <= 1 && Math.abs(boundary.below - 12) <= 1, `${name}: boundary needs 12px above and below`);
+		assert.ok(boundary.stationary && boundary.outside, `${name}: boundary stays outside the scrolling list`);
+	}
 	for (const row of await page.locator(".qt-task-row, .qt-completed-row").evaluateAll(elements => elements.map(element => {
 		const box = element.querySelector(".qt-task-checkbox").getBoundingClientRect();
 		const title = element.querySelector(".qt-task-name, .qt-completed-title");
@@ -105,14 +120,14 @@ async function assertLayout(page, name) {
 			assert.equal(await page.locator(".qt-completed-row .is-urgent").count(), 0);
 			assert.equal(await page.locator(".qt-completed-row .qt-due-muted").count(), 1);
 			assert.match(await page.locator('[data-task-id="task-1"] .qt-due-weekday').textContent(), /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/);
-			await page.screenshot({ path: path.join(output, `2.7.2-${name}.png`), fullPage: true });
+			await page.screenshot({ path: path.join(output, `2.7.3-${name}.png`), fullPage: true });
 			if (narrow) {
 				const tagged = page.locator('[data-task-id="task-7"]');
 				const tag = await tagged.locator(".qt-task-tags").boundingBox();
 				const due = await tagged.locator(".qt-task-due").boundingBox();
 				assert.ok(Math.abs(tag.y - due.y) <= 4, "short tags and deadline share a compact line");
 				const expanded = await page.addStyleTag({ content: ".qt-root .qt-task-list { max-height: none; }" });
-				await page.locator(".qt-task-list").first().screenshot({ path: path.join(output, "2.7.2-task-layout.png") });
+				await page.locator(".qt-quadrant").first().screenshot({ path: path.join(output, "2.7.3-quadrant-boundary.png") });
 				await expanded.evaluate(el => el.remove());
 			}
 			await page.locator(".qt-task-title").first().focus();
@@ -159,7 +174,7 @@ async function assertLayout(page, name) {
 			await editor.locator(".qt-due-time").fill("00:00");
 			await editor.locator(".qt-due-time").dispatchEvent("change");
 			await editor.locator(".qt-tag-input").fill(Array.from({ length: 14 }, (_, index) => `标签${index}`).join(","));
-			await page.screenshot({ path: path.join(output, `2.7.2-${name}-editor.png`) });
+			await page.screenshot({ path: path.join(output, `2.7.3-${name}-editor.png`) });
 			await editor.locator(".qt-task-notes-input").press("Control+Enter");
 			await editor.waitFor({ state: "detached" });
 			await page.evaluate(() => window.matrixPreview.reload());

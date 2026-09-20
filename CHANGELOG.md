@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.7.3 - 2026-09-20
+
+- Separate each quadrant's quick-add form from its task list with a subtle theme divider and 12px breathing room on both sides.
+- Keep the divider outside the scrolling list, including empty quadrants; preserve task cards, drag insertion, data and existing layout.
+
 ## 2.7.2 - 2026-09-20
 
 - Give each active/completed task a subtle theme-aware full-row background, 6px corners, 10px padding and a separate 10px gap. Remove redundant row dividers and tighten note spacing.

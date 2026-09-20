@@ -2237,6 +2237,7 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
       "qt-quadrant-edit"
     );
     renderQuickAdd(section, this, quadrant, quadrantName);
+    section.createDiv({ cls: "qt-task-divider", attr: { "aria-hidden": "true" } });
     const list = section.createEl("ul", { cls: "qt-task-list" });
     if (tasks.length === 0) list.createEl("li", { text: this.plugin.t("task.empty"), cls: "qt-empty" });
     else for (const task of tasks) this.renderActiveTask(list, task);
