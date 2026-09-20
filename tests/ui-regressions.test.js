@@ -559,6 +559,30 @@ test("dropping a task back on itself does not move it to the quadrant end", () =
 	assert.equal(row.hasClass("qt-drop-after"), false);
 });
 
+test("dragging into a card gap targets the next card, not the quadrant end", () => {
+	const data = createEmptyData();
+	for (const id of ["last", "middle", "first"]) addTask(data, id, "do", { idFactory: () => id });
+	const { container, renderer } = createRenderer(data);
+	const list = container.querySelector(".qt-task-list");
+	const rows = list.querySelectorAll(".qt-task-row");
+	rows.forEach((row, index) => { row.getBoundingClientRect = () => ({ left: 0, right: 200, top: index * 60, bottom: index * 60 + 50, height: 50 }); });
+	container.ownerDocument = { elementFromPoint: () => list };
+	renderer.draggedTaskId = "last";
+	renderer.dragPoint = { x: 100, y: 55 };
+	renderer.refreshDragTargetAtPoint();
+	assert.equal(renderer.dragTarget.taskId, "middle");
+	assert.equal(renderer.dragTarget.placement, "before");
+	assert.equal(rows[1].hasClass("qt-drop-before"), true);
+	// Dropping directly before the dragged card remains a no-op.
+	renderer.draggedTaskId = "middle";
+	renderer.refreshDragTargetAtPoint();
+	assert.equal(renderer.dragTarget, null);
+	// Blank space below the final card still means append.
+	renderer.dragPoint = { x: 100, y: 190 };
+	renderer.refreshDragTargetAtPoint();
+	assert.equal(renderer.dragTarget.taskId, null);
+});
+
 test("touch drag suppresses its synthetic click while a normal handle tap opens actions", () => {
 	const data = createEmptyData();
 	addTask(data, "Move me", "do", { idFactory: () => "active" });

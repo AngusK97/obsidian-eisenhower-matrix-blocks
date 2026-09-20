@@ -26,6 +26,11 @@ hostile host-theme button styling, verifies full metadata units and checks tag
 contrast. Native picker API invocation is tested, but the OS calendar popup and
 real mobile keyboards still need device acceptance.
 
+Task-card QA also injects Minimal-style compact list spacing and ordinary Markdown
+list margins after plugin CSS. It verifies full-row padding, real inter-card gaps,
+focus/drop feedback, and dispatches a drop into a visible gap to check insertion
+between adjacent cards instead of appending to the quadrant.
+
 For browser automation, `window.matrixPreview` provides `renderer`, `getData()`,
 `getMarkdown()`, `reload()` (recreate the renderer from its saved Markdown), and
 `failNextSave()` (intentional rejected write, to test draft recovery). Browser

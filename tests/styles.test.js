@@ -35,13 +35,16 @@ test("editable quadrant labels wrap without displacing their action", () => {
 	assert.match(editButton, /flex:\s*0\s+0\s+28px\s*;/);
 });
 
-test("long active task titles stay clipped inside their flat list row", () => {
-	const rowRule = stylesheet.match(/\.qt-task-row,\s*\.qt-completed-row\s*\{([^}]*)\}/);
+test("task cards preserve their surface and padding against host list styles", () => {
+	const rowRule = stylesheet.match(/\.qt-root \.qt-task-row,\s*\.qt-root \.qt-completed-row\s*\{([^}]*)\}/);
 	assert.ok(rowRule, "Missing shared task-row CSS rule");
 	const row = rowRule[1];
 	const title = declarationsFor(".qt-task-row .qt-task-title");
 
-	assert.match(row, /border-radius:\s*0\s*;/);
+	assert.match(row, /border-radius:\s*6px\s*;/);
+	assert.match(row, /padding:\s*10px\s*;/);
+	assert.match(row, /border:\s*0\s*;/);
+	assert.match(row, /background:\s*color-mix/);
 	assert.match(row, /align-items:\s*flex-start\s*;/);
 	assert.match(row, /overflow:\s*hidden\s*;/);
 	assert.match(title, /max-width:\s*100%\s*;/);

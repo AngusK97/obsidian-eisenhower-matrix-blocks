@@ -470,32 +470,46 @@
 	color: var(--text-on-accent);
 }
 
-.qt-task-list,
-.qt-completed-list {
+.qt-root .qt-task-list,
+.qt-root .qt-completed-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
 	margin: 0;
 	padding: 0;
 	list-style: none;
 }
 
-.qt-task-list {
+.qt-root .qt-task-list {
 	min-height: 44px;
 	max-height: 330px;
 	overflow-y: auto;
 	padding: 0 12px 12px;
 }
 
-.qt-task-row,
-.qt-completed-row {
+/* Own the whole task surface; host Markdown list spacing must not collapse it. */
+.qt-root .qt-task-row,
+.qt-root .qt-completed-row {
 	display: flex;
+	flex-shrink: 0;
+	box-sizing: border-box;
 	min-width: 0;
 	max-width: 100%;
 	min-height: 44px;
 	align-items: flex-start;
 	gap: 8px;
-	padding: 12px 2px;
-	border-bottom: 1px solid var(--background-modifier-border);
-	border-radius: 0;
+	margin: 0;
+	padding: 10px;
+	border: 0;
+	border-radius: 6px;
+	background: var(--background-secondary-alt);
+	background: color-mix(in srgb, var(--text-normal) 5%, var(--background-secondary));
 	overflow: hidden;
+}
+
+.qt-root .qt-task-row:hover,
+.qt-root .qt-completed-row:hover {
+	background: color-mix(in srgb, var(--text-normal) 8%, var(--background-secondary));
 }
 
 .qt-task-actions {
@@ -508,11 +522,6 @@
 .qt-task-row:focus-within,
 .qt-completed-row:focus-within {
 	box-shadow: inset 0 0 0 2px var(--interactive-accent);
-}
-
-.qt-task-row:last-child,
-.qt-completed-row:last-child {
-	border-bottom: 0;
 }
 
 .qt-task-row.qt-dragging {
@@ -652,7 +661,7 @@
 
 .qt-task-notes {
 	display: block;
-	margin-top: 6px;
+	margin-top: 4px;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
@@ -784,10 +793,6 @@
 	width: 142px;
 }
 
-.qt-completed-list {
-	border-top: 1px solid var(--background-modifier-border-hover);
-}
-
 .qt-completed-list.is-scrollable {
 	max-height: min(40dvh, 360px);
 	overflow-y: auto;
@@ -873,7 +878,7 @@
 		min-height: 158px;
 	}
 
-	.qt-task-list {
+	.qt-root .qt-task-list {
 		max-height: 280px;
 	}
 

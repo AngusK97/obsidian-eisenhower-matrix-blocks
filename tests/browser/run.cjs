@@ -17,6 +17,21 @@ function contrast(first, second) {
 
 async function assertLayout(page, name) {
 	assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}: document overflow`);
+	for (const card of await page.locator(".qt-task-row, .qt-completed-row").evaluateAll(elements => elements.map(element => {
+		const style = getComputedStyle(element);
+		const next = element.nextElementSibling;
+		return { padding: style.paddingTop, radius: style.borderRadius, border: style.borderBottomWidth,
+			background: style.backgroundColor, gap: next ? next.getBoundingClientRect().top - element.getBoundingClientRect().bottom : null };
+	}))) {
+		assert.equal(card.padding, "10px", `${name}: theme cannot collapse card padding`);
+		assert.equal(card.radius, "6px");
+		assert.equal(card.border, "0px");
+		assert.notEqual(card.background, "rgba(0, 0, 0, 0)");
+		if (card.gap !== null) assert.ok(card.gap >= 9 && card.gap <= 11, `${name}: cards need a distinct 10px gap`);
+	}
+	const formGap = await page.locator(".qt-quadrant").first().evaluate(section =>
+		section.querySelector(".qt-task-row").getBoundingClientRect().top - section.querySelector(".qt-quick-add").getBoundingClientRect().bottom);
+	assert.ok(Math.abs(formGap) <= 1, `${name}: host ul margin must not add blank space after form padding`);
 	for (const row of await page.locator(".qt-task-row, .qt-completed-row").evaluateAll(elements => elements.map(element => {
 		const box = element.querySelector(".qt-task-checkbox").getBoundingClientRect();
 		const title = element.querySelector(".qt-task-name, .qt-completed-title");
@@ -78,7 +93,9 @@ async function assertLayout(page, name) {
 			});
 			await page.goto(`http://127.0.0.1:4173/?theme=${theme}&lang=${lang}`);
 			await page.locator(".qt-task-row").first().waitFor();
-			await page.addStyleTag({ content: `button { background: #49483f; border: 2px solid #80775e; text-align: center; justify-content: center; color: #fff2bf; } ${narrow ? ".markdown-preview-sizer { max-width: 560px; padding: 16px; }" : ""}` });
+			// Reproduce Minimal's list rule and ordinary Markdown list indentation,
+			// loaded AFTER plugin CSS so specificity, not load order, protects cards.
+			await page.addStyleTag({ content: `button { background: #49483f; border: 2px solid #80775e; text-align: center; justify-content: center; color: #fff2bf; } .markdown-preview-view ul>li { padding-top: .075em; padding-bottom: .075em; } .markdown-preview-view ul { margin-block: 1em; padding-inline-start: 40px; } ${narrow ? ".markdown-preview-sizer { max-width: 560px; padding: 16px; }" : ""}` });
 			assert.equal(await page.locator(".qt-completed-row").count(), 12);
 			assert.ok(await page.locator(".qt-completed-list").evaluate(el => el.scrollHeight > el.clientHeight));
 			await assertLayout(page, name);
@@ -88,16 +105,22 @@ async function assertLayout(page, name) {
 			assert.equal(await page.locator(".qt-completed-row .is-urgent").count(), 0);
 			assert.equal(await page.locator(".qt-completed-row .qt-due-muted").count(), 1);
 			assert.match(await page.locator('[data-task-id="task-1"] .qt-due-weekday').textContent(), /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/);
-			await page.screenshot({ path: path.join(output, `2.7.1-${name}.png`), fullPage: true });
+			await page.screenshot({ path: path.join(output, `2.7.2-${name}.png`), fullPage: true });
 			if (narrow) {
 				const tagged = page.locator('[data-task-id="task-7"]');
 				const tag = await tagged.locator(".qt-task-tags").boundingBox();
 				const due = await tagged.locator(".qt-task-due").boundingBox();
 				assert.ok(Math.abs(tag.y - due.y) <= 4, "short tags and deadline share a compact line");
-				const expanded = await page.addStyleTag({ content: ".qt-task-list { max-height: none; }" });
-				await page.locator(".qt-task-list").first().screenshot({ path: path.join(output, "2.7.1-task-layout.png") });
+				const expanded = await page.addStyleTag({ content: ".qt-root .qt-task-list { max-height: none; }" });
+				await page.locator(".qt-task-list").first().screenshot({ path: path.join(output, "2.7.2-task-layout.png") });
 				await expanded.evaluate(el => el.remove());
 			}
+			await page.locator(".qt-task-title").first().focus();
+			assert.notEqual(await page.locator(".qt-task-row").first().evaluate(el => getComputedStyle(el).boxShadow), "none", "card keeps keyboard focus feedback");
+			await page.locator(".qt-task-title").first().evaluate(el => el.blur());
+			await page.locator(".qt-task-row").first().evaluate(el => el.classList.add("qt-drop-before"));
+			assert.notEqual(await page.locator(".qt-task-row").first().evaluate(el => getComputedStyle(el).boxShadow), "none", "card keeps drag insertion feedback");
+			await page.locator(".qt-task-row").first().evaluate(el => el.classList.remove("qt-drop-before"));
 			const quick = page.locator(".qt-quick-add").first();
 			assert.notEqual(await quick.locator(".qt-add-button").evaluate(el => getComputedStyle(el).backgroundColor), "rgba(0, 0, 0, 0)");
 			assert.equal(await quick.locator(".qt-due-time").isDisabled(), true);
@@ -136,7 +159,7 @@ async function assertLayout(page, name) {
 			await editor.locator(".qt-due-time").fill("00:00");
 			await editor.locator(".qt-due-time").dispatchEvent("change");
 			await editor.locator(".qt-tag-input").fill(Array.from({ length: 14 }, (_, index) => `标签${index}`).join(","));
-			await page.screenshot({ path: path.join(output, `2.7.1-${name}-editor.png`) });
+			await page.screenshot({ path: path.join(output, `2.7.2-${name}-editor.png`) });
 			await editor.locator(".qt-task-notes-input").press("Control+Enter");
 			await editor.waitFor({ state: "detached" });
 			await page.evaluate(() => window.matrixPreview.reload());
@@ -161,6 +184,19 @@ async function assertLayout(page, name) {
 			await quick.locator(".qt-task-textarea").first().fill("Name only is valid");
 			await quick.locator(".qt-add-button").click();
 			await page.locator(".qt-task-title").filter({ hasText: "Name only is valid" }).waitFor();
+			const targetList = page.locator(".qt-task-list").first();
+			await targetList.evaluate(el => { el.scrollTop = 0; el.scrollIntoView({ block: "center" }); });
+			await page.evaluate(() => {
+				const list = document.querySelector(".qt-task-list");
+				const rows = list.querySelectorAll(".qt-task-row");
+				const first = rows[0].getBoundingClientRect(), second = rows[1].getBoundingClientRect();
+				const x = first.left + first.width / 2, y = (first.bottom + second.top) / 2;
+				if (document.elementFromPoint(x, y) !== list) throw new Error("Drop must hit the actual visible gap");
+				const transfer = new DataTransfer();
+				document.querySelector('[data-task-id="task-6"]').dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: transfer }));
+				list.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: transfer }));
+			});
+			await page.waitForFunction(() => document.querySelectorAll(".qt-task-list")[0].querySelectorAll(".qt-task-row")[1]?.dataset.taskId === "task-6");
 			console.log(`${name}: theme resilience, responsive metadata, tag contrast, native date API, optional time, unlimited tags, reload and retry passed`);
 			await page.close();
 		}

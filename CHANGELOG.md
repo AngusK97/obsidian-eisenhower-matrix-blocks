@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.7.2 - 2026-09-20
+
+- Give each active/completed task a subtle theme-aware full-row background, 6px corners, 10px padding and a separate 10px gap. Remove redundant row dividers and tighten note spacing.
+- Protect task padding and list indentation/margins from host Markdown CSS, including Minimal's compact list rules; eliminate the oversized blank space after quick-add.
+- Preserve title alignment, keyboard focus, drag insertion feedback, all task metadata and existing quadrant layout. No note-width or data changes.
+- Treat gaps between task cards as drag insertion slots instead of appending the dropped task to the quadrant end.
+
 ## 2.7.1 - 2026-09-20
 
 - Redesign task rows as compact checklists: align checkboxes with title first lines and move drag/menu controls to the trailing edge, removing the hidden leading gutter.

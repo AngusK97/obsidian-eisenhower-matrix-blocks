@@ -494,7 +494,20 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		const point = this.dragPoint;
 		if (!document || !point) return;
 		const hit = document.elementFromPoint?.(point.x, point.y);
-		const row = hit?.closest?.(".qt-task-row");
+		let row = hit?.closest?.(".qt-task-row");
+		const list = hit?.closest?.(".qt-task-list");
+		if (!row && list && this.containerEl.contains(list)) {
+			// The visible gap between cards is an insertion slot, not quadrant whitespace.
+			const rows = list.querySelectorAll(".qt-task-row");
+			for (let index = 1; index < rows.length; index += 1) {
+				const previous = rows[index - 1].getBoundingClientRect();
+				const next = rows[index].getBoundingClientRect();
+				if (point.y >= previous.bottom && point.y <= next.top && point.x >= next.left && point.x <= next.right) {
+					row = rows[index];
+					break;
+				}
+			}
+		}
 		if (row && this.containerEl.contains(row)) {
 			if (row.getAttribute("data-task-id") === this.draggedTaskId) {
 				this.clearDragTarget();

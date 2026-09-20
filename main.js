@@ -2064,12 +2064,24 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     return /auto|scroll|overlay/.test(overflowY);
   }
   refreshDragTargetAtPoint() {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const document2 = this.getOwnerDocument();
     const point = this.dragPoint;
     if (!document2 || !point) return;
     const hit = (_a = document2.elementFromPoint) == null ? void 0 : _a.call(document2, point.x, point.y);
-    const row = (_b = hit == null ? void 0 : hit.closest) == null ? void 0 : _b.call(hit, ".qt-task-row");
+    let row = (_b = hit == null ? void 0 : hit.closest) == null ? void 0 : _b.call(hit, ".qt-task-row");
+    const list = (_c = hit == null ? void 0 : hit.closest) == null ? void 0 : _c.call(hit, ".qt-task-list");
+    if (!row && list && this.containerEl.contains(list)) {
+      const rows = list.querySelectorAll(".qt-task-row");
+      for (let index = 1; index < rows.length; index += 1) {
+        const previous = rows[index - 1].getBoundingClientRect();
+        const next = rows[index].getBoundingClientRect();
+        if (point.y >= previous.bottom && point.y <= next.top && point.x >= next.left && point.x <= next.right) {
+          row = rows[index];
+          break;
+        }
+      }
+    }
     if (row && this.containerEl.contains(row)) {
       if (row.getAttribute("data-task-id") === this.draggedTaskId) {
         this.clearDragTarget();
@@ -2084,7 +2096,7 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
       });
       return;
     }
-    const quadrantElement = (_c = hit == null ? void 0 : hit.closest) == null ? void 0 : _c.call(hit, ".qt-quadrant");
+    const quadrantElement = (_d = hit == null ? void 0 : hit.closest) == null ? void 0 : _d.call(hit, ".qt-quadrant");
     if (quadrantElement && this.containerEl.contains(quadrantElement)) {
       this.setDragTarget({
         quadrant: quadrantElement.getAttribute("data-quadrant"),
