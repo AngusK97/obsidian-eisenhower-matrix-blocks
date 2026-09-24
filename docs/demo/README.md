@@ -20,6 +20,8 @@ The note contains only fictional launch-planning tasks and is safe to publish. D
 - Restore `Matrix Demo.md` from this repository before each recording.
 - Keep the matrix title and task order unchanged unless the README media plan is updated.
 - Hide vault paths, account names, notifications, unrelated tabs, and private file names.
-- Capture the actual Obsidian interface. Do not redraw or generate a mock product UI.
+- For native captures, use the actual Obsidian interface. Do not redraw or generate a mock product UI.
+- The current README previews instead use the production renderer inside the browser test harness, with simulated host chrome/icons and an explicit caption. Generate them with `node scripts/capture-readme.cjs` while the preview server is running.
+- Demo deadlines are fixed around 2026-09-24; relative-day labels change with the capture date. Historical completed tasks are hidden by the default Today filter.
 
 See [`../assets/README.md`](../assets/README.md) for exact filenames, dimensions, and capture requirements.

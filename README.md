@@ -8,17 +8,25 @@
 
 **Eisenhower matrices that live inside your Obsidian notes.**
 
-Insert an independent four-quadrant task board anywhere in Markdown, complete tasks in place, and keep a filterable history.
+Prioritize work by importance and urgency without leaving your notes. Add deadlines, optional times, colored tags and notes; drag tasks into place and keep a filterable completion history. Each board belongs to its note, not a separate task database.
+
+**Obsidian 1.5.0+ · Desktop and mobile · English and 中文 · Local-first**
+
+[Quick start](#quick-start) · [Install & update](#installation) · [Task details](#task-details) · [Layout & history](#layout-and-completed-history) · [FAQ](#frequently-asked-questions) · [Changelog](CHANGELOG.md)
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/matrix-desktop-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/matrix-desktop-light.png">
-  <img src="https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/matrix-desktop-light.png" alt="Eisenhower Matrix Blocks embedded in an Obsidian note">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/renderer-overview-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/renderer-overview-light.png">
+  <img src="docs/assets/renderer-overview-light.png" alt="Four quadrants with task cards, colored tags, deadlines and completed-history controls">
 </picture>
+
+*Version 2.7.4 renderer preview, using [fictional launch-planning tasks](docs/demo/Matrix%20Demo.md). The browser harness simulates the Obsidian shell and icons; your theme, native date picker and device may look different. [Media details](docs/assets/README.md).*
 
 - **Local to every note:** each matrix owns its tasks and completed history, and a note can contain more than one matrix.
 - **Markdown-backed:** tasks, quadrants, ordering, and completion times travel with the note through Obsidian Sync, Remotely Save, or Git.
 - **A complete workflow:** add, edit, move, complete, restore, delete, and filter tasks without leaving the matrix.
+- **Readable task cards:** distinct task backgrounds, compact metadata and a fixed divider between quick-add and the scrolling list.
+- **Flexible space:** responsive quadrants, a collapsible board summary and scrollable completed history.
 
 The matrix is inserted at the editor cursor and remains part of the note.
 
@@ -30,6 +38,8 @@ The matrix is inserted at the editor cursor and remains part of the note.
 4. Use Live Preview or Reading view to work with the rendered matrix.
 
 Each insertion creates a separate matrix. Run the command again when you want another matrix in the same note.
+
+The default quadrants are **Do** (important and urgent), **Schedule** (important, not urgent), **Delegate** (urgent, not important), and **Eliminate** (neither). These are organizational labels: moving a task to Delegate does not send it to another person.
 
 ## Installation
 
@@ -46,13 +56,20 @@ Each insertion creates a separate matrix. Run the command again when you want an
 3. Copy the three files into that folder.
 4. Reload Obsidian and enable **Eisenhower Matrix Blocks**.
 
+### Updating
+
+In **Settings → Community plugins**, check for updates and update this plugin on each device. For a manual update, replace the same three files with files from **one release**, then reload the plugin or Obsidian; leave your notes and `data.json` intact. Do not use GitHub's automatic **Source code** ZIP as an installable plugin package.
+
+Back up your notes before upgrading. **Update all devices to 2.7.0 or later before editing tags or deadline times:** older versions can discard those fields when saving. Current screenshots and usage notes describe [2.7.4](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/tag/2.7.4); see the [changelog](CHANGELOG.md) for changes.
+
 ## Boards belong to notes
 
 Each matrix belongs to the note that contains it:
 
 - A project note can own its own matrix and completion history.
 - The same note can contain multiple independent matrices.
-- Copying a matrix block copies the data; deleting the block deletes that matrix.
+- Copying a matrix block to another note copies its data. Within the **same note**, use the insertion command for another board: duplicating a block repeats its board ID and prevents safe editing.
+- Deleting the block deletes that matrix; keep note history or backups.
 - Every operation updates only the selected matrix block and preserves surrounding prose, frontmatter, callouts, code, and sibling matrices.
 - The plugin makes no network requests and collects no telemetry.
 
@@ -64,25 +81,77 @@ Each matrix belongs to the note that contains it:
 | Edit | Click any active or completed task to edit all fields. Enter in the title saves; Ctrl/Cmd+Enter in notes saves; Enter in tags adds a tag. |
 | Move and order | Drag tasks between quadrants or above and below one another. Touch and pen use the drag handle; the task menu remains available on every device. |
 | Complete | Check a task to move it into the unified completed list with an exact completion timestamp. |
-| Restore | Uncheck a completed task to return it to its source quadrant. |
+| Restore | Uncheck a completed task to return it to the bottom of its source quadrant. |
 | Filter | Completed history defaults to today; choose all dates, 7 days, 30 days, or a custom range and source quadrant. |
 | Manage space | Collapse the whole matrix to a count summary. Completed history defaults to bounded scrolling; toggle to full height when needed. |
 | Rename | Give every embedded matrix its own title; `Matrix` is the default. |
 | Customize quadrants | Edit each quadrant title and subtitle independently, or restore its language-aware defaults. |
 
-## Markdown-backed by design
+## Task details
 
-Due dates use your device's local calendar. Cards show the complete date and weekday (Mon–Sun), optional 24-hour time, days remaining and a one-line notes preview. These are separate wrapping units, not one long sentence. Incomplete deadlines up to 3 days away (including overdue) are red with an alarm; 4–7 days are green, later dates use normal text, and completed dates remain muted.
+| Field | Required? | Display and editing |
+|---|---|---|
+| Title | Yes | Wraps naturally; click the task to edit. |
+| Deadline date | No | Full `YYYY-MM-DD`, English weekday abbreviation and relative days. |
+| Deadline time | No | Optional `00:00`–`23:59`; requires a date and stays hidden when unset. |
+| Tags | No | Unlimited, deterministic-color chips; long labels truncate on cards. |
+| Notes | No | Multiline editor with a one-line card preview; truncation does not delete text. |
 
-The date control directly opens the native browser/system calendar; its appearance follows your platform. Optional time ranges from 00:00 to 23:59; unset time is not displayed. Clearing the date also clears its time.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/renderer-task-details-dark.png">
+  <img src="docs/assets/renderer-task-details-light.png" width="560" alt="Quick-add form separated from task cards containing deadlines, tags and notes">
+</picture>
+
+*Close-up of the same fictional renderer preview.*
+
+### Deadlines and urgency
+
+Due dates use your device's local calendar. Cards show the complete date and weekday (Mon–Sun), optional 24-hour time, days remaining and a one-line notes preview. These are separate wrapping units, not one long sentence. The date, weekday, time and relative-day text share the same urgency color.
+
+The date control uses the native browser/system calendar when supported, with a directly editable native date field as a fallback. Its appearance depends on your platform. Clearing the date also clears its time; the time can be cleared separately.
+
+| Unfinished deadline | Appearance |
+|---|---|
+| Overdue, today, or within 3 calendar days | Red, with an alarm icon |
+| 4–7 calendar days away | Yellow |
+| More than 7 calendar days away | Green |
+| Completed task, regardless of date | Muted, without an urgent alarm |
+
+The alarm is a **visual status indicator, not a notification or reminder**. Days and colors are based on the local calendar date, not hours remaining. The optional time is displayed as entered; it is not converted between time zones.
+
+### Tags and keyboard shortcuts
 
 Tags have no count limit. Enter, comma or newline adds tags; the final unconfirmed entry is also saved. Remove tags with their × button. Each normalized tag maps deterministically to the same color on every device, with separate readable light/dark palettes. Tags are task-local text, not entries in Obsidian's global tag index.
 
-Existing tasks need no migration. **Update every device to 2.7.0 or later before editing tags or times:** older plugin versions may strip these new fields when saving the board.
+Tags are case-sensitive (`Work` and `work` are different); identical normalized tags are deduplicated. Different tags can share a palette color. Both English and Chinese commas are supported. There is no tag filter or global tag-management screen.
 
-![The rendered matrix beside its readable Markdown source](https://raw.githubusercontent.com/AngusK97/obsidian-eisenhower-matrix-blocks/main/docs/assets/markdown-source.png)
+| Focused field | Key | Result |
+|---|---|---|
+| Title, in quick-add or the editor | Enter | Add or save the task |
+| Notes | Enter | Insert a new line |
+| Notes | Ctrl/Cmd + Enter | Add or save the task |
+| Tags | Enter | Add a tag, without submitting the task |
 
-The note contains the complete board state in an `eisenhower-matrix-blocks` code block:
+IME composition is respected, so confirming Chinese text does not prematurely submit the task.
+
+## Layout and completed history
+
+- **Wide notes:** a two-column, four-quadrant grid. **Narrow notes and phones:** a single column. The switch depends on available width, not the number of tasks or fields.
+- Single-column layout applies when the matrix content area is **620px or narrower**, or the app viewport is **720px or narrower**. A wide desktop window can still have a narrow note pane. There is currently no manual layout toggle, and the plugin does not change your note's width.
+- Each quadrant has a fixed quick-add area and divider above its independently scrolling task list. On touch screens, drag from the grip; tapping the grip opens task actions. On desktop, hover or focus a task to reveal its controls.
+- Completed history defaults to **Today** and **limited-height scrolling**. Filters use the **completion date**, not the deadline. Choose All to see older completed tasks; the expand/scroll button switches between full height and a scrollable list.
+- Collapse the board to show its title, quadrant names/counts and completed count.
+
+Collapse state, filters, scroll-display mode and unsaved input are temporary view state, not synced task data. Reopening or recreating the view can reset them; save a draft before leaving the note.
+
+## Markdown-backed by design
+
+Existing Markdown matrices remain compatible with the new optional fields. Legacy 1.x global storage uses a separate backup-and-migration path; retain backups when upgrading.
+
+The note contains all persistent board and task data in an `eisenhower-matrix-blocks` code block:
+
+<details>
+<summary>View a minimal storage example (normally generated by the insertion command)</summary>
 
 ````markdown
 ```eisenhower-matrix-blocks
@@ -102,9 +171,11 @@ The note contains the complete board state in an `eisenhower-matrix-blocks` code
 ```
 ````
 
+</details>
+
 The English headings inside the source are stable storage markers. The rendered interface follows the Chinese or English language selected in plugin settings.
 
-Hidden Markdown comments preserve custom quadrant labels, source quadrants, ordering, creation times, and completion times. Use the insertion command and matrix controls to keep this data valid.
+Hidden Markdown comments preserve custom quadrant labels, source quadrants, ordering, timestamps and optional `dueDate`, `dueTime`, `tags` and `notes`. Use the insertion command and matrix controls to keep this data valid; do not remove these comments as unused HTML.
 
 ## Storage and sync
 
@@ -120,7 +191,7 @@ Interface language is stored separately from matrix data. Changing it does not r
 
 The matrix uses a responsive layout on Obsidian Mobile. Drag from a task's handle to move it while edge auto-scroll keeps long quadrants and notes reachable. Task menus still let you move tasks between quadrants or raise and lower them without a drag gesture.
 
-Open **Settings → Eisenhower Matrix Blocks → Interface language** and choose **Follow Obsidian** (the default), **中文**, or **English**. The change applies immediately to headings, menus, filters, controls, dates, commands, and notices without rewriting matrix blocks.
+Open **Settings → Eisenhower Matrix Blocks → Interface language** and choose **Follow Obsidian** (the default), **中文**, or **English**. Labels, menus, relative dates, completion-time formatting and notices update without rewriting matrix blocks. Deadline dates remain `YYYY-MM-DD` and weekdays remain `Mon`–`Sun` in both languages.
 
 Use the pencil button in a quadrant header to edit its title and subtitle. Custom labels are note content, so they stay unchanged when the interface language changes; restoring defaults makes that quadrant follow the interface language again.
 
@@ -142,9 +213,27 @@ The format is readable, but the insertion command and matrix controls are recomm
 
 Yes. The plugin runs locally and makes no network requests.
 
+### Why is the matrix vertical on my desktop?
+
+The note pane may be narrower than the responsive breakpoint, even in a maximized window. See [Layout and completed history](#layout-and-completed-history). You do not need to change the vault-wide note width to use the plugin.
+
+### Why did older completed tasks disappear?
+
+The default history filter is Today. Select All and check the source-quadrant filter; filtering does not delete tasks.
+
+### I see a code block instead of a matrix. What should I check?
+
+Enable the plugin and use Live Preview or Reading view. Source mode intentionally shows Markdown. If there is a duplicate-ID or malformed-data warning, back up the note and correct the block before editing; create additional boards in the same note with the insertion command.
+
+### Does it import every checkbox in my vault or send reminders?
+
+No. It manages only tasks inside its own matrix blocks. It does not aggregate vault-wide tasks, provide background notifications or integrate with calendar services.
+
 ## Contributing
 
 Bug reports and feature requests are welcome. Please use fictional or sanitized examples and never upload a complete personal vault.
+
+[Report a bug or request a feature](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/issues). Include plugin/Obsidian versions, platform, theme, expected behavior and a minimal reproducible example.
 
 See [CONTRIBUTING.md](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/blob/main/CONTRIBUTING.md) for the development setup, compatibility requirements, privacy rules, and verification checklist.
 
@@ -152,6 +241,8 @@ See [CONTRIBUTING.md](https://github.com/AngusK97/obsidian-eisenhower-matrix-blo
 npm ci
 npm run verify
 ```
+
+Use Node.js 22. For a safe UI preview with synthetic data, run `node scripts/ui-preview.cjs`; see [browser QA instructions](tests/browser/README.md). Preview screenshots are not a substitute for testing inside Obsidian on real devices.
 
 ## License
 

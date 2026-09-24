@@ -74,7 +74,7 @@ test("invalid tags and times never partially mutate tasks", () => {
 
 test("deadline color thresholds include three and seven days and ignore time of day", () => {
 	assert.equal(typeof details.getDueDateTone, "function");
-	for (const [days, color] of [[-1, "red"], [0, "red"], [3, "red"], [4, "green"], [7, "green"], [8, "neutral"]]) {
+	for (const [days, color] of [[-1, "red"], [0, "red"], [3, "red"], [4, "yellow"], [7, "yellow"], [8, "green"], [30, "green"]]) {
 		assert.equal(details.getDueDateTone(days, null), color);
 		assert.equal(details.getDueDateTone(days, "2026-09-19T00:00:00Z"), "muted");
 	}

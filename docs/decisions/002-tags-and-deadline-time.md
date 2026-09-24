@@ -2,6 +2,11 @@
 
 Accepted: 2026-09-20 (2.7.0).
 
+Updated: 2026-09-24 (2.7.4). Unfinished deadlines use red for overdue tasks
+and days 0–3, yellow for days 4–7, and green beyond day 7. Completed tasks
+remain muted. Theme-specific yellow/green text is checked for at least 4.5:1
+contrast against task-card backgrounds in the light/dark browser fixtures.
+
 Extend existing task metadata with `tags: string[]` and optional `dueTime: HH:mm`.
 Empty values stay omitted in Markdown and old tasks normalize to `[]` and `null`.
 Reject malformed persisted values before editing a board, preserving all existing

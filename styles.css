@@ -643,9 +643,10 @@
 	color: var(--text-error, var(--color-red));
 }
 
+.qt-task-due.qt-due-yellow { color: #8a6500; }
+.theme-dark .qt-task-due.qt-due-yellow { color: #e5c35b; }
 .qt-task-due.qt-due-green { color: #187747; }
 .theme-dark .qt-task-due.qt-due-green { color: #75d69b; }
-.theme-dark .qt-task-due.qt-due-neutral { color: #eeeef0; }
 .qt-task-due.qt-due-muted { color: var(--text-muted); }
 .qt-due-unit, .qt-due-unit time { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .qt-due-clock, .qt-due-relative { white-space: nowrap; }

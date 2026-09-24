@@ -35,7 +35,7 @@ var require_task_details = __commonJS({
     function getDueDateTone(days, completedAt) {
       if (completedAt) return "muted";
       if (days <= 3) return "red";
-      return days <= 7 ? "green" : "neutral";
+      return days <= 7 ? "yellow" : "green";
     }
     module2.exports = { getDueDateInfo, getDueDateTone, normalizeDueDate, normalizeDueTime };
   }

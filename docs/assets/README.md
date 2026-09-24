@@ -1,6 +1,23 @@
 # README media
 
-The repository publishes the static product media below. Every capture comes from the isolated demo vault in [`../demo/`](../demo/), not from a personal vault.
+All public media uses the fictional demo content in [`../demo/`](../demo/), never a personal vault.
+
+## Current README previews
+
+Captured on 2026-09-24 with the 2.7.4 production renderer in the browser test harness. The Obsidian shell and icons are simulated; these are not native Obsidian screenshots. Both READMEs disclose this distinction.
+
+| File | Content |
+|---|---|
+| `renderer-overview-light.png` | Complete matrix, light theme |
+| `renderer-overview-dark.png` | Complete matrix, dark theme |
+| `renderer-task-details-light.png` | First quadrant and task metadata, light theme |
+| `renderer-task-details-dark.png` | First quadrant and task metadata, dark theme |
+
+To regenerate, start `node scripts/ui-preview.cjs`, then run `node scripts/capture-readme.cjs`. Use the Playwright and browser environment variables described in [`../../tests/browser/README.md`](../../tests/browser/README.md); no runtime plugin dependency is added. The script reads only the tracked demo note. Dates are fixed fictional data, so relative-day labels depend on the capture date. The default Today filter hides the demo's historical completed tasks; their total remains visible.
+
+## Historical native captures
+
+The following earlier Obsidian captures and social card remain available but are not the current README hero/detail images.
 
 | File | Content | Specification |
 |---|---|---|
@@ -9,7 +26,7 @@ The repository publishes the static product media below. Every capture comes fro
 | `markdown-source.png` | Rendered matrix beside its Markdown source | 1936 x 1048 PNG, under 1.5 MB |
 | `social-preview.png` | GitHub repository social card | 1280 x 640 PNG, under 1 MB |
 
-## Capture checklist
+## Native Obsidian capture checklist
 
 - Use the isolated demo vault described in [`../demo/README.md`](../demo/README.md).
 - Use the provided `Matrix Demo.md`; do not capture a personal note.
@@ -23,7 +40,7 @@ The repository publishes the static product media below. Every capture comes fro
 
 ## Deferred media
 
-Mobile and workflow media are intentionally not part of the current README. If they are added later, use these filenames:
+Real-device mobile and workflow media are intentionally not part of the current README. If they are added later, use these filenames:
 
 - `matrix-mobile.png` for a real Obsidian Mobile capture.
 - `matrix-workflow.gif` for the insert, add, move, complete, and filter workflow.

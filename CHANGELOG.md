@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.7.4 - 2026-09-24
+
+- Show unfinished deadlines in red through day 3 (including overdue tasks), yellow on days 4–7, and green beyond day 7. Completed tasks remain muted.
+- Use theme-aware yellow and green text with readable contrast in light and dark themes; preserve calendar-day urgency and optional deadline times.
+- Refresh the English and Chinese READMEs with current renderer previews, task fields, keyboard shortcuts, update instructions, layout behavior, and storage/safety boundaries.
+
 ## 2.7.3 - 2026-09-20
 
 - Separate each quadrant's quick-add form from its task list with a subtle theme divider and 12px breathing room on both sides.

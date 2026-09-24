@@ -115,19 +115,25 @@ async function assertLayout(page, name) {
 			assert.ok(await page.locator(".qt-completed-list").evaluate(el => el.scrollHeight > el.clientHeight));
 			await assertLayout(page, name);
 			assert.ok(await page.locator('[data-task-id="task-3"] .qt-task-due').evaluate(el => el.classList.contains("qt-due-red")));
-			assert.ok(await page.locator('[data-task-id="task-5"] .qt-task-due').evaluate(el => el.classList.contains("qt-due-green")));
-			assert.ok(await page.locator('[data-task-id="task-6"] .qt-task-due').evaluate(el => el.classList.contains("qt-due-neutral")));
+			assert.ok(await page.locator('[data-task-id="task-5"] .qt-task-due').evaluate(el => el.classList.contains("qt-due-yellow")));
+			assert.ok(await page.locator('[data-task-id="task-6"] .qt-task-due').evaluate(el => el.classList.contains("qt-due-green")));
+			for (const tone of ["yellow", "green"]) {
+				const colors = await page.locator(`.qt-due-${tone}`).first().evaluate(el => ({ foreground: getComputedStyle(el).color, background: getComputedStyle(el.closest(".qt-task-row")).backgroundColor }));
+				// Resolve color-mix() through a canvas to RGB before contrast calculation.
+				const background = await page.evaluate(color => { const ctx = document.createElement("canvas").getContext("2d"); ctx.fillStyle = color; ctx.fillRect(0, 0, 1, 1); return `rgb(${Array.from(ctx.getImageData(0, 0, 1, 1).data).slice(0, 3).join(",")})`; }, colors.background);
+				assert.ok(contrast(colors.foreground, background) >= 4.5, `${tone} deadline must remain readable on ${theme} cards`);
+			}
 			assert.equal(await page.locator(".qt-completed-row .is-urgent").count(), 0);
 			assert.equal(await page.locator(".qt-completed-row .qt-due-muted").count(), 1);
 			assert.match(await page.locator('[data-task-id="task-1"] .qt-due-weekday').textContent(), /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/);
-			await page.screenshot({ path: path.join(output, `2.7.3-${name}.png`), fullPage: true });
+			await page.screenshot({ path: path.join(output, `2.7.4-${name}.png`), fullPage: true });
 			if (narrow) {
 				const tagged = page.locator('[data-task-id="task-7"]');
 				const tag = await tagged.locator(".qt-task-tags").boundingBox();
 				const due = await tagged.locator(".qt-task-due").boundingBox();
 				assert.ok(Math.abs(tag.y - due.y) <= 4, "short tags and deadline share a compact line");
 				const expanded = await page.addStyleTag({ content: ".qt-root .qt-task-list { max-height: none; }" });
-				await page.locator(".qt-quadrant").first().screenshot({ path: path.join(output, "2.7.3-quadrant-boundary.png") });
+				await page.locator(".qt-quadrant").first().screenshot({ path: path.join(output, "2.7.4-quadrant-boundary.png") });
 				await expanded.evaluate(el => el.remove());
 			}
 			await page.locator(".qt-task-title").first().focus();
@@ -174,7 +180,7 @@ async function assertLayout(page, name) {
 			await editor.locator(".qt-due-time").fill("00:00");
 			await editor.locator(".qt-due-time").dispatchEvent("change");
 			await editor.locator(".qt-tag-input").fill(Array.from({ length: 14 }, (_, index) => `标签${index}`).join(","));
-			await page.screenshot({ path: path.join(output, `2.7.3-${name}-editor.png`) });
+			await page.screenshot({ path: path.join(output, `2.7.4-${name}-editor.png`) });
 			await editor.locator(".qt-task-notes-input").press("Control+Enter");
 			await editor.waitFor({ state: "detached" });
 			await page.evaluate(() => window.matrixPreview.reload());
