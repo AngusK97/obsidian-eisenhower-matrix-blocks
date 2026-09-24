@@ -4,7 +4,7 @@ All public media uses the fictional demo content in [`../demo/`](../demo/), neve
 
 ## Current README previews
 
-Captured on 2026-09-24 with the 2.7.4 production renderer in the browser test harness. The Obsidian shell and icons are simulated; these are not native Obsidian screenshots. Both READMEs disclose this distinction.
+Captured on 2026-09-24 with the 2.7.6 production renderer in the browser test harness. The Obsidian shell and icons are simulated; these are not native Obsidian screenshots. Both READMEs disclose this distinction.
 
 | File | Content |
 |---|---|
@@ -12,8 +12,10 @@ Captured on 2026-09-24 with the 2.7.4 production renderer in the browser test ha
 | `renderer-overview-dark.png` | Complete matrix, dark theme |
 | `renderer-task-details-light.png` | First quadrant and task metadata, light theme |
 | `renderer-task-details-dark.png` | First quadrant and task metadata, dark theme |
+| `renderer-completed-light.png` | Completed history with Due / Completed on labels, light theme |
+| `renderer-completed-dark.png` | Completed history with Due / Completed on labels, dark theme |
 
-To regenerate, start `node scripts/ui-preview.cjs`, then run `node scripts/capture-readme.cjs`. Use the Playwright and browser environment variables described in [`../../tests/browser/README.md`](../../tests/browser/README.md); no runtime plugin dependency is added. The script reads only the tracked demo note. Dates are fixed fictional data, so relative-day labels depend on the capture date. The default Today filter hides the demo's historical completed tasks; their total remains visible.
+To regenerate, start `node scripts/ui-preview.cjs`, then run `node scripts/capture-readme.cjs`. Use the Playwright and browser environment variables described in [`../../tests/browser/README.md`](../../tests/browser/README.md); no runtime plugin dependency is added. The script reads only the tracked demo note. Dates are fixed fictional data, so relative-day labels depend on the capture date. The overview keeps the default Today filter, hiding historical completed tasks while retaining their total. The completed-history close-up explicitly selects All and shows the original deadline separately from the actual completion timestamp, without countdowns.
 
 ## Historical native captures
 

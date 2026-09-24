@@ -20,7 +20,7 @@ Prioritize work by importance and urgency without leaving your notes. Add deadli
   <img src="docs/assets/renderer-overview-light.png" alt="Four quadrants with task cards, colored tags, deadlines and completed-history controls">
 </picture>
 
-*Version 2.7.4 renderer preview, using [fictional launch-planning tasks](docs/demo/Matrix%20Demo.md). The browser harness simulates the Obsidian shell and icons; your theme, native date picker and device may look different. [Media details](docs/assets/README.md).*
+*Version 2.7.6 renderer preview, using [fictional launch-planning tasks](docs/demo/Matrix%20Demo.md). The browser harness simulates the Obsidian shell and icons; your theme, native date picker and device may look different. [Media details](docs/assets/README.md).*
 
 - **Local to every note:** each matrix owns its tasks and completed history, and a note can contain more than one matrix.
 - **Markdown-backed:** tasks, quadrants, ordering, and completion times travel with the note through Obsidian Sync, Remotely Save, or Git.
@@ -60,7 +60,7 @@ The default quadrants are **Do** (important and urgent), **Schedule** (important
 
 In **Settings → Community plugins**, check for updates and update this plugin on each device. For a manual update, replace the same three files with files from **one release**, then reload the plugin or Obsidian; leave your notes and `data.json` intact. Do not use GitHub's automatic **Source code** ZIP as an installable plugin package.
 
-Back up your notes before upgrading. **Update all devices to 2.7.0 or later before editing tags or deadline times:** older versions can discard those fields when saving. Usage notes describe [2.7.6](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/tag/2.7.6); previews were captured with 2.7.4. See the [changelog](CHANGELOG.md) for changes.
+Back up your notes before upgrading. **Update all devices to 2.7.0 or later before editing tags or deadline times:** older versions can discard those fields when saving. Usage notes and previews reflect [2.7.6](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/tag/2.7.6). See the [changelog](CHANGELOG.md) for changes.
 
 ## Boards belong to notes
 
@@ -147,6 +147,13 @@ IME composition is respected, so confirming Chinese text does not prematurely su
 - Collapse the board to show its title, quadrant names/counts and completed count.
 
 Collapse state, filters, scroll-display mode and unsaved input are temporary view state, not synced task data. Reopening or recreating the view can reset them; save a draft before leaving the note.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/renderer-completed-dark.png">
+  <img src="docs/assets/renderer-completed-light.png" alt="Completed tasks with separate Due and Completed on labels, without deadline countdowns">
+</picture>
+
+*Version 2.7.6 fictional renderer preview with the All date filter selected to show historical completions. The default filter remains Today.*
 
 ## Markdown-backed by design
 

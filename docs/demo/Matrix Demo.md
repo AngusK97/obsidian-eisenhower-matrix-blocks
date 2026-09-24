@@ -25,7 +25,7 @@
 
 ## Completed
 - [x] Review launch checklist #quadrant/do ✅ 2026-07-21
-  <!-- quadrant-task {"id":"demo-checklist","quadrant":"do","createdAt":"2026-07-20T08:00:00.000Z","completedAt":"2026-07-21T09:30:00.000Z","order":2} -->
+  <!-- quadrant-task {"id":"demo-checklist","quadrant":"do","createdAt":"2026-07-20T08:00:00.000Z","completedAt":"2026-07-21T09:30:00.000Z","order":2,"dueDate":"2026-07-21","dueTime":"18:00","tags":["Release"],"notes":"Confirm the release checklist with the team."} -->
 - [x] Archive outdated campaign notes #quadrant/eliminate ✅ 2026-07-20
   <!-- quadrant-task {"id":"demo-archive","quadrant":"eliminate","createdAt":"2026-07-20T08:00:00.000Z","completedAt":"2026-07-20T14:15:00.000Z","order":1} -->
 ```

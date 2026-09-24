@@ -27,6 +27,11 @@ const { findBoardCodeBlocks } = require("../src/board-store");
 			}, board);
 			await page.locator(".qt-root").screenshot({ path: path.join(output, `renderer-overview-${theme}.png`) });
 			await page.locator(".qt-quadrant").first().screenshot({ path: path.join(output, `renderer-task-details-${theme}.png`) });
+			await page.locator(".qt-periods").getByRole("button", { name: "All", exact: true }).click();
+			assert.equal(await page.locator(".qt-completed-row").count(), 2);
+			assert.equal(await page.locator(".qt-completed-label").first().textContent(), "Completed on");
+			assert.equal(await page.locator(".qt-completed-row .qt-due-label").first().textContent(), "Due");
+			await page.locator(".qt-completed-section").screenshot({ path: path.join(output, `renderer-completed-${theme}.png`) });
 			assert.deepEqual(errors, []);
 			await page.close();
 		}

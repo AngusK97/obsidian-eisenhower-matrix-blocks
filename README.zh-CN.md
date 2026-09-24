@@ -20,7 +20,7 @@
   <img src="docs/assets/renderer-overview-light.png" alt="四象限中的任务卡片、彩色标签、截止信息及完成记录控件">
 </picture>
 
-*2.7.4 实际插件渲染器预览，使用[虚构的发布计划任务](docs/demo/Matrix%20Demo.md)。浏览器预览模拟了 Obsidian 外壳和图标；真实主题、原生日历和不同设备的外观可能不同。参见[截图说明](docs/assets/README.md)。*
+*2.7.6 实际插件渲染器预览，使用[虚构的发布计划任务](docs/demo/Matrix%20Demo.md)。浏览器预览模拟了 Obsidian 外壳和图标；真实主题、原生日历和不同设备的外观可能不同。参见[截图说明](docs/assets/README.md)。*
 
 - **矩阵之间互不影响：** 任务和完成记录只属于所在矩阵；同一篇笔记也可以插入多张矩阵。
 - **数据保存在 Markdown 中：** 象限、任务顺序和完成时间都会随笔记一起同步和备份。
@@ -60,7 +60,7 @@
 
 在 **设置 → 第三方插件** 中检查更新，并在每台设备上更新本插件。手动更新时，使用**同一个 Release** 中的三个文件覆盖安装目录，然后重新加载插件或 Obsidian；不要删除笔记或 `data.json`。GitHub 自动提供的 **Source code** 压缩包不是可直接安装的插件包。
 
-升级前请备份笔记。**所有设备须先更新到 2.7.0 或更高版本，再编辑标签或截止时间**：旧版本保存矩阵时可能丢弃这些字段。当前说明对应 [2.7.6](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/tag/2.7.6)，预览图采集于 2.7.4，版本变化见[更新日志](CHANGELOG.md)。
+升级前请备份笔记。**所有设备须先更新到 2.7.0 或更高版本，再编辑标签或截止时间**：旧版本保存矩阵时可能丢弃这些字段。当前说明与预览图均对应 [2.7.6](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/tag/2.7.6)，版本变化见[更新日志](CHANGELOG.md)。
 
 ## 每张矩阵都属于所在笔记
 
@@ -147,6 +147,13 @@
 - 折叠整张矩阵后，摘要显示矩阵名称、各象限名称与数量，以及已完成数量。
 
 折叠、筛选、滚动显示模式和未提交输入属于临时视图状态，不随任务数据同步。重新打开或重建视图可能恢复默认状态；离开笔记前请先保存草稿。
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/renderer-completed-dark.png">
+  <img src="docs/assets/renderer-completed-light.png" alt="已完成任务分别标明截止时间与实际完成时间，不再显示截止倒计时">
+</picture>
+
+*2.7.6 虚构任务渲染器预览；为展示历史完成记录，图中选择了“全部”日期筛选，默认仍为“今天”。英文界面的 Due 对应“截止”，Completed on 对应“完成于”。*
 
 ## 所有数据都在 Markdown 里
 
