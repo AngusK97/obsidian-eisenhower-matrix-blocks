@@ -45,6 +45,7 @@ const {
 	updateQuadrantLabelsDocument,
 } = require("./board-store");
 const { normalizeLanguageMode, resolveLanguage, translate } = require("./i18n");
+const { LAYOUT_MODES, getBoardLayout, saveBoardLayout, moveBoardLayouts } = require("./layout-preferences");
 const { parseTaskMarkdown } = require("./markdown-store");
 const { TaskEditorModal } = require("./task-fields");
 const { renderTaskDetails, renderQuickAdd } = require("./task-card");
@@ -283,7 +284,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		};
 		this.isCollapsed = false;
 		this.isCompletedScrollable = true;
-		this.layoutMode = "auto";
+		this.layoutMode = getBoardLayout(plugin.app, sourcePath, this.boardId);
 	}
 
 	onload() {
@@ -383,15 +384,27 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 			cls: "qt-layout-select",
 			attr: { "aria-label": this.plugin.t("board.layout"), title: this.plugin.t("board.layout") },
 		});
-		for (const mode of ["auto", "grid", "vertical"]) {
+		for (const mode of LAYOUT_MODES) {
 			layout.createEl("option", { text: this.plugin.t(`board.layout.${mode}`), attr: { value: mode } });
 		}
 		layout.value = this.layoutMode;
 		layout.addEventListener("change", () => {
-			if (!["auto", "grid", "vertical"].includes(layout.value)) return;
-			this.layoutMode = layout.value;
-			// Keep live inputs, unconfirmed tags and scroll state intact; no task write or re-render.
-			container.setAttribute("data-layout", this.layoutMode);
+			if (!LAYOUT_MODES.includes(layout.value)) return;
+			try {
+				saveBoardLayout(this.plugin.app, this.sourcePath, this.boardId, layout.value);
+				// Update matching panes without rebuilding live drafts or writing task Markdown.
+				for (const renderer of this.plugin.boardRenderers) {
+					if (renderer.sourcePath !== this.sourcePath || renderer.boardId !== this.boardId) continue;
+					renderer.layoutMode = layout.value;
+					renderer.containerEl.setAttribute("data-layout", layout.value);
+					const select = renderer.containerEl.querySelector(".qt-layout-select");
+					if (select) select.value = layout.value;
+				}
+			} catch (error) {
+				layout.value = this.layoutMode;
+				console.error("Eisenhower Matrix Blocks could not save local layout preferences", error);
+				new Notice(this.plugin.t("notice.layoutSaveFailed"), 10000);
+			}
 		});
 		const toggleLabel = this.plugin.t(this.isCollapsed ? "board.expand" : "board.collapse");
 		const toggle = createIconButton(
@@ -1236,8 +1249,16 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 		this.registerEvent(this.app.vault.on("modify", (file) => this.scheduleFileRefresh(file.path)));
 		this.registerEvent(this.app.vault.on("delete", (file) => this.scheduleFileRefresh(file.path)));
 		this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+			try {
+				moveBoardLayouts(this.app, oldPath, file.path);
+			} catch (error) {
+				console.error("Eisenhower Matrix Blocks could not move local layout preferences", error);
+				new Notice(this.t("notice.layoutSaveFailed"), 10000);
+			}
 			for (const renderer of this.boardRenderers) {
-				if (renderer.sourcePath === oldPath) renderer.sourcePath = file.path;
+				if (renderer.sourcePath === oldPath || renderer.sourcePath.startsWith(`${oldPath}/`)) {
+					renderer.sourcePath = file.path + renderer.sourcePath.slice(oldPath.length);
+				}
 			}
 			this.scheduleFileRefresh(file.path);
 		}));

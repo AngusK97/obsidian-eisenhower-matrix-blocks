@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.2 - 2026-09-24
+
+- Remember each matrix's layout on the current device across note reopening, view recreation and app restart. Desktop and mobile keep independent preferences; choose Auto to reset the override.
+- Synchronize open panes of the same matrix without rebuilding inputs or losing drafts. Preserve preferences when notes or folders are renamed/moved inside Obsidian, and report local-storage failures without pretending the selection was saved.
+- Keep task Markdown and plugin settings untouched. Retain Obsidian 1.5.0 compatibility with a vault-scoped local-storage fallback, including preference continuity when upgrading the host.
+
 ## 2.8.1 - 2026-09-24
 
 - Hide the time-clear button completely when no time is entered, freeing its layout space in quick-add forms and task editors.

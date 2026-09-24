@@ -171,7 +171,7 @@ function loadUiClasses() {
 	const filename = join(__dirname, "..", "src", "main.js");
 	const source = readFileSync(filename, "utf8").replace(
 		/module\.exports = EisenhowerMatrixBlocksPlugin;\s*$/,
-		"module.exports = { MatrixBoardRenderChild, TextInputModal };",
+		"module.exports = { MatrixBoardRenderChild, TextInputModal, EisenhowerMatrixBlocksPlugin };",
 	);
 	const originalLoad = Module._load;
 	Module._load = function mockObsidian(request, parent, isMain) {
@@ -204,12 +204,17 @@ function loadUiClasses() {
 	}
 }
 
-function createRenderer(data) {
-	const { MatrixBoardRenderChild } = loadUiClasses();
+function createRenderer(data, app = null, sourcePath = "Projects.md", boardId = "board-alpha") {
+	const { MatrixBoardRenderChild, EisenhowerMatrixBlocksPlugin } = loadUiClasses();
 	const container = new FakeElement();
-	const plugin = {
+	const storage = new Map();
+	const plugin = Object.assign(new EisenhowerMatrixBlocksPlugin(), {
+		app: app || {
+			loadLocalStorage: key => storage.get(key) ?? null,
+			saveLocalStorage: (key, value) => storage.set(key, structuredClone(value)),
+		},
+		settings: { language: "en" },
 		boardRenderers: new Set(),
-		language: "en",
 		t: (key, variables) => translate("en", key, variables),
 		getQuadrantMeta(quadrant) {
 			return {
@@ -218,8 +223,8 @@ function createRenderer(data) {
 				description: translate("en", `quadrant.${quadrant}.description`),
 			};
 		},
-	};
-	const renderer = new MatrixBoardRenderChild(container, plugin, "Projects.md", renderBoardSource("board-alpha", data));
+	});
+	const renderer = new MatrixBoardRenderChild(container, plugin, sourcePath, renderBoardSource(boardId, data));
 	renderer.onload();
 	return { container, renderer };
 }
@@ -259,6 +264,75 @@ test("board layout changes only this view and preserves live unsaved inputs", ()
 	container.querySelector(".qt-board-toggle").dispatch("click");
 	container.querySelector(".qt-board-toggle").dispatch("click");
 	assert.equal(container.getAttribute("data-layout"), "grid");
+});
+
+test("layout survives a new plugin and renderer, isolates boards and devices, and resets to auto", () => {
+	const data = createEmptyData();
+	const first = createRenderer(data);
+	const app = first.renderer.plugin.app;
+	const choose = (view, mode) => {
+		const select = findByLabel(view.container, "Matrix layout");
+		select.value = mode;
+		select.dispatch("change");
+	};
+	choose(first, "grid");
+	const reopened = createRenderer(data, app);
+	assert.equal(reopened.renderer.layoutMode, "grid");
+	assert.equal(createRenderer(data, app, "Other.md").renderer.layoutMode, "auto");
+	assert.equal(createRenderer(data, app, "Projects.md", "board-beta").renderer.layoutMode, "auto");
+	assert.equal(createRenderer(data).renderer.layoutMode, "auto", "another device is independent");
+	choose(reopened, "vertical");
+	assert.equal(createRenderer(data, app).renderer.layoutMode, "vertical");
+	choose(reopened, "auto");
+	assert.equal(createRenderer(data, app).renderer.layoutMode, "auto");
+});
+
+test("same-board panes synchronize without rebuilding drafts and a failed save rolls back", () => {
+	const { MatrixBoardRenderChild } = loadUiClasses();
+	const first = createRenderer(createEmptyData());
+	const plugin = first.renderer.plugin;
+	const second = new MatrixBoardRenderChild(new FakeElement(), plugin, "Projects.md", renderBoardSource("board-alpha", createEmptyData()));
+	second.onload();
+	const input = second.containerEl.querySelector("textarea");
+	input.value = "Keep this draft";
+	const select = findByLabel(first.container, "Matrix layout");
+	select.value = "grid";
+	select.dispatch("change");
+	assert.equal(second.layoutMode, "grid");
+	assert.equal(second.containerEl.querySelector("textarea"), input);
+	assert.equal(input.value, "Keep this draft");
+	plugin.app.saveLocalStorage = () => { throw new Error("Storage unavailable"); };
+	const originalError = console.error;
+	console.error = () => {};
+	try {
+		select.value = "vertical";
+		select.dispatch("change");
+		assert.equal(select.value, "grid");
+		assert.equal(first.renderer.layoutMode, "grid");
+		assert.equal(second.layoutMode, "grid");
+	} finally { console.error = originalError; }
+});
+
+test("vault rename events move layout preferences and open renderer paths together", () => {
+	const first = createRenderer(createEmptyData(), null, "Work/a.md");
+	const plugin = first.renderer.plugin;
+	const callbacks = new Map();
+	plugin.app.vault = { on: (event, callback) => { callbacks.set(event, callback); } };
+	plugin.registerEvent = () => {};
+	plugin.scheduleFileRefresh = () => {};
+	plugin.registerVaultEvents();
+	const select = findByLabel(first.container, "Matrix layout");
+	select.value = "grid";
+	select.dispatch("change");
+	callbacks.get("rename")({ path: "Archive" }, "Work");
+	assert.equal(first.renderer.sourcePath, "Archive/a.md");
+	assert.equal(createRenderer(createEmptyData(), plugin.app, "Archive/a.md").renderer.layoutMode, "grid");
+	assert.equal(createRenderer(createEmptyData(), plugin.app, "Work/a.md").renderer.layoutMode, "auto");
+	select.value = "vertical";
+	select.dispatch("change");
+	callbacks.get("rename")({ path: "Archive/b.md" }, "Archive/a.md");
+	assert.equal(first.renderer.sourcePath, "Archive/b.md");
+	assert.equal(createRenderer(createEmptyData(), plugin.app, "Archive/b.md").renderer.layoutMode, "vertical");
 });
 
 test("task editing uses a growing multiline control and Enter saves, prevents default, and closes", async () => {

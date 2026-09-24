@@ -142,14 +142,16 @@ IME composition is respected, so confirming Chinese text does not prematurely su
 
 ## Layout and completed history
 
-- Choose **Auto layout**, **2 × 2 grid**, or **Vertical** from the selector beside the matrix collapse button. This affects only the current matrix view, never your note width or other matrices.
+- Choose **Auto layout**, **2 × 2 grid**, or **Vertical** from the selector beside the matrix collapse button. Each matrix remembers its choice on this device, including after reopening the note or restarting Obsidian; it never changes your note width or other matrices.
 - **Auto** preserves responsive behavior: a single column when matrix content is **620px or narrower**, or the app viewport is **720px or narrower**; otherwise two columns. **Vertical** always uses one column.
 - **2 × 2 grid** keeps two columns at least 300px wide for readable tasks. When space is tight, scroll horizontally inside the matrix; the note and completed history remain full-width. Focus the quadrant region to scroll with arrow keys, or drag a task to an edge to auto-scroll between columns. Narrow cards retain full titles and deadline details, with truncated tags/notes available in the editor; the grip opens task actions without a duplicate more button.
 - Each quadrant has a fixed quick-add area and divider above its independently scrolling task list. On touch screens, drag from the grip; tapping the grip opens task actions. On desktop, hover or focus a task to reveal its controls.
 - Completed history defaults to **Today** and **limited-height scrolling**. Filters use the **completion date**, not the deadline. Choose All to see older completed tasks; the expand/scroll button switches between full height and a scrollable list.
 - Collapse the board to show its title, quadrant names/counts and completed count.
 
-Layout choice, collapse state, filters, scroll-display mode and unsaved input are temporary view state, not synced task data. Reopening or recreating the view can reset them; save a draft before leaving the note. Switching layout itself preserves live inputs, including an unconfirmed tag.
+Layout preferences are stored locally per vault, note and matrix, separately on desktop and mobile. Choosing Auto resets the override. Open panes of the same matrix stay in sync, and note/folder moves within Obsidian keep the preference. Clearing application local storage, or moving a note externally while Obsidian is closed, can reset it. Layout changes do not write Markdown or plugin `data.json`, and preserve live inputs, including unconfirmed tags. Update to 2.8.2 or later and select your preferred layout once to save it.
+
+Collapse state, filters, scroll-display mode and unsaved input remain temporary view state. Reopening or recreating the view can reset them; save a draft before leaving the note.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/renderer-completed-dark.png">

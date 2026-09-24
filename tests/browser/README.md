@@ -39,7 +39,8 @@ between adjacent cards instead of appending to the quadrant.
 For browser automation, `window.matrixPreview` provides `renderer`, `getData()`,
 `getMarkdown()`, `reload()` (recreate the renderer from its saved Markdown), and
 `failNextSave()` (intentional rejected write, to test draft recovery). Browser
-refresh resets all fixture data. The server listens only on loopback.
+refresh resets task fixture data but preserves layout preferences in this test
+browser's local storage. The server listens only on loopback.
 
 Optional automated QA: with the server running, use `node tests/browser/run.cjs`.
 Supply an installed Playwright module using `PLAYWRIGHT_MODULE` if it is not on
@@ -50,5 +51,7 @@ machine paths or browser dependencies are committed to the production package.
 Run `node tests/browser/layout.cjs` with the same environment to verify Auto / Grid /
 Vertical layouts at desktop, 560px note, 390px and 320px widths. It checks live-draft
 preservation, metadata bounds, contained keyboard scrolling, and bidirectional
-cross-column drops after horizontal edge auto-scroll. Layout resets on renderer
-recreation; task Markdown remains unchanged by layout selection.
+cross-column drops after horizontal edge auto-scroll. Grid and Vertical survive
+renderer recreation and full page reload; Auto resets the saved override. Task
+Markdown remains unchanged by layout selection. The harness emulates the app's
+vault-local storage with browser localStorage; real app restart still needs device acceptance.

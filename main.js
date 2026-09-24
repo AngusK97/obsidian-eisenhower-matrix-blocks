@@ -1003,6 +1003,7 @@ var require_i18n = __commonJS({
         "notice.openMarkdown": "\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u53EF\u7F16\u8F91\u7684 Markdown \u6587\u4EF6",
         "notice.fileMissing": "\u627E\u4E0D\u5230\u8FD9\u5F20\u56DB\u8C61\u9650\u6240\u5728\u7684 Markdown \u6587\u4EF6",
         "notice.saveFailed": "\u56DB\u8C61\u9650\u4FDD\u5B58\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u6E90\u6587\u672C\u6216\u6587\u4EF6\u72B6\u6001\u3002",
+        "notice.layoutSaveFailed": "\u5E03\u5C40\u504F\u597D\u672A\u80FD\u4FDD\u5B58\uFF0C\u8BF7\u68C0\u67E5\u672C\u673A\u5B58\u50A8\u540E\u91CD\u8BD5\u3002",
         "notice.fileUnavailable": "\u6240\u5728\u7684 Markdown \u6587\u4EF6\u4E0D\u53EF\u7528",
         "notice.migrationComplete": "\u65E7\u7684\u5168\u5C40\u4EFB\u52A1\u5DF2\u8FC1\u79FB\u4E3A Markdown \u6587\u4EF6\u4E2D\u7684\u72EC\u7ACB\u56DB\u8C61\u9650",
         "notice.migrationFailed": "\u65E7\u4EFB\u52A1\u8FC1\u79FB\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u63A7\u5236\u53F0\u548C\u5907\u4EFD\u6587\u4EF6\u3002",
@@ -1107,6 +1108,7 @@ var require_i18n = __commonJS({
         "notice.openMarkdown": "Open an editable Markdown file first",
         "notice.fileMissing": "The Markdown file containing this matrix was not found",
         "notice.saveFailed": "The matrix could not be saved. Check the source or file state.",
+        "notice.layoutSaveFailed": "Layout preference could not be saved. Check local storage and try again.",
         "notice.fileUnavailable": "The Markdown file containing this matrix is unavailable",
         "notice.migrationComplete": "The global task board was migrated to an independent Markdown matrix",
         "notice.migrationFailed": "Legacy task migration failed. Check the console and backup files.",
@@ -1145,6 +1147,73 @@ var require_i18n = __commonJS({
       resolveLanguage: resolveLanguage2,
       translate: translate2
     };
+  }
+});
+
+// src/layout-preferences.js
+var require_layout_preferences = __commonJS({
+  "src/layout-preferences.js"(exports2, module2) {
+    "use strict";
+    var STORAGE_KEY = "eisenhower-matrix-blocks:layouts";
+    var LAYOUT_MODES2 = Object.freeze(["auto", "grid", "vertical"]);
+    function legacyKey(app) {
+      return `${STORAGE_KEY}:${app.vault.adapter.getResourcePath("")}`;
+    }
+    function readPreferences(app) {
+      var _a;
+      let value;
+      if (typeof app.loadLocalStorage === "function") {
+        value = app.loadLocalStorage(STORAGE_KEY);
+        if (value == null && ((_a = app.vault) == null ? void 0 : _a.adapter) && globalThis.localStorage) {
+          value = JSON.parse(globalThis.localStorage.getItem(legacyKey(app)) || "null");
+        }
+      } else value = JSON.parse(globalThis.localStorage.getItem(legacyKey(app)) || "null");
+      const entries = /* @__PURE__ */ new Map();
+      if (!Array.isArray(value)) return entries;
+      for (const entry of value) {
+        if (!Array.isArray(entry) || entry.length !== 3) continue;
+        const [path, boardId, mode] = entry;
+        if (typeof path === "string" && typeof boardId === "string" && ["grid", "vertical"].includes(mode)) {
+          entries.set(JSON.stringify([path, boardId]), mode);
+        }
+      }
+      return entries;
+    }
+    function writePreferences(app, entries) {
+      const value = [...entries].map(([key, mode]) => [...JSON.parse(key), mode]);
+      if (typeof app.saveLocalStorage === "function") app.saveLocalStorage(STORAGE_KEY, value);
+      else if (value.length) globalThis.localStorage.setItem(legacyKey(app), JSON.stringify(value));
+      else globalThis.localStorage.removeItem(legacyKey(app));
+    }
+    function getBoardLayout2(app, path, boardId) {
+      try {
+        return readPreferences(app).get(JSON.stringify([path, boardId])) || "auto";
+      } catch (error) {
+        console.warn("Eisenhower Matrix Blocks could not read local layout preferences", error);
+        return "auto";
+      }
+    }
+    function saveBoardLayout2(app, path, boardId, mode) {
+      if (!LAYOUT_MODES2.includes(mode)) throw new Error("Invalid matrix layout");
+      const entries = readPreferences(app);
+      const key = JSON.stringify([path, boardId]);
+      if (mode === "auto") entries.delete(key);
+      else entries.set(key, mode);
+      writePreferences(app, entries);
+    }
+    function moveBoardLayouts2(app, oldPath, newPath) {
+      const entries = readPreferences(app);
+      let changed = false;
+      for (const [key, mode] of [...entries]) {
+        const [path, boardId] = JSON.parse(key);
+        if (path !== oldPath && !path.startsWith(`${oldPath}/`)) continue;
+        entries.delete(key);
+        entries.set(JSON.stringify([newPath + path.slice(oldPath.length), boardId]), mode);
+        changed = true;
+      }
+      if (changed) writePreferences(app, entries);
+    }
+    module2.exports = { LAYOUT_MODES: LAYOUT_MODES2, getBoardLayout: getBoardLayout2, saveBoardLayout: saveBoardLayout2, moveBoardLayouts: moveBoardLayouts2 };
   }
 });
 
@@ -1656,6 +1725,7 @@ var {
   updateQuadrantLabelsDocument
 } = require_board_store();
 var { normalizeLanguageMode, resolveLanguage, translate } = require_i18n();
+var { LAYOUT_MODES, getBoardLayout, saveBoardLayout, moveBoardLayouts } = require_layout_preferences();
 var { parseTaskMarkdown } = require_markdown_store();
 var { TaskEditorModal } = require_task_fields();
 var { renderTaskDetails, renderQuickAdd } = require_task_card();
@@ -1881,7 +1951,7 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     };
     this.isCollapsed = false;
     this.isCompletedScrollable = true;
-    this.layoutMode = "auto";
+    this.layoutMode = getBoardLayout(plugin.app, sourcePath, this.boardId);
   }
   onload() {
     var _a, _b, _c, _d;
@@ -1973,14 +2043,26 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
       cls: "qt-layout-select",
       attr: { "aria-label": this.plugin.t("board.layout"), title: this.plugin.t("board.layout") }
     });
-    for (const mode of ["auto", "grid", "vertical"]) {
+    for (const mode of LAYOUT_MODES) {
       layout.createEl("option", { text: this.plugin.t(`board.layout.${mode}`), attr: { value: mode } });
     }
     layout.value = this.layoutMode;
     layout.addEventListener("change", () => {
-      if (!["auto", "grid", "vertical"].includes(layout.value)) return;
-      this.layoutMode = layout.value;
-      container.setAttribute("data-layout", this.layoutMode);
+      if (!LAYOUT_MODES.includes(layout.value)) return;
+      try {
+        saveBoardLayout(this.plugin.app, this.sourcePath, this.boardId, layout.value);
+        for (const renderer of this.plugin.boardRenderers) {
+          if (renderer.sourcePath !== this.sourcePath || renderer.boardId !== this.boardId) continue;
+          renderer.layoutMode = layout.value;
+          renderer.containerEl.setAttribute("data-layout", layout.value);
+          const select = renderer.containerEl.querySelector(".qt-layout-select");
+          if (select) select.value = layout.value;
+        }
+      } catch (error) {
+        layout.value = this.layoutMode;
+        console.error("Eisenhower Matrix Blocks could not save local layout preferences", error);
+        new Notice(this.plugin.t("notice.layoutSaveFailed"), 1e4);
+      }
     });
     const toggleLabel = this.plugin.t(this.isCollapsed ? "board.expand" : "board.collapse");
     const toggle = createIconButton(
@@ -2758,8 +2840,16 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
     this.registerEvent(this.app.vault.on("modify", (file) => this.scheduleFileRefresh(file.path)));
     this.registerEvent(this.app.vault.on("delete", (file) => this.scheduleFileRefresh(file.path)));
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+      try {
+        moveBoardLayouts(this.app, oldPath, file.path);
+      } catch (error) {
+        console.error("Eisenhower Matrix Blocks could not move local layout preferences", error);
+        new Notice(this.t("notice.layoutSaveFailed"), 1e4);
+      }
       for (const renderer of this.boardRenderers) {
-        if (renderer.sourcePath === oldPath) renderer.sourcePath = file.path;
+        if (renderer.sourcePath === oldPath || renderer.sourcePath.startsWith(`${oldPath}/`)) {
+          renderer.sourcePath = file.path + renderer.sourcePath.slice(oldPath.length);
+        }
       }
       this.scheduleFileRefresh(file.path);
     }));

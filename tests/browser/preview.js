@@ -33,7 +33,13 @@ const boardId = "board-browser-qa";
 let markdown = `# Browser QA fixture\n\n${renderBoardCodeBlock(boardId, data, "\n", "我的行动矩阵")}\n\nOutside-board content stays unchanged.\n`;
 const plugin = new EisenhowerMatrixBlocksPlugin();
 plugin.settings = { language: document.documentElement.lang };
-plugin.app = {};
+plugin.app = {
+	loadLocalStorage: key => JSON.parse(localStorage.getItem(`matrix-preview:${key}`) || "null"),
+	saveLocalStorage: (key, value) => {
+		if (value === null) localStorage.removeItem(`matrix-preview:${key}`);
+		else localStorage.setItem(`matrix-preview:${key}`, JSON.stringify(value));
+	},
+};
 plugin.boardRenderers = new Set();
 let renderer;
 let failNextSave = false;
