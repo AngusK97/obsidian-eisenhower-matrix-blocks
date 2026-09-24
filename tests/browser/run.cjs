@@ -125,15 +125,37 @@ async function assertLayout(page, name) {
 			}
 			assert.equal(await page.locator(".qt-completed-row .is-urgent").count(), 0);
 			assert.equal(await page.locator(".qt-completed-row .qt-due-muted").count(), 1);
+			assert.equal(await page.locator(".qt-completed-row .qt-due-relative").count(), 0);
+			const finished = page.locator(".qt-completed-row").filter({ has: page.locator(".qt-task-due") });
+			const originalDeadline = await finished.locator(".qt-due-date").textContent();
+			assert.equal(await finished.locator(".qt-due-clock").textContent(), "16:00");
+			assert.ok(await finished.locator(".qt-task-checkbox").isChecked());
+			// Toggling moves/replaces the row; assert its destination rather than
+			// asking check()/uncheck() to re-read a checkbox that no longer exists.
+			await finished.locator(".qt-task-checkbox").click();
+			const restored = page.locator('[data-task-id="done-0"]');
+			await restored.waitFor();
+			assert.match(await restored.locator(".qt-due-relative").textContent(), /overdue|已逾期/);
+			assert.equal(await restored.locator(".qt-due-red.is-urgent").count(), 1);
+			assert.equal(await restored.locator(".qt-task-checkbox").isChecked(), false);
+			await restored.locator(".qt-task-checkbox").click();
+			await finished.waitFor();
+			await page.evaluate(() => window.matrixPreview.reload());
+			assert.equal(await page.locator(".qt-completed-row .qt-due-relative").count(), 0);
+			assert.equal(await finished.locator(".qt-due-date").textContent(), originalDeadline);
+			assert.equal(await finished.locator(".qt-due-clock").textContent(), "16:00");
+			assert.equal(await finished.locator(".qt-completed-meta time").count(), 1);
+			await finished.scrollIntoViewIfNeeded();
+			await finished.screenshot({ path: path.join(output, `2.7.5-${name}-completed.png`) });
 			assert.match(await page.locator('[data-task-id="task-1"] .qt-due-weekday').textContent(), /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/);
-			await page.screenshot({ path: path.join(output, `2.7.4-${name}.png`), fullPage: true });
+			await page.screenshot({ path: path.join(output, `2.7.5-${name}.png`), fullPage: true });
 			if (narrow) {
 				const tagged = page.locator('[data-task-id="task-7"]');
 				const tag = await tagged.locator(".qt-task-tags").boundingBox();
 				const due = await tagged.locator(".qt-task-due").boundingBox();
 				assert.ok(Math.abs(tag.y - due.y) <= 4, "short tags and deadline share a compact line");
 				const expanded = await page.addStyleTag({ content: ".qt-root .qt-task-list { max-height: none; }" });
-				await page.locator(".qt-quadrant").first().screenshot({ path: path.join(output, "2.7.4-quadrant-boundary.png") });
+				await page.locator(".qt-quadrant").first().screenshot({ path: path.join(output, "2.7.5-quadrant-boundary.png") });
 				await expanded.evaluate(el => el.remove());
 			}
 			await page.locator(".qt-task-title").first().focus();
@@ -180,7 +202,7 @@ async function assertLayout(page, name) {
 			await editor.locator(".qt-due-time").fill("00:00");
 			await editor.locator(".qt-due-time").dispatchEvent("change");
 			await editor.locator(".qt-tag-input").fill(Array.from({ length: 14 }, (_, index) => `标签${index}`).join(","));
-			await page.screenshot({ path: path.join(output, `2.7.4-${name}-editor.png`) });
+			await page.screenshot({ path: path.join(output, `2.7.5-${name}-editor.png`) });
 			await editor.locator(".qt-task-notes-input").press("Control+Enter");
 			await editor.waitFor({ state: "detached" });
 			await page.evaluate(() => window.matrixPreview.reload());

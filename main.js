@@ -1467,7 +1467,6 @@ var require_task_card = __commonJS({
         for (const tag of task.tags) createTagChip(tags, tag);
       }
       if (due) {
-        const relative = plugin.t(due.days < 0 ? "task.overdueDays" : due.days === 0 ? "task.dueToday" : "task.remainingDays", { count: Math.abs(due.days) });
         const tone = getDueDateTone(due.days, task.completedAt);
         const line = metadata.createSpan({ cls: `qt-task-due qt-due-${tone}${due.urgent ? " is-urgent" : ""}` });
         const dateUnit = line.createSpan({ cls: "qt-due-unit" });
@@ -1478,7 +1477,10 @@ var require_task_card = __commonJS({
         const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(/* @__PURE__ */ new Date(`${due.date}T12:00:00Z`));
         time.createSpan({ text: weekday, cls: "qt-due-weekday" });
         if (task.dueTime) line.createSpan({ text: task.dueTime, cls: "qt-due-clock" });
-        line.createSpan({ text: relative, cls: "qt-due-relative" });
+        if (!task.completedAt) {
+          const relative = plugin.t(due.days < 0 ? "task.overdueDays" : due.days === 0 ? "task.dueToday" : "task.remainingDays", { count: Math.abs(due.days) });
+          line.createSpan({ text: relative, cls: "qt-due-relative" });
+        }
       }
       if (task.notes) parent.createSpan({
         cls: "qt-task-notes",

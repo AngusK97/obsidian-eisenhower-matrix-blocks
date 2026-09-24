@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.7.5 - 2026-09-24
+
+- Hide overdue, due-today and remaining-day labels on completed tasks. Preserve their muted deadline date, weekday, optional time, tags, notes and completion timestamp.
+- Restore relative deadline labels and urgency colors when a task is restored to an active quadrant. No storage changes or migration required.
+
 ## 2.7.4 - 2026-09-24
 
 - Show unfinished deadlines in red through day 3 (including overdue tasks), yellow on days 4–7, and green beyond day 7. Completed tasks remain muted.

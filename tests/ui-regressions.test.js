@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const Module = require("node:module");
 const { readFileSync } = require("node:fs");
 const { dirname, join } = require("node:path");
-const { addTask, completeTask, createEmptyData } = require("../src/core");
+const { addTask, completeTask, restoreTask, createEmptyData } = require("../src/core");
 const { renderBoardSource } = require("../src/board-store");
 const { translate } = require("../src/i18n");
 
@@ -381,6 +381,56 @@ test("task cards display deadline, relative days, urgent state and plaintext not
 	assert.equal(container.querySelector(".qt-task-notes").textContent, "<b>plain text</b> second line");
 	assert.equal(container.querySelector("b"), null);
 	assert.equal(task.title, "Details");
+});
+
+for (const language of ["en", "zh"]) test(`completed overdue tasks retain details without overdue text and restore urgency (${language})`, () => {
+	const data = createEmptyData();
+	const task = addTask(data, "Finished task", "do", { dueDate: "2020-01-01", dueTime: "23:59", tags: ["Work"], notes: "Keep this note" });
+	const { container, renderer } = createRenderer(data);
+	renderer.plugin.t = (key, variables) => translate(language, key, variables);
+	const overdue = language === "zh" ? /已逾期/ : /overdue/;
+	renderer.render();
+	assert.match(container.querySelector(".qt-due-relative").textContent, overdue);
+	completeTask(renderer.data, task.id);
+	const saved = renderBoardSource("board-alpha", renderer.data);
+	renderer.render();
+	const row = container.querySelector(".qt-completed-row");
+	assert.equal(row.querySelectorAll(".qt-due-relative").length, 0);
+	assert.doesNotMatch(row.textContent, overdue);
+	assert.equal(row.querySelector(".qt-due-date").textContent, "2020-01-01");
+	assert.equal(row.querySelector(".qt-due-weekday").textContent, "Wed");
+	assert.equal(row.querySelector(".qt-due-clock").textContent, "23:59");
+	assert.equal(row.querySelector(".qt-tag").textContent, "#Work");
+	assert.equal(row.querySelector(".qt-task-notes").textContent, "Keep this note");
+	assert.ok(row.querySelector(".qt-completed-meta"));
+	assert.ok(row.querySelector(".qt-due-muted"));
+	assert.equal(row.querySelector(".is-urgent"), null);
+	assert.equal(renderBoardSource("board-alpha", renderer.data), saved, "rendering must not rewrite task data");
+	const reloaded = createRenderer(renderer.data);
+	assert.equal(reloaded.container.querySelector(".qt-completed-row").querySelectorAll(".qt-due-relative").length, 0);
+	restoreTask(renderer.data, task.id);
+	renderer.render();
+	assert.match(container.querySelector(".qt-due-relative").textContent, overdue);
+	assert.ok(container.querySelector(".qt-due-red"));
+	assert.ok(container.querySelector(".is-urgent"));
+});
+
+test("completed tasks omit today and future countdowns as well as unset time or deadline", () => {
+	const { container, renderer } = createRenderer(createEmptyData());
+	const now = new Date();
+	const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+	const task = addTask(renderer.data, "Completed", "do", { dueDate: today });
+	completeTask(renderer.data, task.id);
+	for (const dueDate of [today, "9999-12-31"]) {
+		task.dueDate = dueDate;
+		renderer.render();
+		assert.equal(container.querySelectorAll(".qt-due-relative").length, 0);
+		assert.equal(container.querySelector(".qt-due-date").textContent, dueDate);
+		assert.equal(container.querySelector(".qt-due-clock"), null);
+	}
+	task.dueDate = null;
+	renderer.render();
+	assert.equal(container.querySelector(".qt-task-due"), null);
 });
 
 test("deadline separates full date/weekday, optional time, and relative label into unbroken units", () => {

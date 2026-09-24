@@ -60,7 +60,7 @@ The default quadrants are **Do** (important and urgent), **Schedule** (important
 
 In **Settings → Community plugins**, check for updates and update this plugin on each device. For a manual update, replace the same three files with files from **one release**, then reload the plugin or Obsidian; leave your notes and `data.json` intact. Do not use GitHub's automatic **Source code** ZIP as an installable plugin package.
 
-Back up your notes before upgrading. **Update all devices to 2.7.0 or later before editing tags or deadline times:** older versions can discard those fields when saving. Current screenshots and usage notes describe [2.7.4](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/tag/2.7.4); see the [changelog](CHANGELOG.md) for changes.
+Back up your notes before upgrading. **Update all devices to 2.7.0 or later before editing tags or deadline times:** older versions can discard those fields when saving. Usage notes describe [2.7.5](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/tag/2.7.5); previews were captured with 2.7.4. See the [changelog](CHANGELOG.md) for changes.
 
 ## Boards belong to notes
 
@@ -115,7 +115,9 @@ The date control uses the native browser/system calendar when supported, with a 
 | Overdue, today, or within 3 calendar days | Red, with an alarm icon |
 | 4–7 calendar days away | Yellow |
 | More than 7 calendar days away | Green |
-| Completed task, regardless of date | Muted, without an urgent alarm |
+| Completed task, regardless of date | Muted deadline date/weekday/optional time; no countdown or urgent alarm |
+
+Completed tasks keep their original deadline and completion timestamp, but no longer show overdue days, days remaining or "Due today". Restoring a task to a quadrant restores its relative-day label and urgency color. This changes only the display, not stored dates.
 
 The alarm is a **visual status indicator, not a notification or reminder**. Days and colors are based on the local calendar date, not hours remaining. The optional time is displayed as entered; it is not converted between time zones.
 
