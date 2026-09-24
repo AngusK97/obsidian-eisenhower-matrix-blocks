@@ -100,12 +100,6 @@ async function assertLayout(page, name) {
 		]) {
 			const page = await browser.newPage({ viewport: { width, height }, isMobile: width < 500, hasTouch: width < 500 });
 			page.on("pageerror", error => errors.push(error.message));
-			// Assert the production control reaches the native API; OS-owned picker pixels
-			// are intentionally outside this emulated Obsidian/browser test.
-			await page.addInitScript(() => {
-				window.nativePickerCalls = 0;
-				HTMLInputElement.prototype.showPicker = function () { window.nativePickerCalls += 1; };
-			});
 			await page.goto(`http://127.0.0.1:4173/?theme=${theme}&lang=${lang}`);
 			await page.locator(".qt-task-row").first().waitFor();
 			// Reproduce Minimal's list rule and ordinary Markdown list indentation,
@@ -114,6 +108,10 @@ async function assertLayout(page, name) {
 			assert.equal(await page.locator(".qt-completed-row").count(), 12);
 			assert.ok(await page.locator(".qt-completed-list").evaluate(el => el.scrollHeight > el.clientHeight));
 			await assertLayout(page, name);
+			assert.ok(await page.locator(".qt-icon-button svg").evaluateAll(icons => icons.every(icon => {
+				const rect = icon.getBoundingClientRect();
+				return rect.width === 0 || (rect.width === 16 && rect.height === 16);
+			})), "action icons use a consistent 16px size");
 			assert.ok(await page.locator('[data-task-id="task-3"] .qt-task-due').evaluate(el => el.classList.contains("qt-due-red")));
 			assert.ok(await page.locator('[data-task-id="task-5"] .qt-task-due').evaluate(el => el.classList.contains("qt-due-yellow")));
 			assert.ok(await page.locator('[data-task-id="task-6"] .qt-task-due').evaluate(el => el.classList.contains("qt-due-green")));
@@ -145,17 +143,22 @@ async function assertLayout(page, name) {
 			assert.equal(await finished.locator(".qt-due-date").textContent(), originalDeadline);
 			assert.equal(await finished.locator(".qt-due-clock").textContent(), "16:00");
 			assert.equal(await finished.locator(".qt-completed-meta time").count(), 1);
+			assert.equal(await finished.locator(".qt-completed-label").textContent(), lang === "zh" ? "完成于" : "Completed on");
+			assert.equal(await finished.locator(".qt-due-label").textContent(), lang === "zh" ? "截止" : "Due");
+			assert.equal(await finished.locator(".qt-completed-icon").getAttribute("aria-hidden"), "true");
+			assert.equal(await finished.locator(".qt-completed-icon svg").count(), 1);
+			assert.ok(await finished.locator(".qt-completed-stamp").evaluate(el => el.scrollWidth <= el.clientWidth + 1), "completion label and time fit the card");
 			await finished.scrollIntoViewIfNeeded();
-			await finished.screenshot({ path: path.join(output, `2.7.5-${name}-completed.png`) });
+			await finished.screenshot({ path: path.join(output, `2.7.6-${name}-completed.png`) });
 			assert.match(await page.locator('[data-task-id="task-1"] .qt-due-weekday').textContent(), /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/);
-			await page.screenshot({ path: path.join(output, `2.7.5-${name}.png`), fullPage: true });
+			await page.screenshot({ path: path.join(output, `2.7.6-${name}.png`), fullPage: true });
 			if (narrow) {
 				const tagged = page.locator('[data-task-id="task-7"]');
 				const tag = await tagged.locator(".qt-task-tags").boundingBox();
 				const due = await tagged.locator(".qt-task-due").boundingBox();
 				assert.ok(Math.abs(tag.y - due.y) <= 4, "short tags and deadline share a compact line");
 				const expanded = await page.addStyleTag({ content: ".qt-root .qt-task-list { max-height: none; }" });
-				await page.locator(".qt-quadrant").first().screenshot({ path: path.join(output, "2.7.5-quadrant-boundary.png") });
+				await page.locator(".qt-quadrant").first().screenshot({ path: path.join(output, "2.7.6-quadrant-boundary.png") });
 				await expanded.evaluate(el => el.remove());
 			}
 			await page.locator(".qt-task-title").first().focus();
@@ -169,8 +172,15 @@ async function assertLayout(page, name) {
 			assert.equal(await quick.locator(".qt-due-time").isDisabled(), true);
 			await quick.locator(".qt-task-textarea").first().fill("New task with optional details");
 			await quick.locator(".qt-quick-notes").fill("First line\nSecond line " + "long notes ".repeat(30));
-			await quick.locator(".qt-due-picker").click();
-			assert.equal(await page.evaluate(() => window.nativePickerCalls), 1);
+			assert.equal(await quick.locator(".qt-date-control input").count(), 1);
+			assert.equal(await quick.locator(".qt-date-control button").count(), 0);
+			assert.equal(await quick.locator(".qt-native-date").getAttribute("type"), "date");
+			assert.ok(await quick.locator(".qt-native-date").getAttribute("aria-label"));
+			assert.equal(await quick.locator(".qt-add-button").getAttribute("title"), await quick.locator(".qt-add-button").getAttribute("aria-label"));
+			if (width < 500) {
+				const clearSize = await quick.locator(".qt-clear-time").boundingBox();
+				assert.ok(clearSize.width >= 44 && clearSize.height >= 44, "mobile clear-time target remains 44px");
+			}
 			assert.equal(await page.locator(".qt-date-popover").count(), 0);
 			const today = await page.evaluate(() => {
 				const date = new Date();
@@ -202,7 +212,7 @@ async function assertLayout(page, name) {
 			await editor.locator(".qt-due-time").fill("00:00");
 			await editor.locator(".qt-due-time").dispatchEvent("change");
 			await editor.locator(".qt-tag-input").fill(Array.from({ length: 14 }, (_, index) => `标签${index}`).join(","));
-			await page.screenshot({ path: path.join(output, `2.7.5-${name}-editor.png`) });
+			await page.screenshot({ path: path.join(output, `2.7.6-${name}-editor.png`) });
 			await editor.locator(".qt-task-notes-input").press("Control+Enter");
 			await editor.waitFor({ state: "detached" });
 			await page.evaluate(() => window.matrixPreview.reload());
@@ -240,7 +250,7 @@ async function assertLayout(page, name) {
 				list.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: transfer }));
 			});
 			await page.waitForFunction(() => document.querySelectorAll(".qt-task-list")[0].querySelectorAll(".qt-task-row")[1]?.dataset.taskId === "task-6");
-			console.log(`${name}: theme resilience, responsive metadata, tag contrast, native date API, optional time, unlimited tags, reload and retry passed`);
+			console.log(`${name}: labeled timestamps, icons, native date field, theme resilience, responsive metadata, tags, completion/restore, reload and retry passed`);
 			await page.close();
 		}
 		assert.deepEqual(errors, []);

@@ -60,7 +60,7 @@ The default quadrants are **Do** (important and urgent), **Schedule** (important
 
 In **Settings → Community plugins**, check for updates and update this plugin on each device. For a manual update, replace the same three files with files from **one release**, then reload the plugin or Obsidian; leave your notes and `data.json` intact. Do not use GitHub's automatic **Source code** ZIP as an installable plugin package.
 
-Back up your notes before upgrading. **Update all devices to 2.7.0 or later before editing tags or deadline times:** older versions can discard those fields when saving. Usage notes describe [2.7.5](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/tag/2.7.5); previews were captured with 2.7.4. See the [changelog](CHANGELOG.md) for changes.
+Back up your notes before upgrading. **Update all devices to 2.7.0 or later before editing tags or deadline times:** older versions can discard those fields when saving. Usage notes describe [2.7.6](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/tag/2.7.6); previews were captured with 2.7.4. See the [changelog](CHANGELOG.md) for changes.
 
 ## Boards belong to notes
 
@@ -108,7 +108,7 @@ Each matrix belongs to the note that contains it:
 
 Due dates use your device's local calendar. Cards show the complete date and weekday (Mon–Sun), optional 24-hour time, days remaining and a one-line notes preview. These are separate wrapping units, not one long sentence. The date, weekday, time and relative-day text share the same urgency color.
 
-The date control uses the native browser/system calendar when supported, with a directly editable native date field as a fallback. Its appearance depends on your platform. Clearing the date also clears its time; the time can be cleared separately.
+The date control is a single native date field: use its platform calendar or enter a date directly, without a second calendar button. Its appearance depends on your platform. Clearing the date also clears its time; the time can be cleared separately.
 
 | Unfinished deadline | Appearance |
 |---|---|
@@ -118,6 +118,8 @@ The date control uses the native browser/system calendar when supported, with a 
 | Completed task, regardless of date | Muted deadline date/weekday/optional time; no countdown or urgent alarm |
 
 Completed tasks keep their original deadline and completion timestamp, but no longer show overdue days, days remaining or "Due today". Restoring a task to a quadrant restores its relative-day label and urgency color. This changes only the display, not stored dates.
+
+The task's deadline is labeled **Due**, with a calendar or urgent alarm icon. The actual completion timestamp appears separately beside the source quadrant, labeled **Completed on** with a circle-check icon. Common actions use consistent icons with accessible names and hover descriptions; filters retain text labels. The completed-list expand button changes its height, not its date filter.
 
 The alarm is a **visual status indicator, not a notification or reminder**. Days and colors are based on the local calendar date, not hours remaining. The optional time is displayed as entered; it is not converted between time zones.
 

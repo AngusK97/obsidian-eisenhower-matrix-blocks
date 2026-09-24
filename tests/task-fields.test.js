@@ -122,13 +122,14 @@ test("save failure retains draft, exposes retryable error, and empty titles do n
 	modal.close();
 });
 
-test("native date calendar opens directly and valid edits persist without a second popup", () => {
+test("one labeled native date field replaces the duplicate calendar button and preserves edits", () => {
 	const localDoc = createDocument(); const parent = localDoc.body.createDiv(); const changes = [];
 	const picker = createDueDateControl(parent, plugin, "2026-09-20", value => changes.push(value));
 	const input = parent.querySelector(".qt-native-date");
 	assert.equal(input.getAttribute("type"), "date"); assert.equal(input.value, "2026-09-20");
-	let opened = false; input.showPicker = () => { opened = true; };
-	parent.querySelector(".qt-due-picker").dispatch("click"); assert.equal(opened, true);
+	assert.equal(parent.querySelectorAll("button").length, 0);
+	assert.equal(input.getAttribute("aria-label"), "task.dueDate");
+	assert.equal(input.getAttribute("title"), "task.dueDate");
 	assert.equal(localDoc.body.querySelector(".qt-date-popover"), null);
 	input.value = "2026-10-01"; input.dispatch("change");
 	assert.equal(picker.getValue(), "2026-10-01"); assert.deepEqual(changes, ["2026-10-01"]);
@@ -136,13 +137,14 @@ test("native date calendar opens directly and valid edits persist without a seco
 	picker.destroy(); assert.equal(input.listeners.get("change").size, 0);
 });
 
-test("unsupported or rejected showPicker preserves visible keyboard-accessible date input", () => {
+test("native date field stays keyboard accessible without a showPicker API", () => {
 	const localDoc = createDocument(); const parent = localDoc.body.createDiv();
 	const picker = createDueDateControl(parent, plugin, null, () => {});
-	const input = parent.querySelector(".qt-native-date"); const button = parent.querySelector(".qt-due-picker");
-	button.dispatch("click"); assert.equal(localDoc.activeElement, input);
-	input.showPicker = () => { throw new Error("NotAllowedError"); };
-	assert.doesNotThrow(() => button.dispatch("click")); assert.equal(localDoc.activeElement, input);
+	const input = parent.querySelector(".qt-native-date");
+	input.focus(); assert.equal(localDoc.activeElement, input);
+	assert.equal(input.showPicker, undefined);
+	picker.setDisabled(true); assert.equal(input.disabled, true);
+	picker.setDisabled(false); assert.equal(input.disabled, false);
 	assert.notEqual(input.getAttribute("tabindex"), "-1"); assert.equal(input.getAttribute("aria-label"), "task.dueDate");
 	picker.destroy();
 });

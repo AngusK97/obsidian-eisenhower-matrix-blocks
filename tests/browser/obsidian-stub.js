@@ -110,6 +110,9 @@ const iconPaths = {
 	"list": "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01", x: "m6 6 12 12M18 6 6 18",
 	"maximize-2": "M15 3h6v6M21 3l-7 7M9 21H3v-6M3 21l7-7",
 	"minimize-2": "M4 4l6 6M10 4v6H4M20 20l-6-6M14 20v-6h6",
+	"check-circle-2": "M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0M7 12l3 3 7-7",
+	"chevrons-up-down": "m7 8 5-5 5 5m-10 8 5 5 5-5",
+	"chevrons-down-up": "m7 3 5 5 5-5m-10 18 5-5 5 5",
 };
 function setIcon(element, name) {
 	const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");

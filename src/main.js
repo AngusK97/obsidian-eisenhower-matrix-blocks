@@ -877,7 +877,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		const scrollLabel = this.plugin.t(this.isCompletedScrollable ? "completed.showAll" : "completed.enableScroll");
 		const scrollToggle = createIconButton(
 			header,
-			this.isCompletedScrollable ? "maximize-2" : "minimize-2",
+			this.isCompletedScrollable ? "chevrons-up-down" : "chevrons-down-up",
 			scrollLabel,
 			() => {
 				this.isCompletedScrollable = !this.isCompletedScrollable;
@@ -964,7 +964,12 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		edit.addEventListener("click", () => this.openEditor(task));
 		const metadata = content.createDiv({ cls: "qt-completed-meta" });
 		metadata.createSpan({ text: this.getQuadrantName(task.quadrant), cls: `qt-badge qt-badge-${task.quadrant}` });
-		metadata.createEl("time", { text: formatCompletedAt(task.completedAt, this.plugin.language), attr: { datetime: task.completedAt } });
+		const stamp = metadata.createSpan({ cls: "qt-completed-stamp" });
+		const caption = stamp.createSpan({ cls: "qt-completed-caption" });
+		const icon = caption.createSpan({ cls: "qt-completed-icon", attr: { "aria-hidden": "true" } });
+		setIcon(icon, "check-circle-2");
+		caption.createSpan({ cls: "qt-completed-label", text: this.plugin.t("completed.at") });
+		stamp.createEl("time", { text: formatCompletedAt(task.completedAt, this.plugin.language), attr: { datetime: task.completedAt } });
 		createIconButton(row, "trash-2", this.plugin.t("completed.delete"), () => void this.remove(task.id));
 	}
 }

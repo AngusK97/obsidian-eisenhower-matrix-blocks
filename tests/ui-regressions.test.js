@@ -188,7 +188,7 @@ function loadUiClasses() {
 				TFile,
 				getLanguage: () => "en",
 				normalizePath: (path) => path.replaceAll("\\", "/"),
-				setIcon() {},
+				setIcon(element, name) { element.icon = name; },
 			};
 		}
 		return originalLoad.call(this, request, parent, isMain);
@@ -346,9 +346,12 @@ test("completed list toggles a keyboard-scrollable bounded mode and keeps it aft
 		.querySelectorAll('[aria-pressed="true"]')
 		.find((element) => !element.parentElement?.hasClass("qt-periods"));
 	assert.ok(toggle, "the completed section should expose a scroll-mode toggle");
+	assert.equal(toggle.icon, "chevrons-up-down");
+	assert.equal(toggle.getAttribute("title"), "Expand completed list (keep filters)");
 	assert.equal(container.querySelector(".qt-completed-list").getAttribute("tabindex"), "0");
 	toggle.dispatch("click");
 	assert.equal(container.querySelector(".qt-completed-list").getAttribute("tabindex"), null);
+	assert.equal(container.querySelector(".qt-completed-scroll-toggle").icon, "chevrons-down-up");
 	container.querySelector(".qt-completed-scroll-toggle").dispatch("click");
 
 	assert.ok(container.querySelector('[aria-pressed="true"]'));
@@ -400,6 +403,11 @@ for (const language of ["en", "zh"]) test(`completed overdue tasks retain detail
 	assert.equal(row.querySelector(".qt-due-date").textContent, "2020-01-01");
 	assert.equal(row.querySelector(".qt-due-weekday").textContent, "Wed");
 	assert.equal(row.querySelector(".qt-due-clock").textContent, "23:59");
+	assert.equal(row.querySelector(".qt-due-label")?.textContent, language === "zh" ? "截止" : "Due");
+	assert.equal(row.querySelector(".qt-completed-label")?.textContent, language === "zh" ? "完成于" : "Completed on");
+	assert.equal(row.querySelector(".qt-completed-icon")?.icon, "check-circle-2");
+	assert.equal(row.querySelector(".qt-completed-icon")?.getAttribute("aria-hidden"), "true");
+	assert.equal(row.querySelector(".qt-completed-stamp")?.querySelector("time").getAttribute("datetime"), renderer.data.tasks[0].completedAt);
 	assert.equal(row.querySelector(".qt-tag").textContent, "#Work");
 	assert.equal(row.querySelector(".qt-task-notes").textContent, "Keep this note");
 	assert.ok(row.querySelector(".qt-completed-meta"));
@@ -487,7 +495,7 @@ test("quick add accepts title only and preserves all draft fields on save failur
 	const form = container.querySelector(".qt-quick-add");
 	const title = form.querySelector("textarea");
 	const notes = form.querySelector(".qt-quick-notes");
-	assert.ok(form.querySelector(".qt-due-picker"));
+	assert.ok(form.querySelector(".qt-native-date"));
 	assert.ok(notes);
 	title.value = "A new task";
 	title.dispatch("input");

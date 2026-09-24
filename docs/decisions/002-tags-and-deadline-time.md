@@ -25,9 +25,10 @@ the mapping is device-independent and light/dark pairs have at least 4.5:1
 text contrast. Tags use textContent, not Markdown/HTML rendering. Editors accept
 Enter/comma/newline separators and save the final unconfirmed token as well.
 
-Use the browser's native date input and synchronous showPicker in a click handler.
-Keep the field visible and operable if a webview lacks or rejects showPicker. This
-avoids depending on an Obsidian private API or maintaining a second calendar UI.
+Since 2.7.6, use only the visible native date input and its platform calendar
+affordance, removing the duplicate showPicker button. Direct keyboard editing
+and validation remain available without a JavaScript picker API. This avoids
+depending on an Obsidian private API or maintaining a second calendar UI.
 Dates/weekday, time and relative days are separate nonbreaking layout units.
 
 As with 2.6.0 details, old plugins may strip unknown fields. Upgrade every device

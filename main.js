@@ -941,6 +941,7 @@ var require_i18n = __commonJS({
         "stats.completed": "{count} \u9879\u5DF2\u5B8C\u6210",
         "task.add": "\u6DFB\u52A0\u4EFB\u52A1",
         "task.dueDate": "\u622A\u6B62\u65E5\u671F",
+        "task.dueLabel": "\u622A\u6B62",
         "task.noDueDate": "\u622A\u6B62\u65E5\u671F",
         "task.notes": "\u5907\u6CE8",
         "task.notesPlaceholder": "\u5907\u6CE8\uFF08\u9009\u586B\uFF09",
@@ -975,6 +976,7 @@ var require_i18n = __commonJS({
         "task.restoredNotice": "\u4EFB\u52A1\u5DF2\u6062\u590D",
         "task.deletedNotice": "\u4EFB\u52A1\u5DF2\u5220\u9664",
         "completed.title": "\u5DF2\u5B8C\u6210",
+        "completed.at": "\u5B8C\u6210\u4E8E",
         "completed.filterQuadrant": "\u6309\u6765\u6E90\u8C61\u9650\u7B5B\u9009",
         "completed.allQuadrants": "\u5168\u90E8\u8C61\u9650",
         "completed.timeFilter": "\u5B8C\u6210\u65F6\u95F4",
@@ -987,7 +989,7 @@ var require_i18n = __commonJS({
         "completed.restore": "\u6062\u590D\u4EFB\u52A1\uFF1A{title}",
         "completed.delete": "\u5220\u9664\u4EFB\u52A1",
         "completed.enableScroll": "\u9650\u5236\u5DF2\u5B8C\u6210\u5217\u8868\u9AD8\u5EA6\u5E76\u6EDA\u52A8\u663E\u793A",
-        "completed.showAll": "\u663E\u793A\u5168\u90E8\u5DF2\u5B8C\u6210\u4EFB\u52A1",
+        "completed.showAll": "\u5C55\u5F00\u5DF2\u5B8C\u6210\u5217\u8868\uFF08\u4FDD\u7559\u7B5B\u9009\uFF09",
         "completed.listLabel": "\u53EF\u6EDA\u52A8\u7684\u5DF2\u5B8C\u6210\u4EFB\u52A1\u5217\u8868",
         "command.insert": "\u5728\u5F53\u524D\u5149\u6807\u5904\u63D2\u5165\u56DB\u8C61\u9650",
         "ribbon.insert": "\u63D2\u5165\u56DB\u8C61\u9650",
@@ -1037,6 +1039,7 @@ var require_i18n = __commonJS({
         "stats.completed": "{count} completed",
         "task.add": "Add task",
         "task.dueDate": "Due date",
+        "task.dueLabel": "Due",
         "task.noDueDate": "Due date",
         "task.notes": "Notes",
         "task.notesPlaceholder": "Notes (optional)",
@@ -1071,6 +1074,7 @@ var require_i18n = __commonJS({
         "task.restoredNotice": "Task restored",
         "task.deletedNotice": "Task deleted",
         "completed.title": "Completed",
+        "completed.at": "Completed on",
         "completed.filterQuadrant": "Filter by source quadrant",
         "completed.allQuadrants": "All quadrants",
         "completed.timeFilter": "Completion date",
@@ -1083,7 +1087,7 @@ var require_i18n = __commonJS({
         "completed.restore": "Restore task: {title}",
         "completed.delete": "Delete task",
         "completed.enableScroll": "Limit completed list height and scroll",
-        "completed.showAll": "Show all completed tasks",
+        "completed.showAll": "Expand completed list (keep filters)",
         "completed.listLabel": "Scrollable completed task list",
         "command.insert": "Insert matrix at cursor",
         "ribbon.insert": "Insert matrix",
@@ -1246,13 +1250,8 @@ var require_task_fields = __commonJS({
       const wrapper = parent.createDiv({ cls: "qt-date-control" });
       const input = wrapper.createEl("input", {
         cls: "qt-native-date",
-        attr: { type: "date", "aria-label": plugin.t("task.dueDate"), min: "0001-01-01", max: "9999-12-31" }
+        attr: { type: "date", "aria-label": plugin.t("task.dueDate"), title: plugin.t("task.dueDate"), min: "0001-01-01", max: "9999-12-31" }
       });
-      const button = wrapper.createEl("button", {
-        cls: "qt-due-picker",
-        attr: { type: "button", "aria-label": plugin.t("task.dueDate"), title: plugin.t("task.dueDate") }
-      });
-      setIcon2(button, "calendar-days");
       const getValue = () => normalizeDueDate(input.value);
       const setValue = (value) => {
         input.value = normalizeDueDate(value) || "";
@@ -1261,17 +1260,7 @@ var require_task_fields = __commonJS({
         var _a;
         if (!((_a = input.validity) == null ? void 0 : _a.badInput)) onChange(getValue());
       };
-      const open = () => {
-        var _a;
-        if (input.disabled) return;
-        input.focus();
-        try {
-          (_a = input.showPicker) == null ? void 0 : _a.call(input);
-        } catch (e) {
-        }
-      };
       input.addEventListener("change", change);
-      button.addEventListener("click", open);
       setValue(initialValue);
       return {
         getValue,
@@ -1279,11 +1268,9 @@ var require_task_fields = __commonJS({
         validate: () => validateNativeField(input, normalizeDueDate),
         setDisabled(disabled) {
           input.disabled = disabled;
-          button.disabled = disabled;
         },
         destroy() {
           input.removeEventListener("change", change);
-          button.removeEventListener("click", open);
         }
       };
     }
@@ -1302,7 +1289,7 @@ var require_task_fields = __commonJS({
         attr: { type: "time", step: "60", "aria-label": plugin.t("task.dueTime"), title: plugin.t("task.timeOptional") }
       });
       const clear = timeWrapper.createEl("button", {
-        cls: "qt-clear-time",
+        cls: "clickable-icon qt-icon-button qt-clear-time",
         attr: { type: "button", "aria-label": plugin.t("task.clearTime"), title: plugin.t("task.clearTime") }
       });
       setIcon2(clear, "x");
@@ -1472,6 +1459,7 @@ var require_task_card = __commonJS({
         const dateUnit = line.createSpan({ cls: "qt-due-unit" });
         const icon = dateUnit.createSpan({ cls: "qt-due-icon", attr: { "aria-hidden": "true" } });
         setIcon2(icon, due.urgent ? "alarm-clock" : "calendar");
+        dateUnit.createSpan({ text: plugin.t("task.dueLabel"), cls: "qt-due-label" });
         const time = dateUnit.createEl("time", { attr: { datetime: due.date + (task.dueTime ? `T${task.dueTime}` : "") } });
         time.createSpan({ text: due.date, cls: "qt-due-date" });
         const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(/* @__PURE__ */ new Date(`${due.date}T12:00:00Z`));
@@ -1502,7 +1490,7 @@ var require_task_card = __commonJS({
       title.value = draft.title;
       const button = form.createEl("button", {
         cls: "clickable-icon qt-icon-button qt-add-button",
-        attr: { type: "button", "aria-label": plugin.t("task.addTo", { quadrant: quadrantName }) }
+        attr: { type: "button", "aria-label": plugin.t("task.addTo", { quadrant: quadrantName }), title: plugin.t("task.addTo", { quadrant: quadrantName }) }
       });
       setIcon2(button, "plus");
       button.disabled = draft.submitting;
@@ -2426,7 +2414,7 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     const scrollLabel = this.plugin.t(this.isCompletedScrollable ? "completed.showAll" : "completed.enableScroll");
     const scrollToggle = createIconButton(
       header,
-      this.isCompletedScrollable ? "maximize-2" : "minimize-2",
+      this.isCompletedScrollable ? "chevrons-up-down" : "chevrons-down-up",
       scrollLabel,
       () => {
         this.isCompletedScrollable = !this.isCompletedScrollable;
@@ -2506,7 +2494,12 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     edit.addEventListener("click", () => this.openEditor(task));
     const metadata = content.createDiv({ cls: "qt-completed-meta" });
     metadata.createSpan({ text: this.getQuadrantName(task.quadrant), cls: `qt-badge qt-badge-${task.quadrant}` });
-    metadata.createEl("time", { text: formatCompletedAt(task.completedAt, this.plugin.language), attr: { datetime: task.completedAt } });
+    const stamp = metadata.createSpan({ cls: "qt-completed-stamp" });
+    const caption = stamp.createSpan({ cls: "qt-completed-caption" });
+    const icon = caption.createSpan({ cls: "qt-completed-icon", attr: { "aria-hidden": "true" } });
+    setIcon(icon, "check-circle-2");
+    caption.createSpan({ cls: "qt-completed-label", text: this.plugin.t("completed.at") });
+    stamp.createEl("time", { text: formatCompletedAt(task.completedAt, this.plugin.language), attr: { datetime: task.completedAt } });
     createIconButton(row, "trash-2", this.plugin.t("completed.delete"), () => void this.remove(task.id));
   }
 };

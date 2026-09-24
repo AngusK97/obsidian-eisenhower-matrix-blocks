@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.7.6 - 2026-09-24
+
+- Distinguish deadlines from completion timestamps with localized "Due" and "Completed on" captions, paired with calendar/alarm and circle-check icons.
+- Standardize action icon sizes, add quick-add hover descriptions, and use vertical expand/collapse icons for completed-list height. Clarify that expanding the list keeps its filters.
+- Remove the duplicate calendar button beside native date inputs. Keep the platform calendar, keyboard date entry, validation and optional-time behavior; enlarge the clear-time touch target.
+- Preserve quadrant layout, task data, completed-history filters and the no-countdown rule for completed tasks.
+
 ## 2.7.5 - 2026-09-24
 
 - Hide overdue, due-today and remaining-day labels on completed tasks. Preserve their muted deadline date, weekday, optional time, tags, notes and completion timestamp.

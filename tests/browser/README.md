@@ -23,7 +23,8 @@ light/dark themes, plus a narrow desktop note pane. Fixtures use the current loc
 date: overdue, today, exactly +3/+7/+8 days, optional 24-hour time, colorful tags,
 empty details, long text, 12 completed today and one yesterday. QA also applies
 hostile host-theme button styling, verifies full metadata units and checks tag
-contrast. Native picker API invocation is tested, but the OS calendar popup and
+contrast. Single native date fields, localized Due/Completed on captions, icon
+geometry and mobile clear-time targets are tested; the OS calendar popup and
 real mobile keyboards still need device acceptance.
 
 Task-card QA also injects Minimal-style compact list spacing and ordinary Markdown

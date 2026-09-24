@@ -19,32 +19,20 @@ function validateNativeField(input, normalize) {
 function createDueDateControl(parent, plugin, initialValue, onChange) {
 	const wrapper = parent.createDiv({ cls: "qt-date-control" });
 	const input = wrapper.createEl("input", {
-		cls: "qt-native-date", attr: { type: "date", "aria-label": plugin.t("task.dueDate"), min: "0001-01-01", max: "9999-12-31" },
+		cls: "qt-native-date", attr: { type: "date", "aria-label": plugin.t("task.dueDate"), title: plugin.t("task.dueDate"), min: "0001-01-01", max: "9999-12-31" },
 	});
-	const button = wrapper.createEl("button", {
-		cls: "qt-due-picker", attr: { type: "button", "aria-label": plugin.t("task.dueDate"), title: plugin.t("task.dueDate") },
-	});
-	setIcon(button, "calendar-days");
 	const getValue = () => normalizeDueDate(input.value);
 	const setValue = value => { input.value = normalizeDueDate(value) || ""; };
 	const change = () => {
 		if (!input.validity?.badInput) onChange(getValue());
 	};
-	const open = () => {
-		if (input.disabled) return;
-		input.focus();
-		// showPicker must run synchronously inside this user gesture. Some webviews
-		// reject it; the native, keyboard-accessible field remains usable then.
-		try { input.showPicker?.(); } catch { /* Keep native text entry available. */ }
-	};
 	input.addEventListener("change", change);
-	button.addEventListener("click", open);
 	setValue(initialValue);
 	return {
 		getValue, setValue,
 		validate: () => validateNativeField(input, normalizeDueDate),
-		setDisabled(disabled) { input.disabled = disabled; button.disabled = disabled; },
-		destroy() { input.removeEventListener("change", change); button.removeEventListener("click", open); },
+		setDisabled(disabled) { input.disabled = disabled; },
+		destroy() { input.removeEventListener("change", change); },
 	};
 }
 
@@ -61,7 +49,7 @@ function createDeadlineFields(parent, plugin, initialValue = {}, onChange = () =
 		cls: "qt-due-time", attr: { type: "time", step: "60", "aria-label": plugin.t("task.dueTime"), title: plugin.t("task.timeOptional") },
 	});
 	const clear = timeWrapper.createEl("button", {
-		cls: "qt-clear-time", attr: { type: "button", "aria-label": plugin.t("task.clearTime"), title: plugin.t("task.clearTime") },
+		cls: "clickable-icon qt-icon-button qt-clear-time", attr: { type: "button", "aria-label": plugin.t("task.clearTime"), title: plugin.t("task.clearTime") },
 	});
 	setIcon(clear, "x");
 	const getValue = () => ({ dueDate: date.getValue(), dueTime: date.getValue() ? normalizeDueTime(time.value) : null });

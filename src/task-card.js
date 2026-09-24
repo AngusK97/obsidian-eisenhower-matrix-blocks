@@ -24,6 +24,7 @@ function renderTaskDetails(parent, task, plugin) {
 		const dateUnit = line.createSpan({ cls: "qt-due-unit" });
 		const icon = dateUnit.createSpan({ cls: "qt-due-icon", attr: { "aria-hidden": "true" } });
 		setIcon(icon, due.urgent ? "alarm-clock" : "calendar");
+		dateUnit.createSpan({ text: plugin.t("task.dueLabel"), cls: "qt-due-label" });
 		const time = dateUnit.createEl("time", { attr: { datetime: due.date + (task.dueTime ? `T${task.dueTime}` : "") } });
 		time.createSpan({ text: due.date, cls: "qt-due-date" });
 		// Parse the calendar components, never an implicit UTC midnight in local time.
@@ -56,7 +57,7 @@ function renderQuickAdd(section, renderer, quadrant, quadrantName) {
 	title.value = draft.title;
 	const button = form.createEl("button", {
 		cls: "clickable-icon qt-icon-button qt-add-button",
-		attr: { type: "button", "aria-label": plugin.t("task.addTo", { quadrant: quadrantName }) },
+		attr: { type: "button", "aria-label": plugin.t("task.addTo", { quadrant: quadrantName }), title: plugin.t("task.addTo", { quadrant: quadrantName }) },
 	});
 	setIcon(button, "plus");
 	button.disabled = draft.submitting;
