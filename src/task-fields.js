@@ -56,7 +56,9 @@ function createDeadlineFields(parent, plugin, initialValue = {}, onChange = () =
 	const updateDisabled = () => {
 		date.setDisabled(disabled);
 		time.disabled = disabled || !date.getValue();
-		clear.disabled = disabled || !date.getValue() || !time.value;
+		// Native partial input can have an empty value but still needs a way to clear it.
+		clear.hidden = !date.getValue() || (!time.value && !time.validity?.badInput);
+		clear.disabled = disabled || clear.hidden;
 	};
 	const setValue = (value = {}) => {
 		date.setValue(value.dueDate);
@@ -65,6 +67,9 @@ function createDeadlineFields(parent, plugin, initialValue = {}, onChange = () =
 	};
 	const change = () => { updateDisabled(); if (!time.validity?.badInput) onChange(getValue()); };
 	const clearTime = () => { time.value = ""; updateDisabled(); onChange(getValue()); time.focus(); };
+	// Segmented native editors can change badInput without emitting input/change.
+	const stateEvents = ["input", "keyup", "pointerup", "blur"];
+	for (const event of stateEvents) time.addEventListener(event, updateDisabled);
 	time.addEventListener("change", change);
 	clear.addEventListener("click", clearTime);
 	setValue(initialValue);
@@ -72,7 +77,11 @@ function createDeadlineFields(parent, plugin, initialValue = {}, onChange = () =
 		getValue, setValue,
 		validate: () => date.validate() && (!date.getValue() || validateNativeField(time, normalizeDueTime)),
 		setDisabled(value) { disabled = value; updateDisabled(); },
-		destroy() { date.destroy(); time.removeEventListener("change", change); clear.removeEventListener("click", clearTime); },
+		destroy() {
+			date.destroy();
+			for (const event of stateEvents) time.removeEventListener(event, updateDisabled);
+			time.removeEventListener("change", change); clear.removeEventListener("click", clearTime);
+		},
 	};
 }
 

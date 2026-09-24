@@ -304,11 +304,30 @@
 }
 .qt-native-date { width: 132px; }
 .qt-due-time { width: 100px; }
+.qt-time-control {
+	gap: 0;
+	max-width: 100%;
+	border-radius: 6px;
+	background: var(--background-primary);
+	box-shadow: inset 0 0 0 1px var(--background-modifier-border);
+}
+.qt-time-control:focus-within {
+	box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+.qt-time-control input.qt-due-time {
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+}
+.qt-time-control input.qt-due-time:focus { outline: none; box-shadow: none; }
 .qt-time-control .qt-clear-time {
 	min-width: 36px; width: 36px; min-height: 36px; padding: 4px;
 	border: 0; background: transparent; box-shadow: none; color: var(--text-muted);
+	flex-shrink: 0; border-radius: 0 6px 6px 0;
 }
-.qt-clear-time[hidden] { display: none; }
+.qt-time-control .qt-clear-time:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.qt-time-control .qt-clear-time:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -3px; }
+.qt-time-control .qt-clear-time[hidden] { display: none; }
 .theme-dark .qt-native-date, .theme-dark .qt-due-time { color-scheme: dark; }
 
 .qt-tag-field {

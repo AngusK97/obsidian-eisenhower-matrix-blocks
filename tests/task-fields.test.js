@@ -171,6 +171,44 @@ test("deadline fields disable every control and retain optional-time disabled st
 	assert.equal(parent.querySelector(".qt-due-time").disabled, true); fields.destroy();
 });
 
+test("time clear hides when empty, follows live input, preserves date and returns focus", () => {
+	const localDoc = createDocument(); const parent = localDoc.body.createDiv(); const changes = [];
+	const fields = createDeadlineFields(parent, plugin, {}, value => changes.push(value));
+	const time = parent.querySelector(".qt-due-time"), clear = parent.querySelector(".qt-clear-time");
+	assert.equal(clear.hidden, true, "an unset time must not reserve a clear-button slot");
+	fields.setValue({ dueDate: "2026-09-24" });
+	assert.equal(clear.hidden, true);
+	for (const value of ["00:00", "23:59"]) {
+		time.value = value; time.dispatch("input");
+		assert.equal(clear.hidden, false); assert.equal(clear.disabled, false);
+		clear.dispatch("click");
+		assert.equal(clear.hidden, true);
+		assert.deepEqual(fields.getValue(), { dueDate: "2026-09-24", dueTime: null });
+		assert.equal(localDoc.activeElement, time);
+	}
+	fields.setValue({ dueDate: "2026-09-24", dueTime: "12:34" });
+	assert.equal(clear.hidden, false);
+	fields.setDisabled(true); assert.equal(clear.disabled, true);
+	fields.setDisabled(false); assert.equal(clear.disabled, false);
+	time.value = ""; time.dispatch("input"); assert.equal(clear.hidden, true);
+	fields.setValue({ dueDate: "2026-09-24", dueTime: "12:34" });
+	const date = parent.querySelector(".qt-native-date"); date.value = ""; date.dispatch("change");
+	assert.equal(clear.hidden, true); assert.equal(time.disabled, true);
+	fields.destroy();
+	for (const event of ["input", "keyup", "pointerup", "blur"]) assert.equal(time.listeners.get(event).size, 0);
+});
+
+test("an incomplete native time keeps an enabled clear action", () => {
+	const parent = createDocument().body.createDiv();
+	const fields = createDeadlineFields(parent, plugin, { dueDate: "2026-09-24" });
+	const time = parent.querySelector(".qt-due-time"), clear = parent.querySelector(".qt-clear-time");
+	// Native segmented editors may change badInput without an input/change event.
+	time.value = ""; time.validity = { badInput: true, valid: false }; time.dispatch("keyup");
+	assert.equal(clear.hidden, false); assert.equal(clear.disabled, false);
+	assert.equal(fields.validate(), false, "a partial time must not be silently saved as empty");
+	fields.destroy();
+});
+
 test("editor saves pending tags and disables date time and tags during submission", async () => {
 	let saved, finish;
 	const modal = new TaskEditorModal(plugin, { title: "Task", dueDate: "2026-09-20", dueTime: "23:59" }, (...args) => {

@@ -1307,9 +1307,11 @@ var require_task_fields = __commonJS({
       setIcon2(clear, "x");
       const getValue = () => ({ dueDate: date.getValue(), dueTime: date.getValue() ? normalizeDueTime(time.value) : null });
       const updateDisabled = () => {
+        var _a;
         date.setDisabled(disabled);
         time.disabled = disabled || !date.getValue();
-        clear.disabled = disabled || !date.getValue() || !time.value;
+        clear.hidden = !date.getValue() || !time.value && !((_a = time.validity) == null ? void 0 : _a.badInput);
+        clear.disabled = disabled || clear.hidden;
       };
       const setValue = (value = {}) => {
         date.setValue(value.dueDate);
@@ -1327,6 +1329,8 @@ var require_task_fields = __commonJS({
         onChange(getValue());
         time.focus();
       };
+      const stateEvents = ["input", "keyup", "pointerup", "blur"];
+      for (const event of stateEvents) time.addEventListener(event, updateDisabled);
       time.addEventListener("change", change);
       clear.addEventListener("click", clearTime);
       setValue(initialValue);
@@ -1340,6 +1344,7 @@ var require_task_fields = __commonJS({
         },
         destroy() {
           date.destroy();
+          for (const event of stateEvents) time.removeEventListener(event, updateDisabled);
           time.removeEventListener("change", change);
           clear.removeEventListener("click", clearTime);
         }

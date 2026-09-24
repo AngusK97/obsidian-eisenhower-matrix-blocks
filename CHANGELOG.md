@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.1 - 2026-09-24
+
+- Hide the time-clear button completely when no time is entered, freeing its layout space in quick-add forms and task editors.
+- Integrate the clear action into the time field's shared border instead of a detached button. Preserve native time controls, keyboard focus indication and 44px mobile clear targets.
+- Update visibility during typing, including incomplete native time input. Clearing a time preserves the date and returns focus to the input; task storage and layout behavior are unchanged.
+
 ## 2.8.0 - 2026-09-24
 
 - Choose Auto, 2 × 2 grid or Vertical from each matrix header without changing note width. Layout is temporary view state, preserved during task refreshes and collapse/expand; recreating the view resets it to Auto.

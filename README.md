@@ -20,7 +20,7 @@ Prioritize work by importance and urgency without leaving your notes. Add deadli
   <img src="docs/assets/renderer-overview-light.png" alt="Four quadrants with task cards, colored tags, deadlines and completed-history controls">
 </picture>
 
-*Version 2.8.0 renderer preview, using [fictional launch-planning tasks](docs/demo/Matrix%20Demo.md). The browser harness simulates the Obsidian shell and icons; your theme, native date picker and device may look different. [Media details](docs/assets/README.md).*
+*Version 2.8.1 renderer preview, using [fictional launch-planning tasks](docs/demo/Matrix%20Demo.md). The browser harness simulates the Obsidian shell and icons; your theme, native date picker and device may look different. [Media details](docs/assets/README.md).*
 
 - **Local to every note:** each matrix owns its tasks and completed history, and a note can contain more than one matrix.
 - **Markdown-backed:** tasks, quadrants, ordering, and completion times travel with the note through Obsidian Sync, Remotely Save, or Git.
@@ -60,7 +60,7 @@ The default quadrants are **Do** (important and urgent), **Schedule** (important
 
 In **Settings → Community plugins**, check for updates and update this plugin on each device. For a manual update, replace the same three files with files from **one release**, then reload the plugin or Obsidian; leave your notes and `data.json` intact. Do not use GitHub's automatic **Source code** ZIP as an installable plugin package.
 
-Back up your notes before upgrading. **Update all devices to 2.7.0 or later before editing tags or deadline times:** older versions can discard those fields when saving. Usage notes and previews reflect [2.8.0](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/tag/2.8.0). See the [changelog](CHANGELOG.md) for changes.
+Back up your notes before upgrading. **Update all devices to 2.7.0 or later before editing tags or deadline times:** older versions can discard those fields when saving. Usage notes and previews reflect [2.8.1](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/tag/2.8.1). See the [changelog](CHANGELOG.md) for changes.
 
 ## Boards belong to notes
 
@@ -110,6 +110,8 @@ Due dates use your device's local calendar. Cards show the complete date and wee
 
 The date control is a single native date field: use its platform calendar or enter a date directly, without a second calendar button. Its appearance depends on your platform. Clearing the date also clears its time; the time can be cleared separately.
 
+The time-clear action stays inside the time field's shared border and is hidden without reserving space when the field is empty. It appears for a filled or incomplete time; clearing keeps the date and returns focus to the time input. Quick-add and the task editor use the same control, with a 44px clear target on mobile.
+
 | Unfinished deadline | Appearance |
 |---|---|
 | Overdue, today, or within 3 calendar days | Red, with an alarm icon |
@@ -154,7 +156,7 @@ Layout choice, collapse state, filters, scroll-display mode and unsaved input ar
   <img src="docs/assets/renderer-completed-light.png" alt="Completed tasks with separate Due and Completed on labels, without deadline countdowns">
 </picture>
 
-*Version 2.8.0 fictional renderer preview with the All date filter selected to show historical completions. The default filter remains Today.*
+*Version 2.8.1 fictional renderer preview with the All date filter selected to show historical completions. The default filter remains Today.*
 
 ## Markdown-backed by design
 

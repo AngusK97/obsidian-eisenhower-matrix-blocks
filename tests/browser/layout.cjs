@@ -56,7 +56,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 				await viewport.evaluate(el => { el.scrollLeft = 0; });
 				assert.equal(await page.locator(".qt-task-row .qt-task-more").first().isVisible(), false);
 			}
-			await page.locator(".qt-root").screenshot({ path: path.join(output, `2.8.0-grid-${name}.png`) });
+			await page.locator(".qt-root").screenshot({ path: path.join(output, `2.8.1-grid-${name}.png`) });
 			if (width <= 720 || narrow) {
 				for (const [side, quadrant] of [["right", "schedule"], ["left", "do"]]) {
 					await page.evaluate(side => {

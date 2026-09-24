@@ -27,6 +27,10 @@ contrast. Single native date fields, localized Due/Completed on captions, icon
 geometry and mobile clear-time targets are tested; the OS calendar popup and
 real mobile keyboards still need device acceptance.
 
+Time-control checks cover hidden clear buttons without reserved space, a shared
+surface with the native input, live visibility, date preservation, focus return,
+and the 44px mobile target in quick-add and editor flows.
+
 Task-card QA also injects Minimal-style compact list spacing and ordinary Markdown
 list margins after plugin CSS. It verifies full-row padding, real inter-card gaps,
 focus/drop feedback, and dispatches a drop into a visible gap to check insertion

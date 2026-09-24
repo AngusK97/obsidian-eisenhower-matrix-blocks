@@ -149,16 +149,16 @@ async function assertLayout(page, name) {
 			assert.equal(await finished.locator(".qt-completed-icon svg").count(), 1);
 			assert.ok(await finished.locator(".qt-completed-stamp").evaluate(el => el.scrollWidth <= el.clientWidth + 1), "completion label and time fit the card");
 			await finished.scrollIntoViewIfNeeded();
-			await finished.screenshot({ path: path.join(output, `2.8.0-${name}-completed.png`) });
+			await finished.screenshot({ path: path.join(output, `2.8.1-${name}-completed.png`) });
 			assert.match(await page.locator('[data-task-id="task-1"] .qt-due-weekday').textContent(), /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/);
-			await page.screenshot({ path: path.join(output, `2.8.0-${name}.png`), fullPage: true });
+			await page.screenshot({ path: path.join(output, `2.8.1-${name}.png`), fullPage: true });
 			if (narrow) {
 				const tagged = page.locator('[data-task-id="task-7"]');
 				const tag = await tagged.locator(".qt-task-tags").boundingBox();
 				const due = await tagged.locator(".qt-task-due").boundingBox();
 				assert.ok(Math.abs(tag.y - due.y) <= 4, "short tags and deadline share a compact line");
 				const expanded = await page.addStyleTag({ content: ".qt-root .qt-task-list { max-height: none; }" });
-				await page.locator(".qt-quadrant").first().screenshot({ path: path.join(output, "2.8.0-quadrant-boundary.png") });
+				await page.locator(".qt-quadrant").first().screenshot({ path: path.join(output, "2.8.1-quadrant-boundary.png") });
 				await expanded.evaluate(el => el.remove());
 			}
 			await page.locator(".qt-task-title").first().focus();
@@ -170,6 +170,8 @@ async function assertLayout(page, name) {
 			const quick = page.locator(".qt-quick-add").first();
 			assert.notEqual(await quick.locator(".qt-add-button").evaluate(el => getComputedStyle(el).backgroundColor), "rgba(0, 0, 0, 0)");
 			assert.equal(await quick.locator(".qt-due-time").isDisabled(), true);
+			assert.equal(await quick.locator(".qt-clear-time").isVisible(), false, "empty times have no clear button");
+			assert.ok(await quick.locator(".qt-time-control").evaluate(el => el.getBoundingClientRect().width <= el.querySelector("input").getBoundingClientRect().width + 1), "hidden clear has no reserved slot");
 			await quick.locator(".qt-task-textarea").first().fill("New task with optional details");
 			await quick.locator(".qt-quick-notes").fill("First line\nSecond line " + "long notes ".repeat(30));
 			assert.equal(await quick.locator(".qt-date-control input").count(), 1);
@@ -177,10 +179,6 @@ async function assertLayout(page, name) {
 			assert.equal(await quick.locator(".qt-native-date").getAttribute("type"), "date");
 			assert.ok(await quick.locator(".qt-native-date").getAttribute("aria-label"));
 			assert.equal(await quick.locator(".qt-add-button").getAttribute("title"), await quick.locator(".qt-add-button").getAttribute("aria-label"));
-			if (width < 500) {
-				const clearSize = await quick.locator(".qt-clear-time").boundingBox();
-				assert.ok(clearSize.width >= 44 && clearSize.height >= 44, "mobile clear-time target remains 44px");
-			}
 			assert.equal(await page.locator(".qt-date-popover").count(), 0);
 			const today = await page.evaluate(() => {
 				const date = new Date();
@@ -188,6 +186,25 @@ async function assertLayout(page, name) {
 			});
 			await quick.locator(".qt-native-date").fill(today);
 			await quick.locator(".qt-native-date").dispatchEvent("change");
+			await quick.locator(".qt-due-time").focus();
+			await quick.locator(".qt-due-time").press("ArrowUp");
+			assert.ok(await quick.locator(".qt-due-time").evaluate(el => el.value === "" && el.validity.badInput), "real native partial time");
+			assert.equal(await quick.locator(".qt-clear-time").isVisible(), true, "partial native time can be cleared without an input event");
+			await quick.locator(".qt-clear-time").click();
+			assert.ok(await quick.locator(".qt-due-time").evaluate(el => !el.value && !el.validity.badInput));
+			assert.equal(await quick.locator(".qt-clear-time").isVisible(), false);
+			await quick.locator(".qt-due-time").fill("23:59");
+			assert.equal(await quick.locator(".qt-clear-time").isVisible(), true, "live input reveals clear before blur");
+			const clearSize = await quick.locator(".qt-clear-time").boundingBox();
+			if (width < 500) assert.ok(clearSize.width >= 44 && clearSize.height >= 44, "mobile clear-time target remains 44px");
+			assert.ok(await quick.locator(".qt-time-control").evaluate(el => {
+				const box = el.getBoundingClientRect(), input = el.querySelector("input").getBoundingClientRect(), button = el.querySelector("button").getBoundingClientRect();
+				return button.right <= box.right + 1 && button.left >= input.right - 1 && button.top >= box.top - 1 && button.bottom <= box.bottom + 1 && getComputedStyle(el).boxShadow !== "none" && getComputedStyle(el.querySelector("input")).borderTopWidth === "0px";
+			}), "clear and native time input share one surface without overlap");
+			await quick.locator(".qt-clear-time").click();
+			assert.equal(await quick.locator(".qt-clear-time").isVisible(), false);
+			assert.equal(await quick.locator(".qt-native-date").inputValue(), today);
+			assert.ok(await quick.locator(".qt-due-time").evaluate(el => el === document.activeElement));
 			await quick.locator(".qt-due-time").fill("23:59");
 			await quick.locator(".qt-due-time").dispatchEvent("change");
 			await quick.locator(".qt-tag-input").fill("工作,设计，待验收");
@@ -212,7 +229,7 @@ async function assertLayout(page, name) {
 			await editor.locator(".qt-due-time").fill("00:00");
 			await editor.locator(".qt-due-time").dispatchEvent("change");
 			await editor.locator(".qt-tag-input").fill(Array.from({ length: 14 }, (_, index) => `标签${index}`).join(","));
-			await page.screenshot({ path: path.join(output, `2.8.0-${name}-editor.png`) });
+			await page.screenshot({ path: path.join(output, `2.8.1-${name}-editor.png`) });
 			await editor.locator(".qt-task-notes-input").press("Control+Enter");
 			await editor.waitFor({ state: "detached" });
 			await page.evaluate(() => window.matrixPreview.reload());
@@ -231,6 +248,9 @@ async function assertLayout(page, name) {
 			assert.equal(await editor.locator(".qt-due-time").inputValue(), "00:00");
 			await editor.locator(".qt-clear-time").click();
 			assert.equal(await editor.locator(".qt-due-time").inputValue(), "");
+			assert.equal(await editor.locator(".qt-clear-time").isVisible(), false);
+			assert.equal(await editor.locator(".qt-native-date").inputValue(), today);
+			assert.ok(await editor.locator(".qt-due-time").evaluate(el => el === document.activeElement));
 			await editor.locator(".qt-task-name-input").press("Enter");
 			await editor.waitFor({ state: "detached" });
 			assert.equal(await page.locator(".qt-task-title").filter({ hasText: "Retry title" }).locator(".qt-due-clock").count(), 0);
