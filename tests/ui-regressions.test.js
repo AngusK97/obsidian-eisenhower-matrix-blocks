@@ -228,6 +228,39 @@ function findByLabel(container, label) {
 	return container.descendants().find((element) => element.getAttribute("aria-label") === label) || null;
 }
 
+test("board layout changes only this view and preserves live unsaved inputs", () => {
+	const data = createEmptyData();
+	const { container, renderer } = createRenderer(data);
+	const other = createRenderer(data);
+	const select = findByLabel(container, "Matrix layout");
+	assert.ok(select, "each board needs an accessible layout selector");
+	assert.equal(select.value, "auto");
+	assert.deepEqual(select.children.map(option => option.value), ["auto", "grid", "vertical"]);
+	const title = container.querySelector("textarea");
+	title.value = "Unsaved title";
+	title.dispatch("input");
+	const tag = container.querySelector(".qt-tag-input");
+	tag.value = "Unconfirmed tag";
+	const before = JSON.stringify(renderer.data);
+	for (const layout of ["grid", "vertical", "auto"]) {
+		select.value = layout;
+		select.dispatch("change");
+		assert.equal(container.getAttribute("data-layout"), layout);
+		assert.equal(container.querySelector("textarea"), title, "switching must not recreate input controls");
+		assert.equal(title.value, "Unsaved title");
+		assert.equal(tag.value, "Unconfirmed tag");
+		assert.equal(other.container.getAttribute("data-layout"), "auto");
+		assert.equal(JSON.stringify(renderer.data), before);
+	}
+	select.value = "grid";
+	select.dispatch("change");
+	renderer.render();
+	assert.equal(findByLabel(container, "Matrix layout").value, "grid");
+	container.querySelector(".qt-board-toggle").dispatch("click");
+	container.querySelector(".qt-board-toggle").dispatch("click");
+	assert.equal(container.getAttribute("data-layout"), "grid");
+});
+
 test("task editing uses a growing multiline control and Enter saves, prevents default, and closes", async () => {
 	const { TextInputModal } = loadUiClasses();
 	let saved = null;
@@ -726,6 +759,33 @@ test("drag auto-scroll prefers the quadrant list and falls back to its containin
 	ownerDocument.elementFromPoint = () => noteScroller;
 	renderer.dragPoint = { x: 10, y: 395 };
 	assert.equal(renderer.resolveAutoScroll()?.element, noteScroller, "a direct hit on the note scroller must still scroll it");
+});
+
+test("grid drag scrolls horizontally in both directions alongside vertical scrolling and stops at boundaries", () => {
+	const { container, renderer } = createRenderer(createEmptyData());
+	const viewport = container.querySelector(".qt-matrix-viewport");
+	viewport.scrollWidth = 612; viewport.clientWidth = 300; viewport.scrollLeft = 0;
+	viewport.getBoundingClientRect = () => ({ left: 10, right: 310, top: 20, bottom: 350 });
+	container.ownerDocument = { elementFromPoint: () => viewport, defaultView: { innerWidth: 400, innerHeight: 400 } };
+	const list = container.querySelector(".qt-task-list");
+	list.scrollTop = 0;
+	renderer.resolveAutoScroll = () => ({ element: list, velocity: 120 });
+	renderer.refreshDragTargetAtPoint = () => {};
+	renderer.draggedTaskId = "moving";
+	renderer.dragPoint = { x: 306, y: 100 };
+	renderer.runDragFrame(16);
+	assert.ok(viewport.scrollLeft > 0, "right edge must reach the offscreen column");
+	assert.ok(list.scrollTop > 0, "vertical scrolling must still work in the same frame");
+	const previous = viewport.scrollLeft;
+	renderer.dragPoint.x = 14;
+	renderer.runDragFrame(32);
+	assert.ok(viewport.scrollLeft < previous, "left edge returns to the first column");
+	viewport.scrollLeft = 0;
+	assert.equal(renderer.resolveHorizontalAutoScroll(), null);
+	viewport.scrollLeft = 312; renderer.dragPoint.x = 306;
+	assert.equal(renderer.resolveHorizontalAutoScroll(), null);
+	viewport.scrollLeft = 100; renderer.dragPoint.y = 400;
+	assert.equal(renderer.resolveHorizontalAutoScroll(), null, "outside the matrix must not scroll it");
 });
 
 test("ending a drag cancels its scheduled animation frame and clears visual state", () => {

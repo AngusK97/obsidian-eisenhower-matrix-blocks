@@ -22,11 +22,29 @@
 
 .qt-page-header {
 	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
 	align-items: flex-end;
 	justify-content: space-between;
 	max-width: 1400px;
 	margin: 0 auto 16px;
 }
+
+.qt-title-group { min-width: 0; flex: 1 1 160px; }
+.qt-board-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.qt-layout-select {
+	max-width: 100%; min-height: 36px; padding: 4px 8px;
+	font: inherit; font-size: var(--font-ui-small);
+	color: var(--text-normal); background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border); border-radius: 6px;
+}
+.qt-layout-select:focus-visible, .qt-matrix-viewport:focus-visible {
+	outline: 2px solid var(--interactive-accent); outline-offset: -2px;
+}
+.qt-matrix-viewport { min-width: 0; max-width: 100%; overflow-x: auto; }
+.qt-layout-hint { display: none; margin: 0 0 8px; color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.qt-root[data-layout="vertical"] .qt-matrix { grid-template-columns: minmax(0, 1fr); }
+.qt-root[data-layout="grid"] .qt-matrix { grid-template-columns: repeat(2, minmax(300px, 1fr)); }
 
 .qt-board-toggle,
 .qt-completed-scroll-toggle {
@@ -132,6 +150,8 @@
 }
 
 .qt-quadrant {
+	container-type: inline-size;
+	container-name: qt-quadrant;
 	--qt-quadrant-color: var(--text-muted);
 	display: flex;
 	min-width: 0;
@@ -856,7 +876,16 @@
 
 /* A narrow Obsidian pane needs a single column even inside a wide desktop window. */
 @container qt-board (max-width: 620px) {
-	.qt-matrix { grid-template-columns: minmax(0, 1fr); }
+	.qt-root[data-layout="auto"] .qt-matrix { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The grip also opens task actions; do not reserve a duplicate menu slot in narrow cards. */
+@container qt-board (max-width: 611px) {
+	.qt-root[data-layout="grid"] .qt-layout-hint { display: block; }
+}
+
+@container qt-quadrant (max-width: 360px) {
+	.qt-task-row .qt-task-more { display: none; }
 }
 
 @media (max-width: 720px) {
@@ -865,9 +894,10 @@
 		padding: 10px;
 	}
 
-	.qt-matrix {
+	.qt-root[data-layout="auto"] .qt-matrix {
 		grid-template-columns: minmax(0, 1fr);
 	}
+	.qt-layout-select { min-height: 44px; }
 
 	.qt-quadrant {
 		min-height: 158px;

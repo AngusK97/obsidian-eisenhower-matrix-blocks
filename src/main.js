@@ -283,6 +283,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		};
 		this.isCollapsed = false;
 		this.isCompletedScrollable = true;
+		this.layoutMode = "auto";
 	}
 
 	onload() {
@@ -344,6 +345,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		const container = this.containerEl;
 		container.empty();
 		container.addClass("qt-root", "qt-embed");
+		container.setAttribute("data-layout", this.layoutMode);
 		if (!this.boardId || this.issues.length) {
 			container.createDiv({
 				cls: "qt-storage-error",
@@ -357,7 +359,12 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 			this.renderSummary(container);
 			return;
 		}
-		const matrix = container.createDiv({ cls: "qt-matrix" });
+		container.createDiv({ cls: "qt-layout-hint", text: this.plugin.t("board.layoutHint") });
+		const viewport = container.createDiv({
+			cls: "qt-matrix-viewport",
+			attr: { tabindex: "0", role: "region", "aria-label": this.plugin.t("board.quadrantArea") },
+		});
+		const matrix = viewport.createDiv({ cls: "qt-matrix" });
 		for (const quadrant of QUADRANTS) this.renderQuadrant(matrix, quadrant);
 		this.renderCompleted(container);
 	}
@@ -371,9 +378,24 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		const stats = titleGroup.createDiv({ cls: "qt-stats", attr: { "aria-live": "polite" } });
 		stats.createSpan({ text: this.plugin.t("stats.active", { count: getActiveTasks(this.data).length }) });
 		stats.createSpan({ text: this.plugin.t("stats.completed", { count: getCompletedTasks(this.data).length }) });
+		const actions = header.createDiv({ cls: "qt-board-actions" });
+		const layout = actions.createEl("select", {
+			cls: "qt-layout-select",
+			attr: { "aria-label": this.plugin.t("board.layout"), title: this.plugin.t("board.layout") },
+		});
+		for (const mode of ["auto", "grid", "vertical"]) {
+			layout.createEl("option", { text: this.plugin.t(`board.layout.${mode}`), attr: { value: mode } });
+		}
+		layout.value = this.layoutMode;
+		layout.addEventListener("change", () => {
+			if (!["auto", "grid", "vertical"].includes(layout.value)) return;
+			this.layoutMode = layout.value;
+			// Keep live inputs, unconfirmed tags and scroll state intact; no task write or re-render.
+			container.setAttribute("data-layout", this.layoutMode);
+		});
 		const toggleLabel = this.plugin.t(this.isCollapsed ? "board.expand" : "board.collapse");
 		const toggle = createIconButton(
-			header,
+			actions,
 			this.isCollapsed ? "chevron-down" : "chevron-up",
 			toggleLabel,
 			() => {
@@ -445,12 +467,29 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		const deltaMs = this.dragFrameTime ? timestamp - this.dragFrameTime : 16;
 		this.dragFrameTime = timestamp;
 		const scroll = this.resolveAutoScroll();
-		if (!scroll) return;
-		const delta = getFrameScrollDelta(scroll.velocity, deltaMs);
-		if (!delta) return;
-		scroll.element.scrollTop += delta;
+		const horizontal = this.resolveHorizontalAutoScroll();
+		if (!scroll && !horizontal) return;
+		if (scroll) scroll.element.scrollTop += getFrameScrollDelta(scroll.velocity, deltaMs);
+		if (horizontal) horizontal.element.scrollLeft += getFrameScrollDelta(horizontal.velocity, deltaMs);
 		this.refreshDragTargetAtPoint();
 		this.scheduleDragFrame();
+	}
+
+	resolveHorizontalAutoScroll() {
+		const document = this.getOwnerDocument();
+		const point = this.dragPoint;
+		const viewport = this.containerEl.querySelector(".qt-matrix-viewport");
+		if (!document || !point || !viewport || viewport.scrollWidth <= viewport.clientWidth) return null;
+		const bounds = viewport.getBoundingClientRect();
+		const left = Math.max(0, bounds.left);
+		const right = Math.min(document.defaultView?.innerWidth ?? bounds.right, bounds.right);
+		if (point.x < left || point.x > right || point.y < bounds.top || point.y > bounds.bottom) return null;
+		if (!viewport.contains(document.elementFromPoint?.(point.x, point.y))) return null;
+		const velocity = getEdgeScrollVelocity(point.x, left, right, LIST_SCROLL_EDGE, LIST_SCROLL_MAX_SPEED);
+		if (velocity < 0 && viewport.scrollLeft > 0 || velocity > 0 && viewport.scrollLeft + viewport.clientWidth < viewport.scrollWidth - 1) {
+			return { element: viewport, velocity };
+		}
+		return null;
 	}
 
 	resolveAutoScroll() {

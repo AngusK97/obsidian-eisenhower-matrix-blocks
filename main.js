@@ -937,6 +937,12 @@ var require_i18n = __commonJS({
         "board.collapse": "\u6298\u53E0\u56DB\u8C61\u9650",
         "board.expand": "\u5C55\u5F00\u56DB\u8C61\u9650",
         "board.summary": "\u56DB\u8C61\u9650\u6458\u8981",
+        "board.layout": "\u77E9\u9635\u5E03\u5C40",
+        "board.layout.auto": "\u81EA\u52A8\u5E03\u5C40",
+        "board.layout.grid": "\u7530\u5B57\u578B",
+        "board.layout.vertical": "\u7EB5\u5411\u6392\u5217",
+        "board.quadrantArea": "\u56DB\u8C61\u9650\u4EFB\u52A1\u533A\u57DF\uFF08\u7530\u5B57\u578B\u5728\u7A84\u5C4F\u53EF\u5DE6\u53F3\u6EDA\u52A8\uFF09",
+        "board.layoutHint": "\u5DE6\u53F3\u6ED1\u52A8\u67E5\u770B\u53E6\u4E00\u5217\uFF1B\u62D6\u52A8\u4EFB\u52A1\u5230\u8FB9\u7F18\u4E5F\u53EF\u6EDA\u52A8\u3002",
         "stats.active": "{count} \u9879\u8FDB\u884C\u4E2D",
         "stats.completed": "{count} \u9879\u5DF2\u5B8C\u6210",
         "task.add": "\u6DFB\u52A0\u4EFB\u52A1",
@@ -1035,6 +1041,12 @@ var require_i18n = __commonJS({
         "board.collapse": "Collapse matrix",
         "board.expand": "Expand matrix",
         "board.summary": "Matrix summary",
+        "board.layout": "Matrix layout",
+        "board.layout.auto": "Auto layout",
+        "board.layout.grid": "2 \xD7 2 grid",
+        "board.layout.vertical": "Vertical",
+        "board.quadrantArea": "Quadrant tasks (scroll horizontally for a narrow grid)",
+        "board.layoutHint": "Scroll sideways to see the other column, or drag a task to the edge.",
         "stats.active": "{count} active",
         "stats.completed": "{count} completed",
         "task.add": "Add task",
@@ -1864,6 +1876,7 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     };
     this.isCollapsed = false;
     this.isCompletedScrollable = true;
+    this.layoutMode = "auto";
   }
   onload() {
     var _a, _b, _c, _d;
@@ -1919,6 +1932,7 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     const container = this.containerEl;
     container.empty();
     container.addClass("qt-root", "qt-embed");
+    container.setAttribute("data-layout", this.layoutMode);
     if (!this.boardId || this.issues.length) {
       container.createDiv({
         cls: "qt-storage-error",
@@ -1931,7 +1945,12 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
       this.renderSummary(container);
       return;
     }
-    const matrix = container.createDiv({ cls: "qt-matrix" });
+    container.createDiv({ cls: "qt-layout-hint", text: this.plugin.t("board.layoutHint") });
+    const viewport = container.createDiv({
+      cls: "qt-matrix-viewport",
+      attr: { tabindex: "0", role: "region", "aria-label": this.plugin.t("board.quadrantArea") }
+    });
+    const matrix = viewport.createDiv({ cls: "qt-matrix" });
     for (const quadrant of QUADRANTS) this.renderQuadrant(matrix, quadrant);
     this.renderCompleted(container);
   }
@@ -1944,9 +1963,23 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     const stats = titleGroup.createDiv({ cls: "qt-stats", attr: { "aria-live": "polite" } });
     stats.createSpan({ text: this.plugin.t("stats.active", { count: getActiveTasks(this.data).length }) });
     stats.createSpan({ text: this.plugin.t("stats.completed", { count: getCompletedTasks(this.data).length }) });
+    const actions = header.createDiv({ cls: "qt-board-actions" });
+    const layout = actions.createEl("select", {
+      cls: "qt-layout-select",
+      attr: { "aria-label": this.plugin.t("board.layout"), title: this.plugin.t("board.layout") }
+    });
+    for (const mode of ["auto", "grid", "vertical"]) {
+      layout.createEl("option", { text: this.plugin.t(`board.layout.${mode}`), attr: { value: mode } });
+    }
+    layout.value = this.layoutMode;
+    layout.addEventListener("change", () => {
+      if (!["auto", "grid", "vertical"].includes(layout.value)) return;
+      this.layoutMode = layout.value;
+      container.setAttribute("data-layout", this.layoutMode);
+    });
     const toggleLabel = this.plugin.t(this.isCollapsed ? "board.expand" : "board.collapse");
     const toggle = createIconButton(
-      header,
+      actions,
       this.isCollapsed ? "chevron-down" : "chevron-up",
       toggleLabel,
       () => {
@@ -2012,12 +2045,29 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     const deltaMs = this.dragFrameTime ? timestamp - this.dragFrameTime : 16;
     this.dragFrameTime = timestamp;
     const scroll = this.resolveAutoScroll();
-    if (!scroll) return;
-    const delta = getFrameScrollDelta(scroll.velocity, deltaMs);
-    if (!delta) return;
-    scroll.element.scrollTop += delta;
+    const horizontal = this.resolveHorizontalAutoScroll();
+    if (!scroll && !horizontal) return;
+    if (scroll) scroll.element.scrollTop += getFrameScrollDelta(scroll.velocity, deltaMs);
+    if (horizontal) horizontal.element.scrollLeft += getFrameScrollDelta(horizontal.velocity, deltaMs);
     this.refreshDragTargetAtPoint();
     this.scheduleDragFrame();
+  }
+  resolveHorizontalAutoScroll() {
+    var _a, _b, _c;
+    const document2 = this.getOwnerDocument();
+    const point = this.dragPoint;
+    const viewport = this.containerEl.querySelector(".qt-matrix-viewport");
+    if (!document2 || !point || !viewport || viewport.scrollWidth <= viewport.clientWidth) return null;
+    const bounds = viewport.getBoundingClientRect();
+    const left = Math.max(0, bounds.left);
+    const right = Math.min((_b = (_a = document2.defaultView) == null ? void 0 : _a.innerWidth) != null ? _b : bounds.right, bounds.right);
+    if (point.x < left || point.x > right || point.y < bounds.top || point.y > bounds.bottom) return null;
+    if (!viewport.contains((_c = document2.elementFromPoint) == null ? void 0 : _c.call(document2, point.x, point.y))) return null;
+    const velocity = getEdgeScrollVelocity(point.x, left, right, LIST_SCROLL_EDGE, LIST_SCROLL_MAX_SPEED);
+    if (velocity < 0 && viewport.scrollLeft > 0 || velocity > 0 && viewport.scrollLeft + viewport.clientWidth < viewport.scrollWidth - 1) {
+      return { element: viewport, velocity };
+    }
+    return null;
   }
   resolveAutoScroll() {
     var _a, _b, _c;
