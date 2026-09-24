@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.8.0 - 2026-09-24
+
+- Choose Auto, 2 × 2 grid or Vertical from each matrix header without changing note width. Layout is temporary view state, preserved during task refreshes and collapse/expand; recreating the view resets it to Auto.
+- Forced grids keep readable 300px-minimum columns, scrolling horizontally only inside the matrix when necessary. A narrow-grid hint and keyboard scrolling keep the other column discoverable; completed history stays full-width.
+- Preserve live input drafts and unconfirmed tags when switching layouts. Keep full task titles, date/weekday, optional time and urgency; narrow quadrants omit the duplicate more button while the drag grip still opens all task actions.
+- Extend drag edge scrolling to reach offscreen grid columns in either direction while retaining vertical list/note scrolling. No task-storage changes or added dependencies.
+
 ## 2.7.6 - 2026-09-24
 
 - Distinguish deadlines from completion timestamps with localized "Due" and "Completed on" captions, paired with calendar/alarm and circle-check icons.

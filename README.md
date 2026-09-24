@@ -20,7 +20,7 @@ Prioritize work by importance and urgency without leaving your notes. Add deadli
   <img src="docs/assets/renderer-overview-light.png" alt="Four quadrants with task cards, colored tags, deadlines and completed-history controls">
 </picture>
 
-*Version 2.7.6 renderer preview, using [fictional launch-planning tasks](docs/demo/Matrix%20Demo.md). The browser harness simulates the Obsidian shell and icons; your theme, native date picker and device may look different. [Media details](docs/assets/README.md).*
+*Version 2.8.0 renderer preview, using [fictional launch-planning tasks](docs/demo/Matrix%20Demo.md). The browser harness simulates the Obsidian shell and icons; your theme, native date picker and device may look different. [Media details](docs/assets/README.md).*
 
 - **Local to every note:** each matrix owns its tasks and completed history, and a note can contain more than one matrix.
 - **Markdown-backed:** tasks, quadrants, ordering, and completion times travel with the note through Obsidian Sync, Remotely Save, or Git.
@@ -60,7 +60,7 @@ The default quadrants are **Do** (important and urgent), **Schedule** (important
 
 In **Settings → Community plugins**, check for updates and update this plugin on each device. For a manual update, replace the same three files with files from **one release**, then reload the plugin or Obsidian; leave your notes and `data.json` intact. Do not use GitHub's automatic **Source code** ZIP as an installable plugin package.
 
-Back up your notes before upgrading. **Update all devices to 2.7.0 or later before editing tags or deadline times:** older versions can discard those fields when saving. Usage notes and previews reflect [2.7.6](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/tag/2.7.6). See the [changelog](CHANGELOG.md) for changes.
+Back up your notes before upgrading. **Update all devices to 2.7.0 or later before editing tags or deadline times:** older versions can discard those fields when saving. Usage notes and previews reflect [2.8.0](https://github.com/AngusK97/obsidian-eisenhower-matrix-blocks/releases/tag/2.8.0). See the [changelog](CHANGELOG.md) for changes.
 
 ## Boards belong to notes
 
@@ -140,20 +140,21 @@ IME composition is respected, so confirming Chinese text does not prematurely su
 
 ## Layout and completed history
 
-- **Wide notes:** a two-column, four-quadrant grid. **Narrow notes and phones:** a single column. The switch depends on available width, not the number of tasks or fields.
-- Single-column layout applies when the matrix content area is **620px or narrower**, or the app viewport is **720px or narrower**. A wide desktop window can still have a narrow note pane. There is currently no manual layout toggle, and the plugin does not change your note's width.
+- Choose **Auto layout**, **2 × 2 grid**, or **Vertical** from the selector beside the matrix collapse button. This affects only the current matrix view, never your note width or other matrices.
+- **Auto** preserves responsive behavior: a single column when matrix content is **620px or narrower**, or the app viewport is **720px or narrower**; otherwise two columns. **Vertical** always uses one column.
+- **2 × 2 grid** keeps two columns at least 300px wide for readable tasks. When space is tight, scroll horizontally inside the matrix; the note and completed history remain full-width. Focus the quadrant region to scroll with arrow keys, or drag a task to an edge to auto-scroll between columns. Narrow cards retain full titles and deadline details, with truncated tags/notes available in the editor; the grip opens task actions without a duplicate more button.
 - Each quadrant has a fixed quick-add area and divider above its independently scrolling task list. On touch screens, drag from the grip; tapping the grip opens task actions. On desktop, hover or focus a task to reveal its controls.
 - Completed history defaults to **Today** and **limited-height scrolling**. Filters use the **completion date**, not the deadline. Choose All to see older completed tasks; the expand/scroll button switches between full height and a scrollable list.
 - Collapse the board to show its title, quadrant names/counts and completed count.
 
-Collapse state, filters, scroll-display mode and unsaved input are temporary view state, not synced task data. Reopening or recreating the view can reset them; save a draft before leaving the note.
+Layout choice, collapse state, filters, scroll-display mode and unsaved input are temporary view state, not synced task data. Reopening or recreating the view can reset them; save a draft before leaving the note. Switching layout itself preserves live inputs, including an unconfirmed tag.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/renderer-completed-dark.png">
   <img src="docs/assets/renderer-completed-light.png" alt="Completed tasks with separate Due and Completed on labels, without deadline countdowns">
 </picture>
 
-*Version 2.7.6 fictional renderer preview with the All date filter selected to show historical completions. The default filter remains Today.*
+*Version 2.8.0 fictional renderer preview with the All date filter selected to show historical completions. The default filter remains Today.*
 
 ## Markdown-backed by design
 

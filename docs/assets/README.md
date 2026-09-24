@@ -4,7 +4,7 @@ All public media uses the fictional demo content in [`../demo/`](../demo/), neve
 
 ## Current README previews
 
-Captured on 2026-09-24 with the 2.7.6 production renderer in the browser test harness. The Obsidian shell and icons are simulated; these are not native Obsidian screenshots. Both READMEs disclose this distinction.
+Captured on 2026-09-24 with the 2.8.0 production renderer in the browser test harness. The Obsidian shell and icons are simulated; these are not native Obsidian screenshots. Both READMEs disclose this distinction.
 
 | File | Content |
 |---|---|

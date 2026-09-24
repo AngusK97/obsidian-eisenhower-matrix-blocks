@@ -42,3 +42,9 @@ Supply an installed Playwright module using `PLAYWRIGHT_MODULE` if it is not on
 Node's module path, `QA_BROWSER` for the browser executable, and `QA_OUTPUT` for
 screenshots (defaults to the OS temporary `matrix-qa` directory). No personal
 machine paths or browser dependencies are committed to the production package.
+
+Run `node tests/browser/layout.cjs` with the same environment to verify Auto / Grid /
+Vertical layouts at desktop, 560px note, 390px and 320px widths. It checks live-draft
+preservation, metadata bounds, contained keyboard scrolling, and bidirectional
+cross-column drops after horizontal edge auto-scroll. Layout resets on renderer
+recreation; task Markdown remains unchanged by layout selection.
