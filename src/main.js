@@ -49,6 +49,9 @@ const { LAYOUT_MODES, getBoardLayout, saveBoardLayout, moveBoardLayouts } = requ
 const { parseTaskMarkdown } = require("./markdown-store");
 const { TaskEditorModal } = require("./task-fields");
 const { renderTaskDetails, renderQuickAdd } = require("./task-card");
+const { captureBoardView, restoreBoardView } = require("./board-view-state");
+const { updateBoardTasks } = require("./board-task-updates");
+const { createViewHandoff } = require("./view-handoff");
 const {
 	canScrollElement,
 	getEdgeScrollVelocity,
@@ -263,6 +266,14 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		this.filters = { quadrant: "all", period: "today", startDate: "", endDate: "" };
 		this.quickAddDrafts = new Map();
 		this.quickAddControls = [];
+		this.quickAddForms = new Map();
+		this.pendingRender = false;
+		this.composingInputs = new Set();
+		this.handleCompositionStart = event => this.composingInputs.add(event.target);
+		this.handleCompositionEnd = event => { this.composingInputs.delete(event.target); this.flushPendingRender(); };
+		this.flushPendingRender = () => queueMicrotask(() => {
+			if (this.pendingRender && this.plugin.boardRenderers.has(this)) this.render();
+		});
 		this.calendarDay = new Date().toDateString();
 		this.handleDayChange = () => this.refreshCalendarDay();
 		this.draggedTaskId = null;
@@ -289,6 +300,10 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 
 	onload() {
 		this.plugin.boardRenderers.add(this);
+		const handoff = this.plugin.viewHandoff?.adopt(this);
+		this.containerEl.addEventListener("compositionstart", this.handleCompositionStart);
+		this.containerEl.addEventListener("compositionend", this.handleCompositionEnd);
+		for (const event of ["input", "change", "compositionend", "focusout"]) this.containerEl.addEventListener(event, this.flushPendingRender);
 		const document = this.getOwnerDocument();
 		document?.addEventListener("dragover", this.handleDocumentDragOver, true);
 		document?.addEventListener("visibilitychange", this.handleVisibilityChange);
@@ -296,9 +311,15 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		document?.defaultView?.addEventListener("focus", this.handleDayChange);
 		this.calendarTimer = document?.defaultView?.setInterval?.(this.handleDayChange, 60000);
 		this.render();
+		restoreBoardView(this.containerEl, handoff);
 	}
 
 	onunload() {
+		this.quickAddForms.clear();
+		this.containerEl.removeEventListener("compositionstart", this.handleCompositionStart);
+		this.containerEl.removeEventListener("compositionend", this.handleCompositionEnd);
+		this.composingInputs.clear();
+		for (const event of ["input", "change", "compositionend", "focusout"]) this.containerEl.removeEventListener(event, this.flushPendingRender);
 		for (const control of this.quickAddControls) control.destroy();
 		const document = this.getOwnerDocument();
 		document?.removeEventListener("dragover", this.handleDocumentDragOver, true);
@@ -322,11 +343,20 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 	}
 
 	setBoardData(data, title = this.boardTitle, quadrantLabels = this.quadrantLabels) {
-		this.data = cloneData(data);
+		const nextData = cloneData(data);
+		const structuralChange = this.issues.length || this.boardTitle !== (title || DEFAULT_BOARD_TITLE)
+			|| JSON.stringify(this.quadrantLabels) !== JSON.stringify(quadrantLabels || {});
+		if (!structuralChange && JSON.stringify(this.data) === JSON.stringify(nextData)) return;
+		const previousData = this.data;
+		const view = captureBoardView(this.containerEl);
+		this.data = nextData;
 		this.boardTitle = title || DEFAULT_BOARD_TITLE;
 		this.quadrantLabels = JSON.parse(JSON.stringify(quadrantLabels || {}));
 		this.issues = [];
-		this.render();
+		if (!structuralChange && !this.isCollapsed && this.containerEl.querySelector(".qt-matrix")) {
+			updateBoardTasks(this, previousData);
+			restoreBoardView(this.containerEl, view);
+		} else this.render();
 	}
 
 	setBoardError(error) {
@@ -341,8 +371,28 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 	}
 
 	render() {
+		// Native partial segments and active IME composition cannot be recreated from strings.
+		if (this.composingInputs.size || [...this.containerEl.querySelectorAll("input")].some(input => input.validity?.badInput)
+			|| this.quickAddControls.some(control => control.isEditing?.())) {
+			this.pendingRender = true;
+			return;
+		}
+		this.pendingRender = false;
+		const view = this.containerEl.children.length ? captureBoardView(this.containerEl) : null;
+		this.renderContents();
+		restoreBoardView(this.containerEl, view);
+	}
+
+	syncQuickAddForms() {
+		const view = captureBoardView(this.containerEl);
+		for (const form of this.quickAddForms.values()) form.sync();
+		restoreBoardView(this.containerEl, view);
+	}
+
+	renderContents() {
 		for (const control of this.quickAddControls) control.destroy();
 		this.quickAddControls = [];
+		this.quickAddForms.clear();
 		const container = this.containerEl;
 		container.empty();
 		container.addClass("qt-root", "qt-embed");
@@ -820,6 +870,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		row.addEventListener("dragend", () => {
 			this.finishDrag(false);
 		});
+		return row;
 	}
 
 	openEditor(task) {
@@ -1002,7 +1053,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 	}
 
 	renderCompletedTask(list, task) {
-		const row = list.createEl("li", { cls: "qt-completed-row" });
+		const row = list.createEl("li", { cls: "qt-completed-row", attr: { "data-task-id": task.id } });
 		const checkbox = row.createEl("input", {
 			cls: "qt-task-checkbox",
 			attr: { type: "checkbox", "aria-label": this.plugin.t("completed.restore", { title: task.title }) },
@@ -1023,6 +1074,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		caption.createSpan({ cls: "qt-completed-label", text: this.plugin.t("completed.at") });
 		stamp.createEl("time", { text: formatCompletedAt(task.completedAt, this.plugin.language), attr: { datetime: task.completedAt } });
 		createIconButton(row, "trash-2", this.plugin.t("completed.delete"), () => void this.remove(task.id));
+		return row;
 	}
 }
 
@@ -1056,6 +1108,7 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 	async onload() {
 		await this.loadPluginSettings();
 		this.boardRenderers = new Set();
+		this.viewHandoff = createViewHandoff(this);
 		this.fileQueues = new Map();
 		this.refreshTimers = new Map();
 
@@ -1079,6 +1132,7 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 	}
 
 	onunload() {
+		this.viewHandoff?.dispose();
 		for (const timer of this.refreshTimers.values()) window.clearTimeout(timer);
 		this.refreshTimers.clear();
 	}
@@ -1163,12 +1217,15 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 
 		let outcome = null;
 		const previous = this.fileQueues.get(file) || Promise.resolve();
-		const pending = previous.catch(() => undefined).then(() =>
-			this.app.vault.process(file, (content) => {
-				outcome = updater(content, boardId);
-				return outcome.content;
-			}),
-		);
+		const pending = previous.catch(() => undefined).then(async () => {
+			const finishHandoff = this.viewHandoff?.armForFile(sourcePath);
+			try {
+				await this.app.vault.process(file, (content) => {
+					outcome = updater(content, boardId);
+					return outcome.content;
+				});
+			} finally { finishHandoff?.(); }
+		});
 		this.fileQueues.set(file, pending);
 		try {
 			await pending;

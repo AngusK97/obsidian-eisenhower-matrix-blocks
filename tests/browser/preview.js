@@ -3,6 +3,7 @@
 const { MatrixBoardRenderChild, EisenhowerMatrixBlocksPlugin } = require("../../src/main");
 const { normalizeData } = require("../../src/core");
 const { findBoardCodeBlocks, renderBoardCodeBlock, mutateBoardDocument, renameBoardDocument, updateQuadrantLabelsDocument } = require("../../src/board-store");
+const { createViewHandoff } = require("../../src/view-handoff");
 
 const params = new URLSearchParams(location.search);
 document.documentElement.lang = params.get("lang") === "en" ? "en" : "zh";
@@ -33,14 +34,24 @@ const boardId = "board-browser-qa";
 let markdown = `# Browser QA fixture\n\n${renderBoardCodeBlock(boardId, data, "\n", "我的行动矩阵")}\n\nOutside-board content stays unchanged.\n`;
 const plugin = new EisenhowerMatrixBlocksPlugin();
 plugin.settings = { language: document.documentElement.lang };
+const previewView = {
+	containerEl: document.querySelector(".markdown-preview-view"),
+	file: { path: "Browser fixture.md" },
+};
 plugin.app = {
 	loadLocalStorage: key => JSON.parse(localStorage.getItem(`matrix-preview:${key}`) || "null"),
 	saveLocalStorage: (key, value) => {
 		if (value === null) localStorage.removeItem(`matrix-preview:${key}`);
 		else localStorage.setItem(`matrix-preview:${key}`, JSON.stringify(value));
 	},
+	workspace: {
+		iterateAllLeaves: callback => callback({ view: previewView }),
+		on: () => null,
+		offref() {},
+	},
 };
 plugin.boardRenderers = new Set();
+plugin.viewHandoff = createViewHandoff(plugin);
 let renderer;
 let failNextSave = false;
 const persist = (operation) => {
@@ -62,11 +73,31 @@ plugin.showUndo = (message, undo) => {
 const board = findBoardCodeBlocks(markdown)[0];
 renderer = new MatrixBoardRenderChild(document.querySelector("#board"), plugin, "Browser fixture.md", board.source);
 renderer.onload();
+const replaceForWrite = () => {
+	const finish = plugin.viewHandoff.armForFile("Browser fixture.md");
+	const oldRenderer = renderer;
+	const oldRoot = oldRenderer.containerEl;
+	const parent = oldRoot.parentElement;
+	const next = oldRoot.nextSibling;
+	const newRoot = document.createElement("div");
+	newRoot.id = oldRoot.id;
+	oldRoot.remove();
+	oldRenderer.onunload();
+	parent.insertBefore(newRoot, next);
+	renderer = new MatrixBoardRenderChild(newRoot, plugin, "Browser fixture.md", findBoardCodeBlocks(markdown)[0].source);
+	renderer.onload();
+	window.matrixPreview.renderer = renderer;
+	finish();
+	return renderer;
+};
 window.matrixPreview = {
 	renderer, plugin,
 	getMarkdown: () => markdown,
 	getData: () => JSON.parse(JSON.stringify(renderer.data)),
 	failNextSave: () => { failNextSave = true; },
+	// Simulates an Obsidian code-block host replacing its renderer root after a
+	// write. It exercises plugin handoff logic, not Obsidian's own view lifecycle.
+	replaceForWrite,
 	reload: () => {
 		renderer.onunload();
 		renderer = new MatrixBoardRenderChild(document.querySelector("#board"), plugin, "Browser fixture.md", findBoardCodeBlocks(markdown)[0].source);

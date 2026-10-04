@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.8.3 - 2026-10-04
+
+- Update task cards locally instead of rebuilding the matrix after adding, moving, editing or completing tasks. Ignore identical refresh notifications and clear submitted forms in place.
+- Preserve visible-task anchors, completed-list scrolling, grid horizontal position and input focus during updates. Keep in-progress drafts after failed saves; postpone full rebuilds while native date/time input or IME composition is incomplete.
+- Add short-lived, pane-local view handoff around note writes for host code-block replacement. Never restore task data from a view snapshot, carry state into another pane, or force scrolling after navigation. Ambiguous duplicate embeds safely skip handoff.
+- Add scroll and host-replacement regressions using the real renderer in a simulated browser host. Actual Obsidian Reading/Live Preview and physical mobile behavior still require device verification; task Markdown and persistent settings are unchanged.
+
 ## 2.8.2 - 2026-09-24
 
 - Remember each matrix's layout on the current device across note reopening, view recreation and app restart. Desktop and mobile keep independent preferences; choose Auto to reset the override.

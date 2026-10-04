@@ -72,6 +72,11 @@ function renderQuickAdd(section, renderer, quadrant, quadrantName) {
 	const tagHost = form.createDiv({ cls: "qt-quick-tags" });
 	const tagControl = createTagInput(tagHost, plugin, draft.tags, (value) => { draft.tags = value; });
 	renderer.quickAddControls.push(tagControl);
+	const hasPartialDate = () => [...form.querySelectorAll("input")].some(input => input.validity?.badInput);
+	// Native segmented editors can change their value before committing a change event.
+	for (const input of form.querySelectorAll("input")) for (const event of ["input", "keyup", "pointerup"]) {
+		input.addEventListener(event, () => { if (!hasPartialDate()) Object.assign(draft, dateControl.getValue()); });
+	}
 	for (const [input, key] of [[title, "title"], [notes, "notes"]]) {
 		input.addEventListener("input", () => {
 			draft[key] = input.value;
@@ -80,7 +85,23 @@ function renderQuickAdd(section, renderer, quadrant, quadrantName) {
 		});
 		if (input.value) (globalThis.requestAnimationFrame || ((callback) => callback()))(() => growTextarea(input));
 	}
-	if (draft.error) form.createDiv({ cls: "qt-quick-error", text: plugin.t("task.saveFailed"), attr: { role: "alert" } });
+	const sync = () => {
+		for (const [input, key] of [[title, "title"], [notes, "notes"]]) {
+			if (input.value !== draft[key]) { input.value = draft[key]; growTextarea(input); }
+		}
+		// Do not replace an unfinished native date/time segment or unconfirmed tag text.
+		const partialDate = hasPartialDate();
+		const deadline = dateControl.getValue();
+		if (!partialDate && (deadline.dueDate !== draft.dueDate || deadline.dueTime !== draft.dueTime)) dateControl.setValue(draft);
+		if (JSON.stringify(tagControl.getValue()) !== JSON.stringify(draft.tags)) tagControl.setValue(draft.tags);
+		button.disabled = draft.submitting;
+		const error = form.querySelector(".qt-quick-error");
+		if (!draft.error) error?.remove();
+		else if (!error) form.createDiv({ cls: "qt-quick-error", text: plugin.t("task.saveFailed"), attr: { role: "alert" } });
+	};
+	const formState = { sync, hasPartialDate };
+	renderer.quickAddForms.set(quadrant, formState);
+	sync();
 	const submit = async () => {
 		if (draft.submitting) return;
 		const value = title.value.replace(/\s*[\r\n]+\s*/g, " ").trim();
@@ -97,11 +118,14 @@ function renderQuickAdd(section, renderer, quadrant, quadrantName) {
 		try {
 			const task = await renderer.mutate((data) => addTask(data, value, quadrant, snapshot));
 			if (!task) throw new Error("Task creation did not complete");
+			if (renderer.containerEl.isConnected !== false && renderer.quickAddForms.get(quadrant) === formState) draft.tags = tagControl.getValue();
 			for (const key of ["title", "notes"]) {
 				if (draft[key] === snapshot[key]) draft[key] = "";
 			}
 			// Date and optional time are one value: a changed time still needs its date.
-			if (draft.dueDate === snapshot.dueDate && draft.dueTime === snapshot.dueTime) {
+			const partialDeadline = [...plugin.boardRenderers].some(current => current.containerEl.isConnected !== false && current.quickAddDrafts === renderer.quickAddDrafts
+				&& current.quickAddForms.get(quadrant)?.hasPartialDate());
+			if (!partialDeadline && draft.dueDate === snapshot.dueDate && draft.dueTime === snapshot.dueTime) {
 				draft.dueDate = null; draft.dueTime = null;
 			}
 			if (JSON.stringify(draft.tags) === JSON.stringify(snapshot.tags)) draft.tags = [];
@@ -110,8 +134,10 @@ function renderQuickAdd(section, renderer, quadrant, quadrantName) {
 			draft.error = true;
 		} finally {
 			draft.submitting = false;
-			// Vault writes can refresh the renderer before their promise resolves.
-			renderer.render();
+			// A host replacement may share this in-flight draft; unlock its current form too.
+			for (const current of plugin.boardRenderers) {
+				if (current.containerEl.isConnected !== false && current.quickAddDrafts === renderer.quickAddDrafts) current.syncQuickAddForms();
+			}
 		}
 	};
 	button.addEventListener("click", () => void submit());

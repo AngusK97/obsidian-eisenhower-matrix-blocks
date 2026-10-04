@@ -11,6 +11,7 @@ function createTagChip(parent, tag) {
 function createTagInput(parent, plugin, initialTags, onChange) {
 	let tags = normalizeTags(initialTags);
 	let disabled = false;
+	let composing = false;
 	const root = parent.createDiv({ cls: "qt-tag-field" });
 	const chips = root.createDiv({ cls: "qt-tag-chips" });
 	const input = root.createEl("textarea", {
@@ -51,16 +52,21 @@ function createTagInput(parent, plugin, initialTags, onChange) {
 		event.preventDefault(); event.stopPropagation(); commit();
 	};
 	input.addEventListener("input", onInput);
-	input.addEventListener("compositionend", onInput);
+	const compositionStart = () => { composing = true; };
+	const compositionEnd = event => { composing = false; onInput(event); };
+	input.addEventListener("compositionstart", compositionStart);
+	input.addEventListener("compositionend", compositionEnd);
 	input.addEventListener("keydown", onKey);
 	render();
 	return {
 		getValue,
-		setValue(value) { tags = normalizeTags(value); input.value = ""; render(); },
+		isEditing: () => composing,
+		setValue(value) { if (composing) return; tags = normalizeTags(value); input.value = ""; render(); },
 		setDisabled(value) { disabled = value; input.disabled = value; render(); },
 		destroy() {
 			input.removeEventListener("input", onInput);
-			input.removeEventListener("compositionend", onInput);
+			input.removeEventListener("compositionstart", compositionStart);
+			input.removeEventListener("compositionend", compositionEnd);
 			input.removeEventListener("keydown", onKey);
 		},
 	};

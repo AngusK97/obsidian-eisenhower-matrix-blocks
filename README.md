@@ -30,6 +30,8 @@ Prioritize work by importance and urgency without leaving your notes. Add deadli
 
 The matrix is inserted at the editor cursor and remains part of the note.
 
+Task updates preserve the surrounding forms and lists, keeping your reading position and unfinished input. When you are scrolled down, new tasks still go to the top without pulling you away from the task you were reading. Scroll continuity is temporary view state, not a saved position across app restarts. Host-replacement protection is best-effort; ambiguous duplicate embeds in one pane are excluded.
+
 ## Quick start
 
 1. [Install the plugin](#installation) and enable **Eisenhower Matrix Blocks** in Obsidian.

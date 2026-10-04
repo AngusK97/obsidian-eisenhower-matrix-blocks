@@ -1230,6 +1230,7 @@ var require_tag_input = __commonJS({
     function createTagInput(parent, plugin, initialTags, onChange) {
       let tags = normalizeTags(initialTags);
       let disabled = false;
+      let composing = false;
       const root = parent.createDiv({ cls: "qt-tag-field" });
       const chips = root.createDiv({ cls: "qt-tag-chips" });
       const input = root.createEl("textarea", {
@@ -1281,12 +1282,22 @@ var require_tag_input = __commonJS({
         commit();
       };
       input.addEventListener("input", onInput);
-      input.addEventListener("compositionend", onInput);
+      const compositionStart = () => {
+        composing = true;
+      };
+      const compositionEnd = (event) => {
+        composing = false;
+        onInput(event);
+      };
+      input.addEventListener("compositionstart", compositionStart);
+      input.addEventListener("compositionend", compositionEnd);
       input.addEventListener("keydown", onKey);
       render();
       return {
         getValue,
+        isEditing: () => composing,
         setValue(value) {
+          if (composing) return;
           tags = normalizeTags(value);
           input.value = "";
           render();
@@ -1298,7 +1309,8 @@ var require_tag_input = __commonJS({
         },
         destroy() {
           input.removeEventListener("input", onInput);
-          input.removeEventListener("compositionend", onInput);
+          input.removeEventListener("compositionstart", compositionStart);
+          input.removeEventListener("compositionend", compositionEnd);
           input.removeEventListener("keydown", onKey);
         }
       };
@@ -1595,6 +1607,15 @@ var require_task_card = __commonJS({
         draft.tags = value;
       });
       renderer.quickAddControls.push(tagControl);
+      const hasPartialDate = () => [...form.querySelectorAll("input")].some((input) => {
+        var _a;
+        return (_a = input.validity) == null ? void 0 : _a.badInput;
+      });
+      for (const input of form.querySelectorAll("input")) for (const event of ["input", "keyup", "pointerup"]) {
+        input.addEventListener(event, () => {
+          if (!hasPartialDate()) Object.assign(draft, dateControl.getValue());
+        });
+      }
       for (const [input, key] of [[title, "title"], [notes, "notes"]]) {
         input.addEventListener("input", () => {
           draft[key] = input.value;
@@ -1603,7 +1624,25 @@ var require_task_card = __commonJS({
         });
         if (input.value) (globalThis.requestAnimationFrame || ((callback) => callback()))(() => growTextarea(input));
       }
-      if (draft.error) form.createDiv({ cls: "qt-quick-error", text: plugin.t("task.saveFailed"), attr: { role: "alert" } });
+      const sync = () => {
+        for (const [input, key] of [[title, "title"], [notes, "notes"]]) {
+          if (input.value !== draft[key]) {
+            input.value = draft[key];
+            growTextarea(input);
+          }
+        }
+        const partialDate = hasPartialDate();
+        const deadline = dateControl.getValue();
+        if (!partialDate && (deadline.dueDate !== draft.dueDate || deadline.dueTime !== draft.dueTime)) dateControl.setValue(draft);
+        if (JSON.stringify(tagControl.getValue()) !== JSON.stringify(draft.tags)) tagControl.setValue(draft.tags);
+        button.disabled = draft.submitting;
+        const error = form.querySelector(".qt-quick-error");
+        if (!draft.error) error == null ? void 0 : error.remove();
+        else if (!error) form.createDiv({ cls: "qt-quick-error", text: plugin.t("task.saveFailed"), attr: { role: "alert" } });
+      };
+      const formState = { sync, hasPartialDate };
+      renderer.quickAddForms.set(quadrant, formState);
+      sync();
       const submit = async () => {
         if (draft.submitting) return;
         const value = title.value.replace(/\s*[\r\n]+\s*/g, " ").trim();
@@ -1619,10 +1658,15 @@ var require_task_card = __commonJS({
         try {
           const task = await renderer.mutate((data) => addTask(data, value, quadrant, snapshot));
           if (!task) throw new Error("Task creation did not complete");
+          if (renderer.containerEl.isConnected !== false && renderer.quickAddForms.get(quadrant) === formState) draft.tags = tagControl.getValue();
           for (const key of ["title", "notes"]) {
             if (draft[key] === snapshot[key]) draft[key] = "";
           }
-          if (draft.dueDate === snapshot.dueDate && draft.dueTime === snapshot.dueTime) {
+          const partialDeadline = [...plugin.boardRenderers].some((current) => {
+            var _a;
+            return current.containerEl.isConnected !== false && current.quickAddDrafts === renderer.quickAddDrafts && ((_a = current.quickAddForms.get(quadrant)) == null ? void 0 : _a.hasPartialDate());
+          });
+          if (!partialDeadline && draft.dueDate === snapshot.dueDate && draft.dueTime === snapshot.dueTime) {
             draft.dueDate = null;
             draft.dueTime = null;
           }
@@ -1632,7 +1676,9 @@ var require_task_card = __commonJS({
           draft.error = true;
         } finally {
           draft.submitting = false;
-          renderer.render();
+          for (const current of plugin.boardRenderers) {
+            if (current.containerEl.isConnected !== false && current.quickAddDrafts === renderer.quickAddDrafts) current.syncQuickAddForms();
+          }
         }
       };
       button.addEventListener("click", () => void submit());
@@ -1644,6 +1690,339 @@ var require_task_card = __commonJS({
       });
     }
     module2.exports = { renderTaskDetails: renderTaskDetails2, renderQuickAdd: renderQuickAdd2 };
+  }
+});
+
+// src/board-view-state.js
+var require_board_view_state = __commonJS({
+  "src/board-view-state.js"(exports2, module2) {
+    "use strict";
+    function listKey(list) {
+      var _a;
+      return ((_a = list.closest("[data-quadrant]")) == null ? void 0 : _a.getAttribute("data-quadrant")) || "completed";
+    }
+    function captureBoardView2(root) {
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+      const document2 = root.ownerDocument;
+      const view = document2 == null ? void 0 : document2.defaultView;
+      const lists = [...root.querySelectorAll(".qt-task-list, .qt-completed-list")].map((list) => {
+        const bounds = list.getBoundingClientRect();
+        const rows = [...list.querySelectorAll("[data-task-id]")];
+        let low = 0, high = rows.length;
+        while (low < high) {
+          const middle = low + high >>> 1;
+          if (rows[middle].getBoundingClientRect().bottom <= bounds.top) low = middle + 1;
+          else high = middle;
+        }
+        const anchors = rows.slice(low, low + 3).map((row) => ({
+          id: row.getAttribute("data-task-id"),
+          offset: row.getBoundingClientRect().top - bounds.top
+        }));
+        return { key: listKey(list), top: list.scrollTop || 0, anchors };
+      });
+      const outer = [];
+      for (let node = root.parentElement; node; node = node.parentElement) {
+        if (node.scrollHeight > node.clientHeight && /auto|scroll|overlay/.test((view == null ? void 0 : view.getComputedStyle(node).overflowY) || "")) {
+          outer.push({ node, top: node.scrollTop, left: node.scrollLeft });
+        }
+      }
+      const page = document2 == null ? void 0 : document2.scrollingElement;
+      if (page && !outer.some((item) => item.node === page)) outer.push({ node: page, top: page.scrollTop, left: page.scrollLeft });
+      const visibleTop = ((_a = outer[0]) == null ? void 0 : _a.node) === page ? 0 : ((_b = outer[0]) == null ? void 0 : _b.node.getBoundingClientRect().top) || 0;
+      const visibleBottom = ((_c = outer[0]) == null ? void 0 : _c.node) === page ? (_d = view == null ? void 0 : view.innerHeight) != null ? _d : Infinity : (_f = (_e = outer[0]) == null ? void 0 : _e.node.getBoundingClientRect().bottom) != null ? _f : Infinity;
+      const rootBounds = root.getBoundingClientRect();
+      if (rootBounds.bottom <= visibleTop || rootBounds.top >= visibleBottom) outer.length = 0;
+      const sections = [...root.querySelectorAll("[data-quadrant], .qt-completed-section")];
+      const section = sections.find((node) => node.getBoundingClientRect().bottom > visibleTop) || root;
+      const focus = document2 == null ? void 0 : document2.activeElement;
+      const focusState = focus && root.contains(focus) ? {
+        node: focus,
+        quadrant: (_g = focus.closest("[data-quadrant]")) == null ? void 0 : _g.getAttribute("data-quadrant"),
+        taskId: (_h = focus.closest("[data-task-id]")) == null ? void 0 : _h.getAttribute("data-task-id"),
+        label: focus.getAttribute("aria-label"),
+        className: focus.className,
+        start: focus.selectionStart,
+        end: focus.selectionEnd
+      } : null;
+      return {
+        lists,
+        outer,
+        focus: focusState,
+        x: ((_i = root.querySelector(".qt-matrix-viewport")) == null ? void 0 : _i.scrollLeft) || 0,
+        sectionKey: section === root ? "root" : section.getAttribute("data-quadrant") || "completed",
+        sectionTop: section.getBoundingClientRect().top
+      };
+    }
+    function restoreBoardView2(root, state, { focus = true, outer = true } = {}) {
+      var _a, _b;
+      if (!state) return;
+      for (const list of root.querySelectorAll(".qt-task-list, .qt-completed-list")) {
+        const saved = state.lists.find((item) => item.key === listKey(list));
+        if (!saved) continue;
+        list.scrollTop = saved.top;
+        if (saved.top <= 0) continue;
+        const rows = new Map([...list.querySelectorAll("[data-task-id]")].map((row) => [row.getAttribute("data-task-id"), row]));
+        const anchor = saved.anchors.find((item) => rows.has(item.id));
+        if (anchor) list.scrollTop += rows.get(anchor.id).getBoundingClientRect().top - list.getBoundingClientRect().top - anchor.offset;
+      }
+      const viewport = root.querySelector(".qt-matrix-viewport");
+      if (viewport) viewport.scrollLeft = state.x;
+      if (focus && state.focus) {
+        const document2 = root.ownerDocument;
+        const active = document2 == null ? void 0 : document2.activeElement;
+        if (active === state.focus.node || !active || active === (document2 == null ? void 0 : document2.body)) {
+          let target = state.focus.node;
+          if (!root.contains(target)) {
+            let scope = root;
+            if (state.focus.taskId) scope = [...root.querySelectorAll("[data-task-id]")].find((node) => node.getAttribute("data-task-id") === state.focus.taskId);
+            else if (state.focus.quadrant) scope = [...root.querySelectorAll("[data-quadrant]")].find((node) => node.getAttribute("data-quadrant") === state.focus.quadrant);
+            target = [...(scope == null ? void 0 : scope.querySelectorAll("input, textarea, button, select")) || []].find((node) => node.className === state.focus.className && (state.focus.taskId || node.getAttribute("aria-label") === state.focus.label));
+          }
+          if (target && !target.disabled && target !== active) {
+            target.focus({ preventScroll: true });
+            if (typeof state.focus.start === "number") (_a = target.setSelectionRange) == null ? void 0 : _a.call(target, state.focus.start, state.focus.end);
+          }
+        }
+      }
+      if (outer) {
+        for (const item of state.outer) {
+          if (item.node.isConnected === false) continue;
+          item.node.scrollTop = item.top;
+          item.node.scrollLeft = item.left;
+        }
+        const section = state.sectionKey === "root" ? root : state.sectionKey === "completed" ? root.querySelector(".qt-completed-section") : [...root.querySelectorAll("[data-quadrant]")].find((node) => node.getAttribute("data-quadrant") === state.sectionKey);
+        const scroller = (_b = state.outer[0]) == null ? void 0 : _b.node;
+        if (section && (scroller == null ? void 0 : scroller.isConnected)) scroller.scrollTop += section.getBoundingClientRect().top - state.sectionTop;
+      }
+    }
+    module2.exports = { captureBoardView: captureBoardView2, restoreBoardView: restoreBoardView2 };
+  }
+});
+
+// src/board-task-updates.js
+var require_board_task_updates = __commonJS({
+  "src/board-task-updates.js"(exports2, module2) {
+    "use strict";
+    var { QUADRANTS: QUADRANTS2, getActiveTasks: getActiveTasks2, getCompletedTasks: getCompletedTasks2, completionBounds: completionBounds2 } = require_core();
+    function cardContent(task) {
+      if (!task) return "";
+      const { order, ...content } = task;
+      return JSON.stringify(content);
+    }
+    function reconcileRows(list, tasks, oldTasks, renderRow, emptyText) {
+      const existing = new Map([...list.children].map((row) => [row.getAttribute("data-task-id"), row]));
+      const retained = /* @__PURE__ */ new Set();
+      for (let index = 0; index < tasks.length; index += 1) {
+        const task = tasks[index];
+        let row = existing.get(task.id);
+        if (!row || cardContent(oldTasks.get(task.id)) !== cardContent(task)) row = renderRow(list, task);
+        if (list.children[index] !== row) list.insertBefore(row, list.children[index] || null);
+        retained.add(row);
+      }
+      for (const row of [...list.children]) if (!retained.has(row)) row.remove();
+      if (!tasks.length) list.createEl("li", { cls: "qt-empty", text: emptyText });
+    }
+    function updateBoardTasks2(renderer, previousData) {
+      const root = renderer.containerEl;
+      const oldTasks = new Map(previousData.tasks.map((task) => [task.id, task]));
+      const stats = root.querySelector(".qt-stats");
+      stats.children[0].textContent = renderer.plugin.t("stats.active", { count: getActiveTasks2(renderer.data).length });
+      stats.children[1].textContent = renderer.plugin.t("stats.completed", { count: getCompletedTasks2(renderer.data).length });
+      for (const quadrant of QUADRANTS2) {
+        const section = root.querySelector(`[data-quadrant="${quadrant}"]`);
+        const tasks2 = getActiveTasks2(renderer.data, quadrant);
+        section.querySelector(".qt-count").textContent = String(tasks2.length);
+        reconcileRows(
+          section.querySelector(".qt-task-list"),
+          tasks2,
+          oldTasks,
+          (list2, task) => renderer.renderActiveTask(list2, task),
+          renderer.plugin.t("task.empty")
+        );
+      }
+      const completed = getCompletedTasks2(renderer.data, renderer.filters);
+      root.querySelector(".qt-completed-count").textContent = `${completed.length} / ${getCompletedTasks2(renderer.data).length}`;
+      const valid = completionBounds2(renderer.filters).valid;
+      const message = !valid ? "completed.invalidRange" : getCompletedTasks2(renderer.data).length ? "completed.noMatches" : "completed.none";
+      const list = root.querySelector(".qt-completed-list");
+      const tasks = valid ? completed : [];
+      reconcileRows(list, tasks, oldTasks, (parent, task) => renderer.renderCompletedTask(parent, task), renderer.plugin.t(message));
+      if (!valid) list.children[0].addClass("qt-filter-error");
+    }
+    module2.exports = { updateBoardTasks: updateBoardTasks2 };
+  }
+});
+
+// src/view-handoff.js
+var require_view_handoff = __commonJS({
+  "src/view-handoff.js"(exports2, module2) {
+    "use strict";
+    var { captureBoardView: captureBoardView2 } = require_board_view_state();
+    var MAX_PENDING_MS = 1e4;
+    var SETTLED_MS = 1500;
+    function createViewHandoff2(plugin) {
+      var _a;
+      const entries = /* @__PURE__ */ new Set();
+      const workspace = (_a = plugin.app) == null ? void 0 : _a.workspace;
+      let disposed = false;
+      const findView = (root) => {
+        var _a2;
+        let found = null;
+        (_a2 = workspace == null ? void 0 : workspace.iterateAllLeaves) == null ? void 0 : _a2.call(workspace, (leaf) => {
+          var _a3;
+          const pane = (_a3 = leaf.view) == null ? void 0 : _a3.containerEl;
+          if ((pane == null ? void 0 : pane.ownerDocument) === root.ownerDocument && pane.contains(root)) found = leaf.view;
+        });
+        return found;
+      };
+      const remove = (entry) => {
+        var _a2, _b;
+        if (!entries.delete(entry)) return;
+        clearTimeout(entry.timer);
+        if (entry.frame !== null) (_b = (_a2 = entry.document.defaultView) == null ? void 0 : _a2.cancelAnimationFrame) == null ? void 0 : _b.call(_a2, entry.frame);
+        for (const [type, handler, capture] of entry.listeners) entry.pane.removeEventListener(type, handler, capture);
+      };
+      const expireAfter = (entry, delay) => {
+        var _a2, _b;
+        clearTimeout(entry.timer);
+        entry.expiresAt = Date.now() + delay;
+        entry.timer = setTimeout(() => remove(entry), delay);
+        (_b = (_a2 = entry.timer) == null ? void 0 : _a2.unref) == null ? void 0 : _b.call(_a2);
+      };
+      const visibleDistance = (owner, view) => {
+        var _a2, _b;
+        const pane = view.containerEl.getBoundingClientRect();
+        const top = Math.max(0, pane.top);
+        const bottom = Math.min((_b = (_a2 = view.containerEl.ownerDocument.defaultView) == null ? void 0 : _a2.innerHeight) != null ? _b : pane.bottom, pane.bottom);
+        const board = owner.containerEl.getBoundingClientRect();
+        return bottom > top && board.bottom > top && board.top < bottom ? Math.max(0, board.top - top) : Infinity;
+      };
+      const remember = (entry) => {
+        if (!entry.owner.containerEl.isConnected) return;
+        entry.snapshot = captureBoardView2(entry.owner.containerEl);
+        if (!entry.outerAuthority || !Number.isFinite(visibleDistance(entry.owner, entry.view))) entry.snapshot.outer = [];
+        entry.filters = { ...entry.owner.filters };
+        entry.isCollapsed = entry.owner.isCollapsed;
+        entry.isCompletedScrollable = entry.owner.isCompletedScrollable;
+      };
+      const scheduleRefresh = (entry) => {
+        if (!entries.has(entry) || entry.frame !== null || !entry.owner.containerEl.isConnected) return;
+        const view = entry.document.defaultView;
+        if (!(view == null ? void 0 : view.requestAnimationFrame)) {
+          remember(entry);
+          return;
+        }
+        entry.frame = view.requestAnimationFrame(() => {
+          entry.frame = null;
+          if (entries.has(entry)) remember(entry);
+        });
+      };
+      const pruneNavigation = () => {
+        var _a2;
+        for (const entry of entries) {
+          if (Date.now() >= entry.expiresAt || !entry.pane.isConnected || entry.view.containerEl !== entry.pane || ((_a2 = entry.view.file) == null ? void 0 : _a2.path) !== entry.hostPath) remove(entry);
+        }
+      };
+      const events = ["file-open", "layout-change"].map((name) => {
+        var _a2;
+        return (_a2 = workspace == null ? void 0 : workspace.on) == null ? void 0 : _a2.call(workspace, name, pruneNavigation);
+      }).filter(Boolean);
+      return {
+        armForFile(path) {
+          var _a2, _b, _c, _d;
+          if (disposed) return () => {
+          };
+          for (const entry of entries) if (entry.path === path) remove(entry);
+          const candidates = [...plugin.boardRenderers].filter((renderer) => renderer.sourcePath === path && renderer.containerEl.isConnected).map((owner) => ({ owner, view: findView(owner.containerEl) })).filter((candidate) => candidate.view);
+          const eligible = candidates.filter(({ owner, view }) => candidates.filter((candidate) => candidate.view === view && candidate.owner.boardId === owner.boardId).length === 1);
+          const authorities = /* @__PURE__ */ new Map();
+          for (const candidate of eligible) {
+            const distance = visibleDistance(candidate.owner, candidate.view);
+            if (distance < ((_b = (_a2 = authorities.get(candidate.view)) == null ? void 0 : _a2.distance) != null ? _b : Infinity)) authorities.set(candidate.view, { owner: candidate.owner, distance });
+          }
+          const armed = [];
+          for (const { owner, view } of eligible) {
+            const entry = {
+              owner,
+              view,
+              pane: view.containerEl,
+              path,
+              boardId: owner.boardId,
+              document: owner.containerEl.ownerDocument,
+              hostPath: (_c = view.file) == null ? void 0 : _c.path,
+              createdAt: Date.now(),
+              drafts: owner.quickAddDrafts,
+              listeners: [],
+              frame: null,
+              outerAuthority: ((_d = authorities.get(view)) == null ? void 0 : _d.owner) === owner
+            };
+            remember(entry);
+            const refresh = () => scheduleRefresh(entry);
+            const focusOut = (event) => {
+              const clearFocus = () => {
+                if (!entries.has(entry) || !owner.containerEl.isConnected) return;
+                entry.snapshot.focus = null;
+                refresh();
+              };
+              if (event.relatedTarget) clearFocus();
+              else queueMicrotask(clearFocus);
+            };
+            const intent = () => {
+              if (!owner.containerEl.isConnected) remove(entry);
+            };
+            entry.listeners = [
+              ["scroll", refresh, true],
+              ["input", refresh, false],
+              ["change", refresh, false],
+              ["focusin", refresh, false],
+              ["focusout", focusOut, false],
+              ["wheel", intent, true],
+              ["pointerdown", intent, true],
+              ["keydown", intent, true]
+            ];
+            for (const [type, handler, capture] of entry.listeners) entry.pane.addEventListener(type, handler, { capture, passive: true });
+            entries.add(entry);
+            armed.push(entry);
+            expireAfter(entry, MAX_PENDING_MS);
+          }
+          let finished = false;
+          return () => {
+            if (finished) return;
+            finished = true;
+            for (const entry of armed) {
+              if (!entries.has(entry)) continue;
+              expireAfter(entry, Math.max(0, Math.min(SETTLED_MS, MAX_PENDING_MS - (Date.now() - entry.createdAt))));
+            }
+          };
+        },
+        adopt(renderer) {
+          if (disposed || !renderer.containerEl.isConnected) return null;
+          pruneNavigation();
+          const view = findView(renderer.containerEl);
+          if (!view) return null;
+          const entry = [...entries].find((item) => item.view === view && item.path === renderer.sourcePath && item.boardId === renderer.boardId);
+          if (!entry || entry.owner.containerEl.isConnected || entry.document !== renderer.containerEl.ownerDocument) return null;
+          const duplicates = [...plugin.boardRenderers].filter((other) => other.containerEl.isConnected && other.sourcePath === renderer.sourcePath && other.boardId === renderer.boardId && findView(other.containerEl) === view);
+          if (duplicates.some((other) => other !== renderer)) {
+            remove(entry);
+            return null;
+          }
+          renderer.quickAddDrafts = entry.drafts;
+          renderer.filters = { ...entry.filters };
+          renderer.isCollapsed = entry.isCollapsed;
+          renderer.isCompletedScrollable = entry.isCompletedScrollable;
+          remove(entry);
+          return entry.snapshot;
+        },
+        dispose() {
+          var _a2;
+          disposed = true;
+          for (const entry of entries) remove(entry);
+          for (const event of events) (_a2 = workspace == null ? void 0 : workspace.offref) == null ? void 0 : _a2.call(workspace, event);
+        }
+      };
+    }
+    module2.exports = { createViewHandoff: createViewHandoff2 };
   }
 });
 
@@ -1729,6 +2108,9 @@ var { LAYOUT_MODES, getBoardLayout, saveBoardLayout, moveBoardLayouts } = requir
 var { parseTaskMarkdown } = require_markdown_store();
 var { TaskEditorModal } = require_task_fields();
 var { renderTaskDetails, renderQuickAdd } = require_task_card();
+var { captureBoardView, restoreBoardView } = require_board_view_state();
+var { updateBoardTasks } = require_board_task_updates();
+var { createViewHandoff } = require_view_handoff();
 var {
   canScrollElement,
   getEdgeScrollVelocity,
@@ -1929,6 +2311,17 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     this.filters = { quadrant: "all", period: "today", startDate: "", endDate: "" };
     this.quickAddDrafts = /* @__PURE__ */ new Map();
     this.quickAddControls = [];
+    this.quickAddForms = /* @__PURE__ */ new Map();
+    this.pendingRender = false;
+    this.composingInputs = /* @__PURE__ */ new Set();
+    this.handleCompositionStart = (event) => this.composingInputs.add(event.target);
+    this.handleCompositionEnd = (event) => {
+      this.composingInputs.delete(event.target);
+      this.flushPendingRender();
+    };
+    this.flushPendingRender = () => queueMicrotask(() => {
+      if (this.pendingRender && this.plugin.boardRenderers.has(this)) this.render();
+    });
     this.calendarDay = (/* @__PURE__ */ new Date()).toDateString();
     this.handleDayChange = () => this.refreshCalendarDay();
     this.draggedTaskId = null;
@@ -1954,18 +2347,28 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     this.layoutMode = getBoardLayout(plugin.app, sourcePath, this.boardId);
   }
   onload() {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     this.plugin.boardRenderers.add(this);
+    const handoff = (_a = this.plugin.viewHandoff) == null ? void 0 : _a.adopt(this);
+    this.containerEl.addEventListener("compositionstart", this.handleCompositionStart);
+    this.containerEl.addEventListener("compositionend", this.handleCompositionEnd);
+    for (const event of ["input", "change", "compositionend", "focusout"]) this.containerEl.addEventListener(event, this.flushPendingRender);
     const document2 = this.getOwnerDocument();
     document2 == null ? void 0 : document2.addEventListener("dragover", this.handleDocumentDragOver, true);
     document2 == null ? void 0 : document2.addEventListener("visibilitychange", this.handleVisibilityChange);
-    (_a = document2 == null ? void 0 : document2.defaultView) == null ? void 0 : _a.addEventListener("blur", this.handleDragInterruption);
-    (_b = document2 == null ? void 0 : document2.defaultView) == null ? void 0 : _b.addEventListener("focus", this.handleDayChange);
-    this.calendarTimer = (_d = (_c = document2 == null ? void 0 : document2.defaultView) == null ? void 0 : _c.setInterval) == null ? void 0 : _d.call(_c, this.handleDayChange, 6e4);
+    (_b = document2 == null ? void 0 : document2.defaultView) == null ? void 0 : _b.addEventListener("blur", this.handleDragInterruption);
+    (_c = document2 == null ? void 0 : document2.defaultView) == null ? void 0 : _c.addEventListener("focus", this.handleDayChange);
+    this.calendarTimer = (_e = (_d = document2 == null ? void 0 : document2.defaultView) == null ? void 0 : _d.setInterval) == null ? void 0 : _e.call(_d, this.handleDayChange, 6e4);
     this.render();
+    restoreBoardView(this.containerEl, handoff);
   }
   onunload() {
     var _a, _b, _c;
+    this.quickAddForms.clear();
+    this.containerEl.removeEventListener("compositionstart", this.handleCompositionStart);
+    this.containerEl.removeEventListener("compositionend", this.handleCompositionEnd);
+    this.composingInputs.clear();
+    for (const event of ["input", "change", "compositionend", "focusout"]) this.containerEl.removeEventListener(event, this.flushPendingRender);
     for (const control of this.quickAddControls) control.destroy();
     const document2 = this.getOwnerDocument();
     document2 == null ? void 0 : document2.removeEventListener("dragover", this.handleDocumentDragOver, true);
@@ -1986,11 +2389,19 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     this.render();
   }
   setBoardData(data, title = this.boardTitle, quadrantLabels = this.quadrantLabels) {
-    this.data = cloneData(data);
+    const nextData = cloneData(data);
+    const structuralChange = this.issues.length || this.boardTitle !== (title || DEFAULT_BOARD_TITLE) || JSON.stringify(this.quadrantLabels) !== JSON.stringify(quadrantLabels || {});
+    if (!structuralChange && JSON.stringify(this.data) === JSON.stringify(nextData)) return;
+    const previousData = this.data;
+    const view = captureBoardView(this.containerEl);
+    this.data = nextData;
     this.boardTitle = title || DEFAULT_BOARD_TITLE;
     this.quadrantLabels = JSON.parse(JSON.stringify(quadrantLabels || {}));
     this.issues = [];
-    this.render();
+    if (!structuralChange && !this.isCollapsed && this.containerEl.querySelector(".qt-matrix")) {
+      updateBoardTasks(this, previousData);
+      restoreBoardView(this.containerEl, view);
+    } else this.render();
   }
   setBoardError(error) {
     this.issues = [error.message || String(error)];
@@ -2002,8 +2413,30 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     return (outcome == null ? void 0 : outcome.result) || null;
   }
   render() {
+    if (this.composingInputs.size || [...this.containerEl.querySelectorAll("input")].some((input) => {
+      var _a;
+      return (_a = input.validity) == null ? void 0 : _a.badInput;
+    }) || this.quickAddControls.some((control) => {
+      var _a;
+      return (_a = control.isEditing) == null ? void 0 : _a.call(control);
+    })) {
+      this.pendingRender = true;
+      return;
+    }
+    this.pendingRender = false;
+    const view = this.containerEl.children.length ? captureBoardView(this.containerEl) : null;
+    this.renderContents();
+    restoreBoardView(this.containerEl, view);
+  }
+  syncQuickAddForms() {
+    const view = captureBoardView(this.containerEl);
+    for (const form of this.quickAddForms.values()) form.sync();
+    restoreBoardView(this.containerEl, view);
+  }
+  renderContents() {
     for (const control of this.quickAddControls) control.destroy();
     this.quickAddControls = [];
+    this.quickAddForms.clear();
     const container = this.containerEl;
     container.empty();
     container.addClass("qt-root", "qt-embed");
@@ -2460,6 +2893,7 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     row.addEventListener("dragend", () => {
       this.finishDrag(false);
     });
+    return row;
   }
   openEditor(task) {
     new TaskEditorModal(this.plugin, task, async (title, details) => {
@@ -2617,7 +3051,7 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     });
   }
   renderCompletedTask(list, task) {
-    const row = list.createEl("li", { cls: "qt-completed-row" });
+    const row = list.createEl("li", { cls: "qt-completed-row", attr: { "data-task-id": task.id } });
     const checkbox = row.createEl("input", {
       cls: "qt-task-checkbox",
       attr: { type: "checkbox", "aria-label": this.plugin.t("completed.restore", { title: task.title }) }
@@ -2638,6 +3072,7 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     caption.createSpan({ cls: "qt-completed-label", text: this.plugin.t("completed.at") });
     stamp.createEl("time", { text: formatCompletedAt(task.completedAt, this.plugin.language), attr: { datetime: task.completedAt } });
     createIconButton(row, "trash-2", this.plugin.t("completed.delete"), () => void this.remove(task.id));
+    return row;
   }
 };
 var EisenhowerMatrixBlocksSettingTab = class extends PluginSettingTab {
@@ -2660,6 +3095,7 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
   async onload() {
     await this.loadPluginSettings();
     this.boardRenderers = /* @__PURE__ */ new Set();
+    this.viewHandoff = createViewHandoff(this);
     this.fileQueues = /* @__PURE__ */ new Map();
     this.refreshTimers = /* @__PURE__ */ new Map();
     for (const language of BOARD_LANGUAGES) {
@@ -2681,6 +3117,8 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
     });
   }
   onunload() {
+    var _a;
+    (_a = this.viewHandoff) == null ? void 0 : _a.dispose();
     for (const timer of this.refreshTimers.values()) window.clearTimeout(timer);
     this.refreshTimers.clear();
   }
@@ -2755,12 +3193,18 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
     }
     let outcome = null;
     const previous = this.fileQueues.get(file) || Promise.resolve();
-    const pending = previous.catch(() => void 0).then(
-      () => this.app.vault.process(file, (content) => {
-        outcome = updater(content, boardId);
-        return outcome.content;
-      })
-    );
+    const pending = previous.catch(() => void 0).then(async () => {
+      var _a;
+      const finishHandoff = (_a = this.viewHandoff) == null ? void 0 : _a.armForFile(sourcePath);
+      try {
+        await this.app.vault.process(file, (content) => {
+          outcome = updater(content, boardId);
+          return outcome.content;
+        });
+      } finally {
+        finishHandoff == null ? void 0 : finishHandoff();
+      }
+    });
     this.fileQueues.set(file, pending);
     try {
       await pending;

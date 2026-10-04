@@ -40,14 +40,29 @@ class FakeElement {
 	}
 
 	appendChild(child) {
+		child.remove();
 		child.parentElement = this;
 		this.children.push(child);
 		return child;
 	}
 
 	empty() {
+		for (const child of this.children) child.parentElement = null;
 		this.children = [];
 		this.text = "";
+	}
+
+	remove() {
+		if (this.parentElement) this.parentElement.children = this.parentElement.children.filter(child => child !== this);
+		this.parentElement = null;
+	}
+
+	insertBefore(child, before) {
+		child.remove();
+		const index = before ? this.children.indexOf(before) : this.children.length;
+		this.children.splice(index, 0, child);
+		child.parentElement = this;
+		return child;
 	}
 
 	addClass(...names) {
@@ -264,6 +279,26 @@ test("board layout changes only this view and preserves live unsaved inputs", ()
 	container.querySelector(".qt-board-toggle").dispatch("click");
 	container.querySelector(".qt-board-toggle").dispatch("click");
 	assert.equal(container.getAttribute("data-layout"), "grid");
+});
+
+test("task data updates and duplicate notifications preserve the quick-add form and list containers", () => {
+	const data = createEmptyData();
+	addTask(data, "Existing", "do");
+	const { renderer, container } = createRenderer(data);
+	const input = container.querySelector("textarea");
+	input.value = "In-progress draft";
+	input.dispatch("input");
+	const list = container.querySelector(".qt-task-list");
+	list.scrollTop = 120;
+	renderer.setBoardData(data);
+	assert.equal(container.querySelector("textarea"), input);
+	assert.equal(container.querySelector(".qt-task-list"), list);
+	addTask(data, "New", "do");
+	renderer.setBoardData(data);
+	assert.equal(container.querySelector("textarea"), input);
+	assert.equal(container.querySelector(".qt-task-list"), list);
+	assert.equal(input.value, "In-progress draft");
+	assert.equal(list.querySelectorAll(".qt-task-row").length, 2);
 });
 
 test("layout survives a new plugin and renderer, isolates boards and devices, and resets to auto", () => {
@@ -572,7 +607,9 @@ test("quick add persists time and all tags including pending input across failed
 	form.querySelector(".qt-add-button").dispatch("click");
 	await new Promise(resolve => setImmediate(resolve));
 	assert.equal(container.querySelector(".qt-due-time").value, "00:00");
-	assert.equal(container.querySelectorAll(".qt-tag").length, 2);
+	assert.equal(container.querySelectorAll(".qt-tag").length, 1);
+	assert.equal(container.querySelector(".qt-tag-input"), tags);
+	assert.equal(tags.value, "第二项");
 	let result;
 	renderer.mutate = async fn => { result = fn(renderer.data); return result; };
 	container.querySelector(".qt-add-button").dispatch("click");
@@ -676,6 +713,58 @@ test("quick-add remains single-flight across a renderer refresh and preserves ne
 	resolveSave();
 	await new Promise((resolve) => setImmediate(resolve));
 	assert.equal(container.querySelector("textarea").value, "Second draft");
+});
+
+test("quick-add keeps native time edits not yet committed by change during a pending save", async () => {
+	const { container, renderer } = createRenderer(createEmptyData());
+	const title = container.querySelector("textarea"); title.value = "First"; title.dispatch("input");
+	const date = container.querySelector(".qt-native-date"); date.value = "2026-10-05"; date.dispatch("change");
+	const time = container.querySelector(".qt-due-time"); time.value = "10:00"; time.dispatch("change");
+	let finish;
+	renderer.mutate = async fn => { const task = fn(renderer.data); await new Promise(resolve => { finish = resolve; }); return task; };
+	container.querySelector(".qt-add-button").dispatch("click");
+	time.value = "18:30"; time.dispatch("input");
+	finish(); await new Promise(resolve => setImmediate(resolve));
+	assert.equal(date.value, "2026-10-05");
+	assert.equal(time.value, "18:30");
+});
+
+test("structural refresh waits for incomplete native input and tag composition", () => {
+	const { renderer, container } = createRenderer(createEmptyData());
+	const time = container.querySelector(".qt-due-time");
+	time.validity = { badInput: true };
+	renderer.setBoardData(renderer.data, "Renamed");
+	assert.equal(container.querySelector(".qt-due-time"), time);
+	time.validity.badInput = false;
+	const tags = container.querySelector(".qt-tag-input");
+	tags.dispatch("compositionstart"); tags.value = "候选"; tags.dispatch("input", { isComposing: true });
+	renderer.syncQuickAddForms();
+	assert.equal(tags.value, "候选");
+	renderer.render();
+	assert.equal(container.querySelector(".qt-tag-input"), tags);
+	tags.dispatch("compositionend"); renderer.render();
+	assert.equal(container.querySelector("h3").textContent, "Renamed");
+	assert.deepEqual(renderer.quickAddDrafts.get("do").tags, ["候选"]);
+});
+
+test("a detached renderer settling before unload cannot overwrite its replacement draft", async () => {
+	const first = createRenderer(createEmptyData());
+	const input = first.container.querySelector("textarea"); input.value = "Submitted"; input.dispatch("input");
+	const tags = first.container.querySelector(".qt-tag-input"); tags.value = "old"; tags.dispatch("input");
+	let finish;
+	first.renderer.mutate = async fn => { const task = fn(first.renderer.data); await new Promise(resolve => { finish = resolve; }); return task; };
+	first.container.querySelector(".qt-add-button").dispatch("click");
+	first.container.isConnected = false; // Host detach can precede onunload.
+	const next = createRenderer(first.renderer.data);
+	next.renderer.plugin = first.renderer.plugin;
+	first.renderer.plugin.boardRenderers.add(next.renderer);
+	next.renderer.quickAddDrafts = first.renderer.quickAddDrafts;
+	next.renderer.render();
+	const newTags = next.container.querySelector(".qt-tag-input"); newTags.value = "new"; newTags.dispatch("input");
+	finish(); await new Promise(resolve => setImmediate(resolve));
+	assert.equal(newTags.value, "new");
+	assert.deepEqual(next.renderer.quickAddDrafts.get("do").tags, ["old", "new"]);
+	assert.equal(next.container.querySelector(".qt-add-button").disabled, false);
 });
 
 test("quick-add ignores the IME keyCode fallback used by Safari", () => {

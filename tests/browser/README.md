@@ -55,3 +55,15 @@ cross-column drops after horizontal edge auto-scroll. Grid and Vertical survive
 renderer recreation and full page reload; Auto resets the saved override. Task
 Markdown remains unchanged by layout selection. The harness emulates the app's
 vault-local storage with browser localStorage; real app restart still needs device acceptance.
+
+Run `node tests/browser/scroll.cjs` for task-add, drag-commit, complete/restore,
+failed-save, duplicate-refresh and full-render scroll regressions at desktop and
+390px grid widths. Assertions track visible task IDs and offsets (not unchanged
+scrollTop when rows are prepended), stable forms, focus and raw unconfirmed tags.
+Drag cases exercise `finishDrag(true)`, not physical gesture recognition.
+
+Run `node tests/browser/handoff.cjs` for simulated code-block root replacement,
+pane/list/grid anchors, shared in-flight drafts and keyboard checkbox focus.
+`matrixPreview.replaceForWrite()` replaces the DOM root in an emulated View and
+arms the production handoff. This does not reproduce actual Vault.process,
+CodeMirror lifecycle or physical mobile keyboards.
