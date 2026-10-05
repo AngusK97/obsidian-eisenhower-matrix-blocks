@@ -37,7 +37,7 @@ Do not edit the generated `main.js` by hand. Change `src/`, run `npm run build`,
 - Preserve all content outside the selected matrix block byte for byte.
 - Keep existing `quadrant-tasks` blocks readable unless an explicit, tested migration is provided.
 - Add regression tests for parsing, serialization, migration, line endings, duplicate IDs, and malformed content as applicable.
-- Keep board mutations on Obsidian's atomic Vault processing path.
+- For open editing views, mutate the latest Editor buffer in a synchronous minimal transaction; let Obsidian own autosave, undo and selection mapping. Use atomic `Vault.process` only when no source editor exists. Never retry a failed editor write against disk. Refresh from that same live buffer until autosave catches up (ADR-005).
 
 ### Interface changes
 

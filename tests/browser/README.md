@@ -67,3 +67,10 @@ pane/list/grid anchors, shared in-flight drafts and keyboard checkbox focus.
 `matrixPreview.replaceForWrite()` replaces the DOM root in an emulated View and
 arms the production handoff. This does not reproduce actual Vault.process,
 CodeMirror lifecycle or physical mobile keyboards.
+
+Run `node tests/browser/editor-write.cjs` for the opt-in public Editor fixture:
+real renderer completion/restore flows call the production queued writer while
+the fake host jumps its real pane scroll position two animation frames later.
+Desktop and 390px checks cover correction, active wheel/pointer cancellation,
+and refresh before disk autosave. This fixture does not emulate CodeMirror or
+iOS WebView, and does not independently verify physical drag gestures.

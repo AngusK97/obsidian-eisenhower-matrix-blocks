@@ -1003,6 +1003,7 @@ var require_i18n = __commonJS({
         "notice.openMarkdown": "\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u53EF\u7F16\u8F91\u7684 Markdown \u6587\u4EF6",
         "notice.fileMissing": "\u627E\u4E0D\u5230\u8FD9\u5F20\u56DB\u8C61\u9650\u6240\u5728\u7684 Markdown \u6587\u4EF6",
         "notice.saveFailed": "\u56DB\u8C61\u9650\u4FDD\u5B58\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u6E90\u6587\u672C\u6216\u6587\u4EF6\u72B6\u6001\u3002",
+        "notice.partialEditorWrite": "\u90E8\u5206\u7F16\u8F91\u7A97\u53E3\u53EF\u80FD\u5DF2\u5E94\u7528\u8FD9\u6B21\u4FEE\u6539\uFF0C\u4F46\u7A97\u53E3\u540C\u6B65\u5931\u8D25\u3002\u8BF7\u5148\u68C0\u67E5\u5E76\u7EDF\u4E00\u8FD9\u7BC7\u7B14\u8BB0\u7684\u5185\u5BB9\uFF0C\u4E0D\u8981\u76F4\u63A5\u91CD\u590D\u65B0\u589E\u4EFB\u52A1\u3002",
         "notice.layoutSaveFailed": "\u5E03\u5C40\u504F\u597D\u672A\u80FD\u4FDD\u5B58\uFF0C\u8BF7\u68C0\u67E5\u672C\u673A\u5B58\u50A8\u540E\u91CD\u8BD5\u3002",
         "notice.fileUnavailable": "\u6240\u5728\u7684 Markdown \u6587\u4EF6\u4E0D\u53EF\u7528",
         "notice.migrationComplete": "\u65E7\u7684\u5168\u5C40\u4EFB\u52A1\u5DF2\u8FC1\u79FB\u4E3A Markdown \u6587\u4EF6\u4E2D\u7684\u72EC\u7ACB\u56DB\u8C61\u9650",
@@ -1108,6 +1109,7 @@ var require_i18n = __commonJS({
         "notice.openMarkdown": "Open an editable Markdown file first",
         "notice.fileMissing": "The Markdown file containing this matrix was not found",
         "notice.saveFailed": "The matrix could not be saved. Check the source or file state.",
+        "notice.partialEditorWrite": "Some editors may have applied this change, but pane synchronization failed. Check and reconcile the note before retrying; do not add the task again blindly.",
         "notice.layoutSaveFailed": "Layout preference could not be saved. Check local storage and try again.",
         "notice.fileUnavailable": "The Markdown file containing this matrix is unavailable",
         "notice.migrationComplete": "The global task board was migrated to an independent Markdown matrix",
@@ -2026,6 +2028,219 @@ var require_view_handoff = __commonJS({
   }
 });
 
+// src/editor-write.js
+var require_editor_write = __commonJS({
+  "src/editor-write.js"(exports2, module2) {
+    "use strict";
+    function readEditorBuffer2(plugin, sourcePath, preferredView) {
+      var _a, _b;
+      const views = [];
+      (_b = (_a = plugin.app.workspace).iterateAllLeaves) == null ? void 0 : _b.call(_a, ({ view: view2 }) => {
+        var _a2, _b2;
+        if (((_a2 = view2 == null ? void 0 : view2.file) == null ? void 0 : _a2.path) === sourcePath && ((_b2 = view2.getMode) == null ? void 0 : _b2.call(view2)) === "source" && view2.editor) views.push(view2);
+      });
+      if (!views.length) return null;
+      const view = views.includes(preferredView) ? preferredView : views[0];
+      const content = view.editor.getValue();
+      if (views.some((candidate) => candidate.editor.getValue() !== content)) {
+        throw new Error("Open editors have conflicting unsaved buffers; reconcile them before changing this board.");
+      }
+      return { view, views, content };
+    }
+    function splitsPair(text, offset) {
+      const before = text.charCodeAt(offset - 1);
+      const after = text.charCodeAt(offset);
+      return before >= 55296 && before <= 56319 && after >= 56320 && after <= 57343 || before === 13 && after === 10;
+    }
+    function changedRange(before, after) {
+      let start = 0;
+      while (start < before.length && start < after.length && before[start] === after[start]) start += 1;
+      if (splitsPair(before, start) || splitsPair(after, start)) start -= 1;
+      let end = before.length;
+      let nextEnd = after.length;
+      while (end > start && nextEnd > start && before[end - 1] === after[nextEnd - 1]) {
+        end -= 1;
+        nextEnd -= 1;
+      }
+      if (splitsPair(before, end) || splitsPair(after, nextEnd)) {
+        end += 1;
+        nextEnd += 1;
+      }
+      return { start, end, text: after.slice(start, nextEnd) };
+    }
+    function tryEditorWrite2(plugin, sourcePath, boardId, updater, preferredView) {
+      var _a;
+      const buffer = readEditorBuffer2(plugin, sourcePath, preferredView);
+      if (!buffer) return null;
+      const { view, views, content: before } = buffer;
+      const outcome = updater(before, boardId);
+      const after = outcome.content;
+      if (after !== before) {
+        const change = changedRange(before, after);
+        const orderedViews = [view, ...views.filter((candidate) => candidate !== view)];
+        const editors = [...new Set(orderedViews.map((candidate) => candidate.editor))];
+        const cancelGuards = [];
+        try {
+          for (const candidate of orderedViews) cancelGuards.push((_a = plugin.editorScrollGuards) == null ? void 0 : _a.arm(candidate, after));
+          for (const editor of editors) {
+            const current = editor.getValue();
+            if (current === after) continue;
+            if (current !== before) throw new Error("Open editor changed during this operation; resolve the buffer conflict before continuing.");
+            editor.transaction({ changes: [{
+              from: editor.offsetToPos(change.start),
+              to: editor.offsetToPos(change.end),
+              text: change.text
+            }] }, "eisenhower-matrix");
+          }
+        } catch (error) {
+          for (const cancel of cancelGuards) cancel == null ? void 0 : cancel();
+          const partiallyWritten = editors.some((editor) => {
+            try {
+              return editor.getValue() !== before;
+            } catch (e) {
+              return true;
+            }
+          });
+          if (partiallyWritten) {
+            const partialError = new Error((error == null ? void 0 : error.message) || "An editor write failed after a buffer changed.");
+            partialError.code = "EDITOR_PARTIAL_WRITE";
+            partialError.cause = error;
+            throw partialError;
+          }
+          throw error;
+        }
+      }
+      return { outcome, view, before, after };
+    }
+    module2.exports = { readEditorBuffer: readEditorBuffer2, tryEditorWrite: tryEditorWrite2 };
+  }
+});
+
+// src/editor-scroll-guard.js
+var require_editor_scroll_guard = __commonJS({
+  "src/editor-scroll-guard.js"(exports2, module2) {
+    "use strict";
+    var GUARD_MS = 750;
+    var MAX_CORRECTIONS = 4;
+    var TOLERANCE = 1;
+    function createEditorScrollGuards2() {
+      const active = /* @__PURE__ */ new Map();
+      let disposed = false;
+      const supportsEvents = (target) => typeof (target == null ? void 0 : target.addEventListener) === "function" && typeof (target == null ? void 0 : target.removeEventListener) === "function";
+      return {
+        arm(view, expectedAfter) {
+          var _a, _b, _c;
+          (_a = active.get(view)) == null ? void 0 : _a();
+          const noop = () => {
+          };
+          if (disposed || typeof expectedAfter !== "string") return noop;
+          const root = view == null ? void 0 : view.containerEl, editor = view == null ? void 0 : view.editor;
+          const document2 = root == null ? void 0 : root.ownerDocument, window2 = document2 == null ? void 0 : document2.defaultView;
+          if (![root, document2, window2].every(supportsEvents) || !window2.requestAnimationFrame || !window2.cancelAnimationFrame || typeof (editor == null ? void 0 : editor.getScrollInfo) !== "function" || typeof (editor == null ? void 0 : editor.scrollTo) !== "function" || typeof (editor == null ? void 0 : editor.getValue) !== "function" || typeof (view == null ? void 0 : view.getMode) !== "function") return noop;
+          const visible = () => {
+            var _a2, _b2;
+            if (!root.isConnected || document2.hidden || window2.closed) return false;
+            const rect = (_a2 = root.getBoundingClientRect) == null ? void 0 : _a2.call(root);
+            if (rect && (rect.width <= 0 || rect.height <= 0 || rect.bottom <= 0 || rect.top >= window2.innerHeight)) return false;
+            return ((_b2 = window2.getComputedStyle) == null ? void 0 : _b2.call(window2, root).visibility) !== "hidden";
+          };
+          let position, path, mode;
+          try {
+            path = (_b = view.file) == null ? void 0 : _b.path;
+            mode = view.getMode();
+            if (!path || mode !== "source" || !visible()) return noop;
+            const current = editor.getScrollInfo();
+            if (!Number.isFinite(current.top) || !Number.isFinite(current.left)) return noop;
+            position = { top: current.top, left: current.left };
+          } catch (e) {
+            return noop;
+          }
+          const deadline = Date.now() + GUARD_MS;
+          const listeners = [];
+          let frame = null, timer = null, stopped = false, corrections = 0;
+          const cancel = () => {
+            if (stopped) return;
+            stopped = true;
+            if (frame !== null) window2.cancelAnimationFrame(frame);
+            clearTimeout(timer);
+            for (const [target, type, handler] of listeners) target.removeEventListener(type, handler, true);
+            if (active.get(view) === cancel) active.delete(view);
+          };
+          const valid = (checkContent) => {
+            var _a2;
+            return !stopped && Date.now() < deadline && visible() && view.containerEl === root && view.editor === editor && ((_a2 = view.file) == null ? void 0 : _a2.path) === path && view.getMode() === mode && (!checkContent || editor.getValue() === expectedAfter);
+          };
+          const drifted = () => {
+            const current = editor.getScrollInfo();
+            return Number.isFinite(current.top) && Number.isFinite(current.left) && (Math.abs(current.top - position.top) > TOLERANCE || Math.abs(current.left - position.left) > TOLERANCE);
+          };
+          const schedule = () => {
+            if (stopped || frame !== null) return;
+            frame = window2.requestAnimationFrame(() => {
+              frame = null;
+              try {
+                if (!valid(true)) {
+                  cancel();
+                  return;
+                }
+                if (!drifted()) return;
+                corrections++;
+                editor.scrollTo(position.left, position.top);
+                if (corrections >= MAX_CORRECTIONS) cancel();
+              } catch (e) {
+                cancel();
+              }
+            });
+          };
+          const onScroll = () => {
+            try {
+              if (stopped || Date.now() >= deadline) {
+                cancel();
+                return;
+              }
+              if (!drifted()) return;
+              if (!valid(false)) {
+                cancel();
+                return;
+              }
+              schedule();
+            } catch (e) {
+              cancel();
+            }
+          };
+          const listen = (target, type, handler) => {
+            if (!supportsEvents(target)) return;
+            target.addEventListener(type, handler, { capture: true, passive: true });
+            listeners.push([target, type, handler]);
+          };
+          active.set(view, cancel);
+          listen(root, "scroll", onScroll);
+          for (const target of [document2, window2]) {
+            for (const type of ["pointerdown", "touchstart", "wheel", "keydown", "beforeinput", "compositionstart"]) listen(target, type, cancel);
+          }
+          listen(document2, "visibilitychange", () => {
+            if (document2.hidden) cancel();
+          });
+          listen(window2, "blur", (event) => {
+            if (event.target === window2) cancel();
+          });
+          for (const type of ["pagehide", "resize"]) listen(window2, type, cancel);
+          listen(window2.visualViewport, "resize", cancel);
+          timer = setTimeout(cancel, GUARD_MS);
+          (_c = timer == null ? void 0 : timer.unref) == null ? void 0 : _c.call(timer);
+          schedule();
+          return cancel;
+        },
+        dispose() {
+          disposed = true;
+          for (const cancel of active.values()) cancel();
+        }
+      };
+    }
+    module2.exports = { createEditorScrollGuards: createEditorScrollGuards2 };
+  }
+});
+
 // src/drag-scroll.js
 var require_drag_scroll = __commonJS({
   "src/drag-scroll.js"(exports2, module2) {
@@ -2111,6 +2326,8 @@ var { renderTaskDetails, renderQuickAdd } = require_task_card();
 var { captureBoardView, restoreBoardView } = require_board_view_state();
 var { updateBoardTasks } = require_board_task_updates();
 var { createViewHandoff } = require_view_handoff();
+var { readEditorBuffer, tryEditorWrite } = require_editor_write();
+var { createEditorScrollGuards } = require_editor_scroll_guard();
 var {
   canScrollElement,
   getEdgeScrollVelocity,
@@ -2409,7 +2626,7 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
   }
   async mutate(mutator) {
     if (!this.boardId || this.issues.length) return null;
-    const outcome = await this.plugin.mutateBoard(this.sourcePath, this.boardId, mutator);
+    const outcome = await this.plugin.mutateBoard(this.sourcePath, this.boardId, mutator, this.containerEl);
     return (outcome == null ? void 0 : outcome.result) || null;
   }
   render() {
@@ -2902,7 +3119,7 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     }).open();
   }
   openBoardTitleEditor() {
-    new TextInputModal(this.plugin, this.boardTitle, (title) => this.plugin.renameBoard(this.sourcePath, this.boardId, title), {
+    new TextInputModal(this.plugin, this.boardTitle, (title) => this.plugin.renameBoard(this.sourcePath, this.boardId, title, this.containerEl), {
       modalTitleKey: "modal.editTitle",
       inputLabelKey: "modal.matrixTitle",
       maxLength: 120,
@@ -2914,8 +3131,8 @@ var MatrixBoardRenderChild = class extends MarkdownRenderChild {
     new QuadrantLabelsModal(
       this.plugin,
       { title: labels.title, subtitle: labels.subtitle },
-      (value) => void this.plugin.updateQuadrantLabels(this.sourcePath, this.boardId, quadrant, value),
-      () => void this.plugin.updateQuadrantLabels(this.sourcePath, this.boardId, quadrant, null)
+      (value) => void this.plugin.updateQuadrantLabels(this.sourcePath, this.boardId, quadrant, value, this.containerEl),
+      () => void this.plugin.updateQuadrantLabels(this.sourcePath, this.boardId, quadrant, null, this.containerEl)
     ).open();
   }
   openTaskMenu(event, task) {
@@ -3096,6 +3313,7 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
     await this.loadPluginSettings();
     this.boardRenderers = /* @__PURE__ */ new Set();
     this.viewHandoff = createViewHandoff(this);
+    this.editorScrollGuards = createEditorScrollGuards();
     this.fileQueues = /* @__PURE__ */ new Map();
     this.refreshTimers = /* @__PURE__ */ new Map();
     for (const language of BOARD_LANGUAGES) {
@@ -3117,8 +3335,9 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
     });
   }
   onunload() {
-    var _a;
+    var _a, _b;
     (_a = this.viewHandoff) == null ? void 0 : _a.dispose();
+    (_b = this.editorScrollGuards) == null ? void 0 : _b.dispose();
     for (const timer of this.refreshTimers.values()) window.clearTimeout(timer);
     this.refreshTimers.clear();
   }
@@ -3185,19 +3404,34 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
     }
     this.insertBoard(view.editor);
   }
-  async updateBoard(sourcePath, boardId, updater) {
+  async updateBoard(sourcePath, boardId, updater, originRoot) {
+    var _a, _b;
     const file = this.app.vault.getAbstractFileByPath(sourcePath);
     if (!(file instanceof TFile)) {
       new Notice(this.t("notice.fileMissing"));
       return null;
     }
     let outcome = null;
+    let preferredView;
+    (_b = (_a = this.app.workspace).iterateAllLeaves) == null ? void 0 : _b.call(_a, ({ view }) => {
+      var _a2, _b2, _c;
+      if (originRoot && ((_a2 = view == null ? void 0 : view.containerEl) == null ? void 0 : _a2.contains(originRoot)) && ((_b2 = view.file) == null ? void 0 : _b2.path) === sourcePath && ((_c = view.getMode) == null ? void 0 : _c.call(view)) === "source") preferredView = view;
+    });
+    const expectedEditor = preferredView == null ? void 0 : preferredView.editor;
     const previous = this.fileQueues.get(file) || Promise.resolve();
     const pending = previous.catch(() => void 0).then(async () => {
-      var _a;
-      const finishHandoff = (_a = this.viewHandoff) == null ? void 0 : _a.armForFile(sourcePath);
+      var _a2, _b2, _c;
+      const finishHandoff = (_a2 = this.viewHandoff) == null ? void 0 : _a2.armForFile(sourcePath);
       try {
-        await this.app.vault.process(file, (content) => {
+        let originStillOpen = !preferredView;
+        (_c = (_b2 = this.app.workspace).iterateAllLeaves) == null ? void 0 : _c.call(_b2, ({ view }) => {
+          var _a3, _b3;
+          if (view === preferredView && ((_a3 = view.file) == null ? void 0 : _a3.path) === sourcePath && ((_b3 = view.getMode) == null ? void 0 : _b3.call(view)) === "source" && view.editor === expectedEditor) originStillOpen = true;
+        });
+        if (!originStillOpen) throw new Error("The originating editor changed while this operation was queued.");
+        const edited = tryEditorWrite(this, sourcePath, boardId, updater, preferredView);
+        if (edited) outcome = edited.outcome;
+        else await this.app.vault.process(file, (content) => {
           outcome = updater(content, boardId);
           return outcome.content;
         });
@@ -3216,30 +3450,33 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
     } catch (error) {
       if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
       console.error("Eisenhower Matrix Blocks failed to update a local board", error);
-      new Notice(this.t("notice.saveFailed"), 1e4);
+      new Notice(this.t(error.code === "EDITOR_PARTIAL_WRITE" ? "notice.partialEditorWrite" : "notice.saveFailed"), 1e4);
       await this.refreshFileRenderers(sourcePath);
       return null;
     }
   }
-  mutateBoard(sourcePath, boardId, mutator) {
+  mutateBoard(sourcePath, boardId, mutator, originRoot) {
     return this.updateBoard(
       sourcePath,
       boardId,
-      (content, targetBoardId) => mutateBoardDocument(content, targetBoardId, mutator)
+      (content, targetBoardId) => mutateBoardDocument(content, targetBoardId, mutator),
+      originRoot
     );
   }
-  renameBoard(sourcePath, boardId, title) {
+  renameBoard(sourcePath, boardId, title, originRoot) {
     return this.updateBoard(
       sourcePath,
       boardId,
-      (content, targetBoardId) => renameBoardDocument(content, targetBoardId, title)
+      (content, targetBoardId) => renameBoardDocument(content, targetBoardId, title),
+      originRoot
     );
   }
-  updateQuadrantLabels(sourcePath, boardId, quadrant, labels) {
+  updateQuadrantLabels(sourcePath, boardId, quadrant, labels, originRoot) {
     return this.updateBoard(
       sourcePath,
       boardId,
-      (content, targetBoardId) => updateQuadrantLabelsDocument(content, targetBoardId, quadrant, labels)
+      (content, targetBoardId) => updateQuadrantLabelsDocument(content, targetBoardId, quadrant, labels),
+      originRoot
     );
   }
   refreshBoardRenderers(sourcePath, boardId, data, title, quadrantLabels) {
@@ -3248,6 +3485,7 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
     }
   }
   async refreshFileRenderers(sourcePath) {
+    var _a, _b, _c;
     const renderers = [...this.boardRenderers].filter((renderer) => renderer.sourcePath === sourcePath);
     if (!renderers.length) return;
     const file = this.app.vault.getAbstractFileByPath(sourcePath);
@@ -3257,8 +3495,17 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
     }
     await (this.fileQueues.get(file) || Promise.resolve()).catch(() => void 0);
     try {
-      const content = await this.app.vault.read(file);
+      let content = (_a = readEditorBuffer(this, sourcePath)) == null ? void 0 : _a.content;
+      if (content === void 0) {
+        const diskContent = await this.app.vault.read(file);
+        if (this.fileQueues.has(file)) {
+          this.scheduleFileRefresh(sourcePath);
+          return;
+        }
+        content = (_c = (_b = readEditorBuffer(this, sourcePath)) == null ? void 0 : _b.content) != null ? _c : diskContent;
+      }
       for (const renderer of renderers) {
+        if (!this.boardRenderers.has(renderer) || renderer.sourcePath !== sourcePath) continue;
         try {
           const board = readBoardFromDocument(content, renderer.boardId);
           renderer.setBoardData(board.data, board.title, board.quadrantLabels);
@@ -3281,6 +3528,10 @@ var EisenhowerMatrixBlocksPlugin = class extends Plugin {
     this.refreshTimers.set(sourcePath, timer);
   }
   registerVaultEvents() {
+    this.registerEvent(this.app.workspace.on("editor-change", (_editor, view) => {
+      var _a;
+      if ((_a = view.file) == null ? void 0 : _a.path) this.scheduleFileRefresh(view.file.path);
+    }));
     this.registerEvent(this.app.vault.on("modify", (file) => this.scheduleFileRefresh(file.path)));
     this.registerEvent(this.app.vault.on("delete", (file) => this.scheduleFileRefresh(file.path)));
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {

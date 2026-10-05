@@ -32,6 +32,8 @@ The matrix is inserted at the editor cursor and remains part of the note.
 
 Task updates preserve the surrounding forms and lists, keeping your reading position and unfinished input. When you are scrolled down, new tasks still go to the top without pulling you away from the task you were reading. Scroll continuity is temporary view state, not a saved position across app restarts. Host-replacement protection is best-effort; ambiguous duplicate embeds in one pane are excluded.
 
+In editing mode, task changes use the current editor buffer and Obsidian's normal autosave/undo, preserving unsaved text elsewhere in the note. A short scroll guard targets delayed Live Preview jumps and yields when you touch, scroll or type. If open editors for the same file contain conflicting text, reconcile them before retrying. The 2.8.4 iPhone-specific fix still needs physical-device confirmation.
+
 ## Quick start
 
 1. [Install the plugin](#installation) and enable **Eisenhower Matrix Blocks** in Obsidian.

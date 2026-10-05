@@ -52,6 +52,8 @@ const { renderTaskDetails, renderQuickAdd } = require("./task-card");
 const { captureBoardView, restoreBoardView } = require("./board-view-state");
 const { updateBoardTasks } = require("./board-task-updates");
 const { createViewHandoff } = require("./view-handoff");
+const { readEditorBuffer, tryEditorWrite } = require("./editor-write");
+const { createEditorScrollGuards } = require("./editor-scroll-guard");
 const {
 	canScrollElement,
 	getEdgeScrollVelocity,
@@ -366,7 +368,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 
 	async mutate(mutator) {
 		if (!this.boardId || this.issues.length) return null;
-		const outcome = await this.plugin.mutateBoard(this.sourcePath, this.boardId, mutator);
+		const outcome = await this.plugin.mutateBoard(this.sourcePath, this.boardId, mutator, this.containerEl);
 		return outcome?.result || null;
 	}
 
@@ -882,7 +884,7 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 
 	openBoardTitleEditor() {
 		new TextInputModal(this.plugin, this.boardTitle, (title) =>
-			this.plugin.renameBoard(this.sourcePath, this.boardId, title), {
+			this.plugin.renameBoard(this.sourcePath, this.boardId, title, this.containerEl), {
 			modalTitleKey: "modal.editTitle",
 			inputLabelKey: "modal.matrixTitle",
 			maxLength: 120,
@@ -895,8 +897,8 @@ class MatrixBoardRenderChild extends MarkdownRenderChild {
 		new QuadrantLabelsModal(
 			this.plugin,
 			{ title: labels.title, subtitle: labels.subtitle },
-			(value) => void this.plugin.updateQuadrantLabels(this.sourcePath, this.boardId, quadrant, value),
-			() => void this.plugin.updateQuadrantLabels(this.sourcePath, this.boardId, quadrant, null),
+			(value) => void this.plugin.updateQuadrantLabels(this.sourcePath, this.boardId, quadrant, value, this.containerEl),
+			() => void this.plugin.updateQuadrantLabels(this.sourcePath, this.boardId, quadrant, null, this.containerEl),
 		).open();
 	}
 
@@ -1109,6 +1111,7 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 		await this.loadPluginSettings();
 		this.boardRenderers = new Set();
 		this.viewHandoff = createViewHandoff(this);
+		this.editorScrollGuards = createEditorScrollGuards();
 		this.fileQueues = new Map();
 		this.refreshTimers = new Map();
 
@@ -1133,6 +1136,7 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 
 	onunload() {
 		this.viewHandoff?.dispose();
+		this.editorScrollGuards?.dispose();
 		for (const timer of this.refreshTimers.values()) window.clearTimeout(timer);
 		this.refreshTimers.clear();
 	}
@@ -1208,7 +1212,7 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 		this.insertBoard(view.editor);
 	}
 
-	async updateBoard(sourcePath, boardId, updater) {
+	async updateBoard(sourcePath, boardId, updater, originRoot) {
 		const file = this.app.vault.getAbstractFileByPath(sourcePath);
 		if (!(file instanceof TFile)) {
 			new Notice(this.t("notice.fileMissing"));
@@ -1216,11 +1220,24 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 		}
 
 		let outcome = null;
+		// Capture the pane before queueing: its renderer may be replaced while waiting.
+		let preferredView;
+		this.app.workspace.iterateAllLeaves?.(({ view }) => {
+			if (originRoot && view?.containerEl?.contains(originRoot) && view.file?.path === sourcePath && view.getMode?.() === "source") preferredView = view;
+		});
+		const expectedEditor = preferredView?.editor;
 		const previous = this.fileQueues.get(file) || Promise.resolve();
 		const pending = previous.catch(() => undefined).then(async () => {
 			const finishHandoff = this.viewHandoff?.armForFile(sourcePath);
 			try {
-				await this.app.vault.process(file, (content) => {
+				let originStillOpen = !preferredView;
+				this.app.workspace.iterateAllLeaves?.(({ view }) => {
+					if (view === preferredView && view.file?.path === sourcePath && view.getMode?.() === "source" && view.editor === expectedEditor) originStillOpen = true;
+				});
+				if (!originStillOpen) throw new Error("The originating editor changed while this operation was queued.");
+				const edited = tryEditorWrite(this, sourcePath, boardId, updater, preferredView);
+				if (edited) outcome = edited.outcome;
+				else await this.app.vault.process(file, (content) => {
 					outcome = updater(content, boardId);
 					return outcome.content;
 				});
@@ -1237,27 +1254,27 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 		} catch (error) {
 			if (this.fileQueues.get(file) === pending) this.fileQueues.delete(file);
 			console.error("Eisenhower Matrix Blocks failed to update a local board", error);
-			new Notice(this.t("notice.saveFailed"), 10000);
+			new Notice(this.t(error.code === "EDITOR_PARTIAL_WRITE" ? "notice.partialEditorWrite" : "notice.saveFailed"), 10000);
 			await this.refreshFileRenderers(sourcePath);
 			return null;
 		}
 	}
 
-	mutateBoard(sourcePath, boardId, mutator) {
+	mutateBoard(sourcePath, boardId, mutator, originRoot) {
 		return this.updateBoard(sourcePath, boardId, (content, targetBoardId) =>
-			mutateBoardDocument(content, targetBoardId, mutator),
+			mutateBoardDocument(content, targetBoardId, mutator), originRoot,
 		);
 	}
 
-	renameBoard(sourcePath, boardId, title) {
+	renameBoard(sourcePath, boardId, title, originRoot) {
 		return this.updateBoard(sourcePath, boardId, (content, targetBoardId) =>
-			renameBoardDocument(content, targetBoardId, title),
+			renameBoardDocument(content, targetBoardId, title), originRoot,
 		);
 	}
 
-	updateQuadrantLabels(sourcePath, boardId, quadrant, labels) {
+	updateQuadrantLabels(sourcePath, boardId, quadrant, labels, originRoot) {
 		return this.updateBoard(sourcePath, boardId, (content, targetBoardId) =>
-			updateQuadrantLabelsDocument(content, targetBoardId, quadrant, labels),
+			updateQuadrantLabelsDocument(content, targetBoardId, quadrant, labels), originRoot,
 		);
 	}
 
@@ -1277,8 +1294,15 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 		}
 		await (this.fileQueues.get(file) || Promise.resolve()).catch(() => undefined);
 		try {
-			const content = await this.app.vault.read(file);
+			let content = readEditorBuffer(this, sourcePath)?.content;
+			if (content === undefined) {
+				const diskContent = await this.app.vault.read(file);
+				// A view may open, or another write may start, while disk is being read.
+				if (this.fileQueues.has(file)) { this.scheduleFileRefresh(sourcePath); return; }
+				content = readEditorBuffer(this, sourcePath)?.content ?? diskContent;
+			}
 			for (const renderer of renderers) {
+				if (!this.boardRenderers.has(renderer) || renderer.sourcePath !== sourcePath) continue;
 				try {
 					const board = readBoardFromDocument(content, renderer.boardId);
 					renderer.setBoardData(board.data, board.title, board.quadrantLabels);
@@ -1303,6 +1327,9 @@ class EisenhowerMatrixBlocksPlugin extends Plugin {
 	}
 
 	registerVaultEvents() {
+		this.registerEvent(this.app.workspace.on("editor-change", (_editor, view) => {
+			if (view.file?.path) this.scheduleFileRefresh(view.file.path);
+		}));
 		this.registerEvent(this.app.vault.on("modify", (file) => this.scheduleFileRefresh(file.path)));
 		this.registerEvent(this.app.vault.on("delete", (file) => this.scheduleFileRefresh(file.path)));
 		this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {

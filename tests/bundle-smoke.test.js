@@ -80,7 +80,7 @@ test("new installations follow the Obsidian interface language", async () => {
 	const plugin = new PluginClass();
 	let command = null;
 	plugin.app = {
-		workspace: { onLayoutReady() {} },
+		workspace: { onLayoutReady() {}, on() { return {}; } },
 		vault: { on() { return {}; } },
 	};
 	plugin.loadData = async () => null;
@@ -104,6 +104,7 @@ function createPluginHarness(PluginClass, initialContent) {
 	plugin.boardRenderers = new Set();
 	plugin.fileQueues = new Map();
 	plugin.app = {
+		workspace: { iterateAllLeaves() {} },
 		vault: {
 			getAbstractFileByPath(path) { return path === file.path ? file : null; },
 			async process(target, callback) {
@@ -136,7 +137,7 @@ test("plugin registers an inline processor and insert command without a global v
 	let registerViewCalls = 0;
 	let settingTab = null;
 	plugin.app = {
-		workspace: { onLayoutReady(callback) { layoutReadyCallback = callback; } },
+		workspace: { onLayoutReady(callback) { layoutReadyCallback = callback; }, on() { return {}; } },
 		vault: { on() { return {}; } },
 	};
 	plugin.loadData = async () => ({ settingsVersion: 2, language: "zh" });
@@ -166,7 +167,7 @@ test("English settings localize commands and persist without dropping plugin dat
 	let renderCount = 0;
 	const ribbonAttributes = {};
 	plugin.app = {
-		workspace: { onLayoutReady() {} },
+		workspace: { onLayoutReady() {}, on() { return {}; } },
 		vault: { on() { return {}; } },
 	};
 	plugin.loadData = async () => ({ settingsVersion: 2, language: "en", migration: { fromVersion: "1.1.0" } });

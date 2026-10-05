@@ -1,8 +1,10 @@
 "use strict";
 
+const { TFile } = require("obsidian");
 const { MatrixBoardRenderChild, EisenhowerMatrixBlocksPlugin } = require("../../src/main");
 const { normalizeData } = require("../../src/core");
-const { findBoardCodeBlocks, renderBoardCodeBlock, mutateBoardDocument, renameBoardDocument, updateQuadrantLabelsDocument } = require("../../src/board-store");
+const { findBoardCodeBlocks, readBoardFromDocument, renderBoardCodeBlock, mutateBoardDocument, renameBoardDocument, updateQuadrantLabelsDocument } = require("../../src/board-store");
+const { createEditorScrollGuards } = require("../../src/editor-scroll-guard");
 const { createViewHandoff } = require("../../src/view-handoff");
 
 const params = new URLSearchParams(location.search);
@@ -52,6 +54,8 @@ plugin.app = {
 };
 plugin.boardRenderers = new Set();
 plugin.viewHandoff = createViewHandoff(plugin);
+plugin.fileQueues = new Map();
+plugin.refreshTimers = new Map();
 let renderer;
 let failNextSave = false;
 const persist = (operation) => {
@@ -73,6 +77,106 @@ plugin.showUndo = (message, undo) => {
 const board = findBoardCodeBlocks(markdown)[0];
 renderer = new MatrixBoardRenderChild(document.querySelector("#board"), plugin, "Browser fixture.md", board.source);
 renderer.onload();
+let editorWritesFixture = null;
+const offsetToPos = (source, offset) => {
+	const prefix = source.slice(0, offset);
+	const lastNewline = prefix.lastIndexOf("\n");
+	return { line: (prefix.match(/\n/g) || []).length, ch: offset - lastNewline - 1 };
+};
+const posToOffset = (source, position) => {
+	let line = 0, start = 0;
+	while (line < position.line) {
+		const newline = source.indexOf("\n", start);
+		if (newline < 0) return source.length;
+		start = newline + 1; line += 1;
+	}
+	return Math.min(start + position.ch, source.length);
+};
+const enableEditorWrites = (options = {}) => {
+	if (editorWritesFixture) return editorWritesFixture.api;
+	const pane = previewView.containerEl;
+	const file = Object.assign(new TFile(), { path: "Browser fixture.md" });
+	let diskMarkdown = markdown;
+	let jumpFrames = options.jumpFrames === 1 ? 1 : 2;
+	let jumpEnabled = options.jumpEnabled !== false;
+	let cancelNextWith = null;
+	const stats = { transactions: 0, process: 0, read: 0, hostJumps: 0, guardScrolls: 0, lastJumpTarget: null };
+	const afterFrames = (count, callback) => {
+		if (count <= 0) callback();
+		else requestAnimationFrame(() => afterFrames(count - 1, callback));
+	};
+	const jumpToBoard = () => {
+		const boardRoot = renderer.containerEl;
+		const target = Math.max(0, pane.scrollTop + boardRoot.getBoundingClientRect().top - pane.getBoundingClientRect().top);
+		pane.scrollTop = target;
+		stats.hostJumps += 1;
+		stats.lastJumpTarget = pane.scrollTop;
+		pane.dispatchEvent(new Event("scroll"));
+	};
+	const fixtureEditor = {
+		getValue: () => markdown,
+		offsetToPos: offset => offsetToPos(markdown, offset),
+		getScrollInfo: () => ({ top: pane.scrollTop, left: pane.scrollLeft }),
+		scrollTo(left, top) {
+			stats.guardScrolls += 1;
+			pane.scrollLeft = left;
+			pane.scrollTop = top;
+			pane.dispatchEvent(new Event("scroll"));
+		},
+		transaction(spec) {
+			const before = markdown;
+			const changes = spec.changes.map(change => ({
+				...change,
+				fromOffset: posToOffset(before, change.from),
+				toOffset: posToOffset(before, change.to),
+			})).sort((left, right) => right.fromOffset - left.fromOffset);
+			for (const change of changes) markdown = `${markdown.slice(0, change.fromOffset)}${change.text}${markdown.slice(change.toOffset)}`;
+			stats.transactions += 1;
+			if (cancelNextWith) {
+				const type = cancelNextWith;
+				cancelNextWith = null;
+				requestAnimationFrame(() => document.dispatchEvent(new Event(type, { bubbles: true })));
+			}
+			if (jumpEnabled) afterFrames(jumpFrames, jumpToBoard);
+		},
+	};
+	previewView.file = file;
+	previewView.editor = fixtureEditor;
+	previewView.getMode = () => "source";
+	plugin.app.vault = {
+		getAbstractFileByPath: path => path === file.path ? file : null,
+		async process(target, updater) {
+			if (target !== file) throw new Error("Unexpected fixture file");
+			stats.process += 1;
+			diskMarkdown = updater(diskMarkdown);
+		},
+		async read(target) {
+			if (target !== file) throw new Error("Unexpected fixture file");
+			stats.read += 1;
+			return diskMarkdown;
+		},
+	};
+	delete plugin.mutateBoard;
+	delete plugin.renameBoard;
+	delete plugin.updateQuadrantLabels;
+	plugin.fileQueues = new Map();
+	plugin.refreshTimers = new Map();
+	plugin.editorScrollGuards?.dispose?.();
+	plugin.editorScrollGuards = createEditorScrollGuards();
+	const api = {
+		getStats: () => ({ ...stats }),
+		getBuffer: () => markdown,
+		getDisk: () => diskMarkdown,
+		getBufferData: () => JSON.parse(JSON.stringify(readBoardFromDocument(markdown, boardId).data)),
+		getDiskData: () => JSON.parse(JSON.stringify(readBoardFromDocument(diskMarkdown, boardId).data)),
+		setJumpEnabled: value => { jumpEnabled = Boolean(value); },
+		setJumpFrames: value => { jumpFrames = value === 1 ? 1 : 2; },
+		cancelNextWith: type => { cancelNextWith = type; },
+	};
+	editorWritesFixture = { api, fixtureEditor };
+	window.matrixPreview.editorWrites = api;
+	return api;
+};
 const replaceForWrite = () => {
 	const finish = plugin.viewHandoff.armForFile("Browser fixture.md");
 	const oldRenderer = renderer;
@@ -95,6 +199,9 @@ window.matrixPreview = {
 	getMarkdown: () => markdown,
 	getData: () => JSON.parse(JSON.stringify(renderer.data)),
 	failNextSave: () => { failNextSave = true; },
+	// Opt-in only: restores production persistence methods and emulates a public
+	// source editor plus a late host scroll. Existing renderer QA stays in-memory.
+	enableEditorWrites,
 	// Simulates an Obsidian code-block host replacing its renderer root after a
 	// write. It exercises plugin handoff logic, not Obsidian's own view lifecycle.
 	replaceForWrite,

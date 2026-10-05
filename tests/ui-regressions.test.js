@@ -6,7 +6,7 @@ const Module = require("node:module");
 const { readFileSync } = require("node:fs");
 const { dirname, join } = require("node:path");
 const { addTask, completeTask, restoreTask, createEmptyData } = require("../src/core");
-const { renderBoardSource } = require("../src/board-store");
+const { readBoardFromDocument, renderBoardCodeBlock, renderBoardSource } = require("../src/board-store");
 const { translate } = require("../src/i18n");
 
 class FakeElement {
@@ -244,9 +244,264 @@ function createRenderer(data, app = null, sourcePath = "Projects.md", boardId = 
 	return { container, renderer };
 }
 
+function editorOffsetToPos(source, offset) {
+	const prefix = source.slice(0, offset);
+	const lastNewline = prefix.lastIndexOf("\n");
+	return { line: (prefix.match(/\n/g) || []).length, ch: offset - lastNewline - 1 };
+}
+
+function editorPosToOffset(source, position) {
+	let line = 0;
+	let start = 0;
+	while (line < position.line) {
+		const newline = source.indexOf("\n", start);
+		if (newline < 0) return source.length;
+		start = newline + 1;
+		line += 1;
+	}
+	return Math.min(start + position.ch, source.length);
+}
+
+function createPublicEditor(initialValue, transactionError = null) {
+	let value = initialValue;
+	const transactions = [];
+	return {
+		getValue: () => value,
+		offsetToPos: offset => editorOffsetToPos(value, offset),
+		transaction(spec) {
+			if (transactionError) throw transactionError;
+			transactions.push(spec);
+			for (const change of [...spec.changes].sort((left, right) =>
+				editorPosToOffset(value, right.from) - editorPosToOffset(value, left.from))) {
+				const from = editorPosToOffset(value, change.from);
+				const to = editorPosToOffset(value, change.to);
+				value = `${value.slice(0, from)}${change.text}${value.slice(to)}`;
+			}
+		},
+		get transactions() { return transactions; },
+	};
+}
+
+function createEditorView(path, editor, containerEl = new FakeElement()) {
+	return { file: { path }, editor, containerEl, getMode: () => "source" };
+}
+
+function createWritePlugin(path, initialDiskContent, views = []) {
+	const { EisenhowerMatrixBlocksPlugin } = loadUiClasses();
+	const file = Object.assign(new TFile(), { path });
+	let diskContent = initialDiskContent;
+	const calls = { process: 0, read: 0 };
+	const plugin = Object.assign(new EisenhowerMatrixBlocksPlugin(), {
+		app: {
+			workspace: {
+				iterateAllLeaves(callback) {
+					for (const view of views) callback({ view });
+				},
+			},
+			vault: {
+				getAbstractFileByPath(requested) { return requested === path ? file : null; },
+				async process(target, updater) {
+					assert.equal(target, file);
+					calls.process += 1;
+					diskContent = updater(diskContent);
+				},
+				async read(target) {
+					assert.equal(target, file);
+					calls.read += 1;
+					return diskContent;
+				},
+			},
+		},
+		boardRenderers: new Set(),
+		fileQueues: new Map(),
+		viewHandoff: null,
+		t: key => key,
+	});
+	return { plugin, file, calls, getDiskContent: () => diskContent };
+}
+
 function findByLabel(container, label) {
 	return container.descendants().find((element) => element.getAttribute("aria-label") === label) || null;
 }
+
+test("plugin mutations prefer the latest source editor buffer without reading or processing the vault", async () => {
+	const path = "Projects/Editor-first.md";
+	const boardId = "board-editor-first";
+	const disk = renderBoardCodeBlock(boardId, createEmptyData());
+	const buffer = `# Unsaved heading\n\n${disk}\n\nUnsaved prose outside the board.`;
+	const editor = createPublicEditor(buffer);
+	const { plugin, calls, getDiskContent } = createWritePlugin(path, disk, [createEditorView(path, editor)]);
+
+	const outcome = await plugin.mutateBoard(path, boardId, draft => addTask(draft, "Editor-only task", "do", {
+		idFactory: () => "editor-only-task",
+		now: new Date("2026-10-06T08:00:00.000Z"),
+	}));
+
+	assert.equal(outcome.data.tasks[0].id, "editor-only-task");
+	assert.deepEqual(calls, { process: 0, read: 0 }, "an open source buffer must bypass stale vault I/O");
+	assert.equal(editor.transactions.length, 1);
+	assert.equal(readBoardFromDocument(editor.getValue(), boardId).data.tasks[0].id, "editor-only-task");
+	assert.match(editor.getValue(), /^# Unsaved heading/);
+	assert.match(editor.getValue(), /Unsaved prose outside the board\.$/);
+	assert.equal(getDiskContent(), disk, "Obsidian autosave owns persistence after an editor transaction");
+});
+
+test("refreshFileRenderers reads the current editor buffer instead of stale disk content", async () => {
+	const path = "Projects/Refresh-buffer.md";
+	const boardId = "board-refresh-buffer";
+	const disk = renderBoardCodeBlock(boardId, createEmptyData());
+	const bufferData = createEmptyData();
+	addTask(bufferData, "Unsaved refresh task", "schedule", { idFactory: () => "refresh-task" });
+	const editor = createPublicEditor(renderBoardCodeBlock(boardId, bufferData));
+	const { plugin, calls } = createWritePlugin(path, disk, [createEditorView(path, editor)]);
+	let refreshed = null;
+	let refreshError = null;
+	plugin.boardRenderers.add({
+		sourcePath: path,
+		boardId,
+		setBoardData(data, title, quadrantLabels) { refreshed = { data, title, quadrantLabels }; },
+		setBoardError(error) { refreshError = error; },
+	});
+
+	await plugin.refreshFileRenderers(path);
+
+	assert.deepEqual(calls, { process: 0, read: 0 }, "refresh must not replace an open unsaved buffer with stale disk data");
+	assert.equal(refreshError, null);
+	assert.equal(refreshed.data.tasks[0].id, "refresh-task");
+});
+
+test("plugin mutations retain Vault.process when no editable source view exists", async () => {
+	const path = "Projects/Vault-fallback.md";
+	const boardId = "board-vault-fallback";
+	const disk = renderBoardCodeBlock(boardId, createEmptyData());
+	const { plugin, calls, getDiskContent } = createWritePlugin(path, disk, []);
+
+	const outcome = await plugin.mutateBoard(path, boardId, draft => addTask(draft, "Vault task", "delegate", {
+		idFactory: () => "vault-task",
+		now: new Date("2026-10-06T08:30:00.000Z"),
+	}));
+
+	assert.equal(outcome.data.tasks[0].id, "vault-task");
+	assert.equal(readBoardFromDocument(getDiskContent(), boardId).data.tasks[0].id, "vault-task");
+	assert.deepEqual(calls, { process: 1, read: 0 });
+});
+
+test("an editor transaction failure never retries the mutation against stale vault content", async () => {
+	const path = "Projects/Editor-error.md";
+	const boardId = "board-editor-error";
+	const disk = renderBoardCodeBlock(boardId, createEmptyData());
+	const editor = createPublicEditor(`# Unsaved\n\n${disk}`, new Error("Editor transaction rejected"));
+	const { plugin, calls, getDiskContent } = createWritePlugin(path, disk, [createEditorView(path, editor)]);
+	const originalError = console.error;
+	console.error = () => {};
+	let outcome;
+	try {
+		outcome = await plugin.mutateBoard(path, boardId, draft => addTask(draft, "Must not reach disk", "do", {
+			idFactory: () => "must-not-write",
+		}));
+	} finally {
+		console.error = originalError;
+	}
+
+	assert.deepEqual(calls, { process: 0, read: 0 }, "a rejected editor transaction must not fall back to Vault.process");
+	assert.equal(outcome, null);
+	assert.equal(getDiskContent(), disk);
+	assert.equal(editor.getValue(), `# Unsaved\n\n${disk}`);
+});
+
+test("queued plugin mutations each read the newest editor buffer produced by the prior write", async () => {
+	const path = "Projects/Queued-editor.md";
+	const boardId = "board-queued-editor";
+	const disk = renderBoardCodeBlock(boardId, createEmptyData());
+	const editor = createPublicEditor(disk);
+	const { plugin, calls } = createWritePlugin(path, disk, [createEditorView(path, editor)]);
+	const add = (id, title) => plugin.mutateBoard(path, boardId, draft => addTask(draft, title, "do", {
+		idFactory: () => id,
+		now: new Date("2026-10-06T09:00:00.000Z"),
+	}));
+
+	const first = add("queued-first", "First queued task");
+	const second = add("queued-second", "Second queued task");
+	await Promise.all([first, second]);
+
+	assert.deepEqual(
+		readBoardFromDocument(editor.getValue(), boardId).data.tasks.map(task => task.id).sort(),
+		["queued-first", "queued-second"],
+	);
+	assert.equal(editor.transactions.length, 2);
+	assert.deepEqual(calls, { process: 0, read: 0 });
+});
+
+test("an origin renderer root prefers the source editor in its own pane", async () => {
+	const path = "Projects/Origin-pane.md";
+	const boardId = "board-origin-pane";
+	const content = renderBoardCodeBlock(boardId, createEmptyData());
+	const firstEditor = createPublicEditor(content);
+	const secondEditor = createPublicEditor(content);
+	const firstContainer = new FakeElement();
+	const secondContainer = new FakeElement();
+	const originRoot = secondContainer.createDiv({ cls: "qt-board" });
+	const views = [
+		createEditorView(path, firstEditor, firstContainer),
+		createEditorView(path, secondEditor, secondContainer),
+	];
+	const { plugin, calls } = createWritePlugin(path, content, views);
+	const order = [];
+	for (const [index, editor] of [firstEditor, secondEditor].entries()) {
+		const transaction = editor.transaction;
+		editor.transaction = spec => { order.push(index); transaction(spec); };
+	}
+
+	await plugin.mutateBoard(path, boardId, draft => addTask(draft, "Origin pane task", "eliminate", {
+		idFactory: () => "origin-task",
+		now: new Date("2026-10-06T09:30:00.000Z"),
+	}), originRoot);
+
+	assert.equal(firstEditor.transactions.length, 1, "identical sibling editors stay synchronized");
+	assert.equal(secondEditor.transactions.length, 1);
+	assert.deepEqual(order, [1, 0], "the initiating pane owns the first transaction");
+	assert.equal(readBoardFromDocument(secondEditor.getValue(), boardId).data.tasks[0].id, "origin-task");
+	assert.deepEqual(calls, { process: 0, read: 0 });
+});
+
+test("queued writes retain their originating view across a renderer root replacement", async () => {
+	const path = "Queued.md", boardId = "board-queued";
+	const content = renderBoardCodeBlock(boardId, createEmptyData());
+	const first = createEditorView(path, createPublicEditor(content));
+	const origin = createEditorView(path, createPublicEditor(content));
+	const root = origin.containerEl.createDiv();
+	const { plugin, file } = createWritePlugin(path, content, [first, origin]);
+	const order = [];
+	for (const view of [first, origin]) {
+		const transact = view.editor.transaction;
+		view.editor.transaction = spec => { order.push(view); transact(spec); };
+	}
+	let release;
+	plugin.fileQueues.set(file, new Promise(resolve => { release = resolve; }));
+	const pending = plugin.mutateBoard(path, boardId, draft => addTask(draft, "Queued", "do"), root);
+	root.remove();
+	release();
+	assert.ok(await pending);
+	assert.equal(order[0], origin);
+});
+
+test("a queued write refuses a navigated origin rather than modifying disk or another pane", async () => {
+	const path = "Before.md", boardId = "board-before";
+	const content = renderBoardCodeBlock(boardId, createEmptyData());
+	const view = createEditorView(path, createPublicEditor(content));
+	const root = view.containerEl.createDiv();
+	const { plugin, file, calls } = createWritePlugin(path, content, [view]);
+	let release;
+	plugin.fileQueues.set(file, new Promise(resolve => { release = resolve; }));
+	const pending = plugin.mutateBoard(path, boardId, draft => addTask(draft, "Do not write", "do"), root);
+	view.file = { path: "After.md" };
+	release();
+	const logError = console.error;
+	console.error = () => {};
+	try { assert.equal(await pending, null); } finally { console.error = logError; }
+	assert.equal(view.editor.transactions.length, 0);
+	assert.equal(calls.process, 0);
+});
 
 test("board layout changes only this view and preserves live unsaved inputs", () => {
 	const data = createEmptyData();
@@ -353,6 +608,7 @@ test("vault rename events move layout preferences and open renderer paths togeth
 	const plugin = first.renderer.plugin;
 	const callbacks = new Map();
 	plugin.app.vault = { on: (event, callback) => { callbacks.set(event, callback); } };
+	plugin.app.workspace = { on: (event, callback) => { callbacks.set(event, callback); } };
 	plugin.registerEvent = () => {};
 	plugin.scheduleFileRefresh = () => {};
 	plugin.registerVaultEvents();

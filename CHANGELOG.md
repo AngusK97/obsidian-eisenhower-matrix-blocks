@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.8.4 - 2026-10-06
+
+- Apply task changes through a minimal public Editor transaction when the note is open for editing, preserving unsaved surrounding text and letting Obsidian handle selection mapping, undo and autosave. Background files retain atomic Vault processing; conflicting open buffers refuse the write instead of overwriting content.
+- Refresh from the live editing buffer, preventing old disk content from temporarily reverting tasks before autosave.
+- Add bounded, pane-local protection against delayed editor scrolling after a task operation. New touch, scrolling, typing, viewport changes or navigation cancel it immediately. This targets the remaining iPhone Live Preview jump report; physical iPhone acceptance is still pending.
+- Keep task Markdown, layout, settings and dependencies unchanged.
+
 ## 2.8.3 - 2026-10-04
 
 - Update task cards locally instead of rebuilding the matrix after adding, moving, editing or completing tasks. Ignore identical refresh notifications and clear submitted forms in place.
